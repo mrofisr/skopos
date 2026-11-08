@@ -9,6 +9,7 @@ your role; every link is relative to this `docs/` directory.
 | --- | --- |
 | [Project README](../README.md) | What Skopos is, why it exists, status, architecture, quick start |
 | [Installation and operations](install.md) | Kubernetes/Helm install, configuration, auth, Grafana, upgrades |
+| [Alpha exit plan](alpha-exit-plan.md) | The seven exit criteria, micro-ticket backlog, cut line, and human gates |
 | [Support matrix](support-matrix.md) | What is implemented and what is explicitly not supported |
 | [Beta gate status](beta-gates.md) | Evidence for each quality gate and what remains open |
 
