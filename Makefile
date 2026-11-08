@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi compat-cerberus storage-test bench release release-dry-run release-check verify-release scorecard issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi compat-cerberus storage-test bench release release-dry-run release-check verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
 
 help:
 	@printf '%s\n' \
@@ -31,6 +31,9 @@ help:
 		'release-check     release preflight: vet, tests, Helm, vendor, script syntax' \
 		'verify-release    verify signatures and attestations for VERSION=...' \
 		'scorecard         run pinned OpenSSF Scorecard (needs GITHUB_AUTH_TOKEN)' \
+		'coverage          run tests and enforce the per-package coverage floor' \
+		'coverage-report   print per-package coverage against the floor' \
+		'coverage-write    regenerate coverage-floor.json from measured coverage' \
 		'issues-manifest   regenerate issues/alpha-exit.json from the plan' \
 		'issues-manifest-check  fail when the checked-in manifest is stale' \
 		'issues-lint       validate the issue manifest' \
@@ -100,6 +103,18 @@ verify-release:
 
 scorecard:
 	./scripts/scorecard.sh
+
+coverage:
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) run ./cmd/skopos-coverage gate --profile coverage.out --floor test/quality/coverage-floor.json --previous-ref origin/development
+
+coverage-report:
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) run ./cmd/skopos-coverage report --profile coverage.out --floor test/quality/coverage-floor.json
+
+coverage-write:
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) run ./cmd/skopos-coverage write --profile coverage.out --floor test/quality/coverage-floor.json
 
 issues-manifest:
 	$(GO) run ./cmd/skopos-issues manifest --write
