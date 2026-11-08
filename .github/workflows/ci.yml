@@ -41,6 +41,8 @@ jobs:
           git diff --exit-code -- vendor go.mod go.sum
       - name: Build
         run: go build ./...
+      - name: Verify issue manifest
+        run: make issues-manifest-check
       - name: Vet
         run: go vet ./...
       - name: Unit tests
