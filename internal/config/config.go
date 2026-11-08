@@ -222,6 +222,11 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.QueryTimeout <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_QUERY_TIMEOUT: must be positive")
 	}
+	if cfg.MaxExecutionTime > cfg.QueryTimeout {
+		return Config{}, fmt.Errorf(
+			"SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME must not exceed SKOPOS_QUERY_TIMEOUT: execution %s > query %s",
+			cfg.MaxExecutionTime, cfg.QueryTimeout)
+	}
 	if cfg.Mode == ModeFrontend && len(cfg.QueryURLs) == 0 {
 		return Config{}, fmt.Errorf("SKOPOS_QUERY_URLS: at least one URL is required in frontend mode")
 	}

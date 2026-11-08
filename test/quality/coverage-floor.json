@@ -1,7 +1,7 @@
 {
   "module": "github.com/jawaracloud/skopos",
   "packages": {
-    "cmd/gateway": 46.2,
+    "cmd/gateway": 46.6,
     "cmd/skopos-checkpoint": 52,
     "cmd/skopos-coverage": 0,
     "cmd/skopos-issues": 0,
@@ -10,7 +10,7 @@
     "internal/auth": 100,
     "internal/chclient": 73.9,
     "internal/checkpoint": 84.9,
-    "internal/config": 81.3,
+    "internal/config": 82.1,
     "internal/frontend": 87.3,
     "internal/httpapi": 91,
     "internal/issueops": 80.8,

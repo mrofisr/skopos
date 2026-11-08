@@ -167,7 +167,7 @@ The important values are:
 | `clickhouse.ttl.metricsDays` | `30` | Metrics TTL in days. |
 | `clickhouse.persistence.size` | `50Gi` | PVC request. |
 | `clickhouse.persistence.storageClass` | `""` | Empty uses the cluster default. |
-| `clickhouse.limits.*` | see `values.yaml` | Gateway user limits in ClickHouse, also used by the gateway client. |
+| `clickhouse.limits.*` | see `values.yaml` | Gateway user limits in ClickHouse, also used by the gateway client. `maxExecutionTimeSeconds` is also the query timeout in the gateway and query pods, so the HTTP write timeout is execution time plus 5 s; a query timeout below the execution time is rejected at startup. |
 | `clickhouse.ttl.*` | see `values.yaml` | Table TTLs. The chart keeps ClickHouse and the init client in UTC. Ignored for signal tables when tiered storage is enabled. |
 | `clickhouse.storage.enabled` | `false` | Optional tiered storage: hot local PVC plus S3-compatible cold volume. Requires a bucket and credentials. See [storage.md](storage.md). |
 | `clickhouse.storage.hotDays`, `totalDays` | `3`, `30` | Move parts to cold after `hotDays`; delete after `totalDays`. These replace `clickhouse.ttl.*` when storage is enabled. |
