@@ -1,0 +1,52 @@
+name: pr-guard
+
+# Read-only on purpose. A same-repository branch runs the guard from the pull
+# request head; a fork checks out the base commit so fork code never runs with
+# a token, skips the issue lookup, and still runs the freeze-file check.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: pr-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: PR traceability and freeze guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the pull request head for a same-repository branch
+        if: ${{ github.event.pull_request.head.repo != null && !github.event.pull_request.head.repo.fork }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check out the base commit for a fork
+        if: ${{ github.event.pull_request.head.repo == null || github.event.pull_request.head.repo.fork }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - name: Collect changed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename' > /tmp/pr-files.txt
+      - name: Check traceability and frozen paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/skopos-prcheck --event "$GITHUB_EVENT_PATH" --files /tmp/pr-files.txt
