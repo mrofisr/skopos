@@ -754,8 +754,10 @@ type:micro  type:spike
 frozen  backlog:post-alpha  owner:human
 ```
 
-The issue manifest is the source of truth. `make issues-sync` has a dry-run
-mode and is idempotent; `make issues-lint` runs on a schedule and inside
+The issue manifest is generated from this document. `make issues-manifest`
+writes `issues/alpha-exit.json`; CI fails when the checked-in manifest is stale.
+`make issues-sync` has a dry-run mode and is idempotent; `make issues-lint`
+validates the manifest, and its live mode runs on a schedule and inside
 `alpha-exit-check`, not on every fork PR. Every AX ticket body uses the template
 in section 4 and links back to this document.
 

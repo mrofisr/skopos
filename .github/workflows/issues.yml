@@ -1,0 +1,33 @@
+name: issues
+
+# The issue lint is read-only but needs an authenticated API call, so it runs
+# on a schedule and on demand instead of on every pull request. Fork PRs never
+# reach it.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  lint:
+    name: Alpha-exit issue lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - name: Lint manifest and live issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make issues-lint-live

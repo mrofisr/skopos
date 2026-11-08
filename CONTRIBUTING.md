@@ -65,6 +65,25 @@ New seams need agreement in the PR description before tests are written.
   versions change only in separate, human-reviewed PRs.
 - No third-party Helm subcharts.
 
+## Alpha-exit issue workflow
+
+The alpha exit plan is [docs/alpha-exit-plan.md](docs/alpha-exit-plan.md). Every
+AX ticket is generated from it; do not create an AX issue by hand or edit its
+body in GitHub.
+
+```sh
+make issues-manifest        # regenerate issues/alpha-exit.json after a plan edit
+make issues-manifest-check  # CI: fail when the checked-in manifest is stale
+make issues-lint            # validate the manifest locally
+make issues-lint-live       # read-only lint of the live alpha-exit issues
+make issues-sync            # dry run; prints the labels and issues it would change
+make issues-sync APPLY=1    # apply, maintainer-only
+```
+
+The sync is idempotent. It owns the `phase:*`, `ec:*`, `type:*`, `owner:*`,
+`backlog:*`, and `frozen` labels and leaves unrelated labels alone. The live
+lint runs from the scheduled `issues` workflow, not on fork pull requests.
+
 ## Development loop
 
 1. Write one failing test at the agreed seam.
