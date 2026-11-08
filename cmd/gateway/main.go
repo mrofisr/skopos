@@ -85,7 +85,7 @@ func runFrontend(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) 
 		"auth_enabled", cfg.AuthEnabled,
 	)
 
-	return serve(cfg.ListenAddr, fe.Handler(), logger)
+	return serve(cfg.ListenAddr, fe.Handler(), logger, cfg.QueryTimeout)
 }
 
 func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) error {
@@ -188,20 +188,27 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		logger.Info("starting gateway", attrs...)
 	}
 
-	return serve(cfg.ListenAddr, api.Handler(), logger)
+	return serve(cfg.ListenAddr, api.Handler(), logger, cfg.QueryTimeout)
 }
 
-func serve(addr string, handler http.Handler, logger *slog.Logger) error {
-	srv := &http.Server{
+// newServer builds the HTTP server. WriteTimeout is derived from the query
+// timeout plus a margin for encoding and writing the response, so a query that
+// runs to its deadline still finishes instead of being reset mid-response.
+func newServer(addr string, handler http.Handler, logger *slog.Logger, queryTimeout time.Duration) *http.Server {
+	return &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      queryTimeout + 5*time.Second,
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
+}
+
+func serve(addr string, handler http.Handler, logger *slog.Logger, queryTimeout time.Duration) error {
+	srv := newServer(addr, handler, logger, queryTimeout)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

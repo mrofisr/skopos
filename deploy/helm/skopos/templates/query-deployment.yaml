@@ -97,6 +97,8 @@ spec:
                   key: gateway-password
             - name: SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME
               value: {{ printf "%ds" (int64 .Values.clickhouse.limits.maxExecutionTimeSeconds) | quote }}
+            - name: SKOPOS_QUERY_TIMEOUT
+              value: {{ printf "%ds" (int64 .Values.clickhouse.limits.maxExecutionTimeSeconds) | quote }}
             - name: SKOPOS_CLICKHOUSE_MAX_MEMORY_USAGE
               value: {{ .Values.clickhouse.limits.maxMemoryUsageBytes | int64 | quote }}
             - name: SKOPOS_CLICKHOUSE_MAX_ROWS_TO_READ

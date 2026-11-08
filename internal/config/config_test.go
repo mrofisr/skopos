@@ -64,6 +64,7 @@ func TestOverrides(t *testing.T) {
 		"SKOPOS_TABLE_METRICS_SUMMARY":         "custom_summary",
 		"SKOPOS_MAX_SCAN_ROWS":                 "300000",
 		"SKOPOS_MAX_QUERY_RANGE":               "2h",
+		"SKOPOS_QUERY_TIMEOUT":                 "60s",
 		"SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME": "45s",
 		"SKOPOS_CLICKHOUSE_MAX_MEMORY_USAGE":   "2048",
 		"SKOPOS_CLICKHOUSE_MAX_ROWS_TO_READ":   "3000",
@@ -91,7 +92,7 @@ func TestOverrides(t *testing.T) {
 	if cfg.MaxScanRows != 300_000 || cfg.MaxQueryRange != 2*time.Hour {
 		t.Fatalf("query limits = %d/%s", cfg.MaxScanRows, cfg.MaxQueryRange)
 	}
-	if cfg.MaxExecutionTime != 45*time.Second || cfg.MaxMemoryUsage != 2048 ||
+	if cfg.MaxExecutionTime != 45*time.Second || cfg.QueryTimeout != 60*time.Second || cfg.MaxMemoryUsage != 2048 ||
 		cfg.MaxRowsToRead != 3000 || cfg.MaxResultRows != 4000 || cfg.MaxResponseBytes != 5000 {
 		t.Fatalf("unexpected limits: %#v", cfg)
 	}
@@ -210,9 +211,10 @@ func TestModeServeQueries(t *testing.T) {
 
 func TestFrontendModeDefaults(t *testing.T) {
 	cfg, err := FromLookup(lookupFrom(map[string]string{
-		"SKOPOS_MODE":          "frontend",
-		"SKOPOS_QUERY_URLS":    "http://query:8080",
-		"SKOPOS_QUERY_TIMEOUT": "12s",
+		"SKOPOS_MODE":                          "frontend",
+		"SKOPOS_QUERY_URLS":                    "http://query:8080",
+		"SKOPOS_QUERY_TIMEOUT":                 "12s",
+		"SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME": "12s",
 	}))
 	if err != nil {
 		t.Fatalf("FromLookup: %v", err)
