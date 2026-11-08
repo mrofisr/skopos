@@ -120,6 +120,11 @@ result. Every rejection names the feature and ends with the supported subset:
 supported subset: one spanset { ... } with &&, || and comparison operators =, !=, =~, !~, >, <, >=, <=
 ```
 
+The tables in this section are executable. `TestRejectedFormsMatchDocs` parses
+them and checks every query against the parser. Adding a rejected form without
+documenting it fails the test, and so does documenting a form the parser does
+not reject.
+
 Structural operators are rejected in every form, including after a spanset and
 inside a malformed spanset:
 
@@ -146,6 +151,7 @@ adjacent spansets:
 | `{a} && {b}` | `TraceQL multiple spansets are not supported (found "&&" between spansets)` |
 | `{a} \|\| {b}` | `TraceQL multiple spansets are not supported (found "\|\|" between spansets)` |
 | `{a} {b}` | `TraceQL multiple spansets are not supported` |
+| `{a} & {b}` | `TraceQL multiple spansets are not supported (found "&" between spansets)` |
 | `{ {a} }` | `TraceQL nested spansets are not supported` |
 
 Pipelines and TraceQL metrics queries are not implemented. Search evaluates
@@ -159,7 +165,10 @@ silently ignored:
 | `{a} \| by(span:name)` | `TraceQL pipeline "\| by()" is not supported` |
 | `{a} \| select(span:name)` | `TraceQL pipeline "\| select()" is not supported` |
 | `{a} \| coalesce()` | `TraceQL pipeline "\| coalesce()" is not supported` |
+| `{a} \| count()` | `TraceQL pipeline "\| count()" is not supported` |
+| `count()` | `TraceQL pipeline "\| count()" is not supported` |
 | `{ } \| rate()` | `TraceQL metrics query "\| rate()" is not supported` |
+| `rate()` | `TraceQL metrics query "\| rate()" is not supported` |
 | `{ } \| count_over_time()` | `TraceQL metrics query "\| count_over_time()" is not supported` |
 | `{ } \| quantile_over_time(duration, .99)` | `TraceQL metrics query "\| quantile_over_time()" is not supported` |
 | `{ } \| histogram_over_time(duration)` | `TraceQL metrics query "\| histogram_over_time()" is not supported` |
@@ -181,7 +190,7 @@ Other malformed shapes also fail explicitly instead of matching nothing:
 | `{ span:name = "x"` | `TraceQL spanset is not closed: missing '}'` |
 | `{ span:name = "x" } foo` | `TraceQL unexpected text after the spanset: "foo"` |
 | `{ span:name = GET /cart }` | `TraceQL value "GET /cart" contains spaces; quote string values` |
-| `{ span:foo }` | `TraceQL condition "span.foo" has no operator` |
+| `{ span:foo }` | `TraceQL condition "span:foo" has no operator` |
 
 ## Tag-based search
 
