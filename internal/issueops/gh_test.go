@@ -41,6 +41,18 @@ func TestGHClientListIssues(t *testing.T) {
 	}
 }
 
+func TestGHClientGetIssue(t *testing.T) {
+	bin := fakeGHBin(t, `printf '%s' '{"number":57,"title":"AX-01: x","state":"open","body":"body","labels":[{"name":"phase:alpha-exit"},{"name":"ec:6"}]}'`)
+	c := &GHClient{Bin: bin}
+	issue, err := c.GetIssue(context.Background(), 57)
+	if err != nil {
+		t.Fatalf("GetIssue: %v", err)
+	}
+	if issue.Number != 57 || issue.State != "open" || len(issue.Labels) != 2 || issue.Labels[0] != "phase:alpha-exit" {
+		t.Fatalf("issue = %#v", issue)
+	}
+}
+
 func TestGHClientCreateIssueParsesNumber(t *testing.T) {
 	bin := fakeGHBin(t, `printf '%s\n' 'https://github.com/o/r/issues/42'`)
 	c := &GHClient{Bin: bin}

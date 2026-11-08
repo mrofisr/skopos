@@ -46,6 +46,35 @@ The `Coverage ratchet` job runs `make coverage` on every pull request and on
 `development`. It uses a full checkout so the previous floor can be read from
 `origin/development`.
 
+## PR traceability and freeze guard
+
+Every pull request must link an open issue labelled `phase:alpha-exit` using
+`Closes #N` or `Refs #N` in the body. Commit types `fix:`, `deps:`, `docs:`,
+`security:` and `ci:` are exempt from the link requirement.
+
+The following paths are frozen until the alpha exit apart from bug and
+security fixes:
+
+- `internal/semctx`
+- `cmd/skopos-mcp`
+- `internal/checkpoint`
+- `cmd/skopos-checkpoint`
+- `deploy/systemd`
+
+A pull request that touches one of them needs the `frozen-exception` label and
+a one-line reason in the body:
+
+```text
+Frozen-exception: the replay fix prevents data loss on restart
+```
+
+Fork pull requests skip the issue lookup because the job runs read-only from
+the base commit; the job summary records the skip and the freeze check still
+runs. For maintainers, an unreachable GitHub API fails the check closed.
+
+The `PR traceability and freeze guard` workflow only needs `contents: read`,
+`issues: read` and `pull-requests: read`.
+
 ## Red-first evidence
 
 Every behavior PR starts with a tests-only commit that fails for the stated

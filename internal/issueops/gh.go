@@ -112,6 +112,30 @@ func (c *GHClient) ListIssues(ctx context.Context) ([]RemoteIssue, error) {
 	return issues, nil
 }
 
+// GetIssue returns one issue by number.
+func (c *GHClient) GetIssue(ctx context.Context, number int) (RemoteIssue, error) {
+	out, err := c.run(ctx, "", "issue", "view", strconv.Itoa(number),
+		"--json", "number,title,state,body,labels")
+	if err != nil {
+		return RemoteIssue{}, err
+	}
+	var raw ghIssue
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return RemoteIssue{}, fmt.Errorf("parse gh issue view: %w", err)
+	}
+	labels := make([]string, 0, len(raw.Labels))
+	for _, label := range raw.Labels {
+		labels = append(labels, label.Name)
+	}
+	return RemoteIssue{
+		Number: raw.Number,
+		Title:  raw.Title,
+		State:  raw.State,
+		Body:   raw.Body,
+		Labels: labels,
+	}, nil
+}
+
 func (c *GHClient) bodyFile(body string) (string, error) {
 	f, err := os.CreateTemp("", "skopos-issue-*.md")
 	if err != nil {
