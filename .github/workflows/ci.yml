@@ -284,10 +284,20 @@ jobs:
       - name: Install actionlint
         run: go install github.com/rhysd/actionlint/cmd/actionlint@${{ env.ACTIONLINT_VERSION }}
       - name: Install zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          curl -fsSLo /tmp/zizmor.tar.gz \
-            "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          # The /releases/download/ redirect can return 504 during GitHub
+          # release-asset incidents. Fetch the same pinned asset through the
+          # API and keep verifying its checksum.
+          asset_id="$(gh api \
+            "repos/zizmorcore/zizmor/releases/tags/${ZIZMOR_VERSION}" \
+            --jq '.assets[] | select(.name == "zizmor-x86_64-unknown-linux-gnu.tar.gz") | .id')"
+          test -n "${asset_id}"
+          gh api \
+            -H 'Accept: application/octet-stream' \
+            "repos/zizmorcore/zizmor/releases/assets/${asset_id}" > /tmp/zizmor.tar.gz
           echo "${ZIZMOR_SHA256}  /tmp/zizmor.tar.gz" | sha256sum -c -
           tar -xzf /tmp/zizmor.tar.gz -C /tmp
           install -m 0755 /tmp/zizmor "$(go env GOPATH)/bin/zizmor"
