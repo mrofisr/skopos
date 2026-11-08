@@ -12,6 +12,7 @@ your role; every link is relative to this `docs/` directory.
 | [Alpha exit plan](alpha-exit-plan.md) | The seven exit criteria, micro-ticket backlog, cut line, and human gates |
 | [Support matrix](support-matrix.md) | What is implemented and what is explicitly not supported |
 | [Beta gate status](beta-gates.md) | Evidence for each quality gate and what remains open |
+| [Quality gates](quality.md) | Coverage ratchet, floor file, and red-first evidence |
 
 ## AI SRE context
 
