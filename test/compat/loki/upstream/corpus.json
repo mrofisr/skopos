@@ -1,0 +1,593 @@
+{
+  "cases": [
+    {
+      "Query": "sum by (cluster, namespace) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (cluster, namespace) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (cluster, namespace) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (cluster, namespace) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"error\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({region=\"ap-southeast-1\"} | detected_level=\"error\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({region=\"ap-southeast-1\"} | detected_level=\"warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"error\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({service_name=\"kubernetes\"} | detected_level=\"error\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component) (rate({service_name=\"kubernetes\"} | detected_level=\"warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component, detected_level) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component, detected_level) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component, detected_level) (rate({region=\"ap-southeast-1\"}[1m]))",
+      "Start": "2024-01-01T10:00:00Z",
+      "End": "2024-01-01T11:00:00Z",
+      "Direction": 0,
+      "Step": 189473684210
+    },
+    {
+      "Query": "sum by (component, detected_level) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (component, detected_level) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env, component) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env, component) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env, component) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (env, component) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (namespace) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (namespace) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (namespace) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (namespace) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (pod) (rate({region=\"ap-southeast-1\", env=\"dev\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (pod) (rate({region=\"ap-southeast-1\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (pod) (rate({service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "sum by (pod) (rate({service_name=\"kubernetes\"} | detected_level=~\"error|warn\" [5m]))",
+      "Start": "2024-01-01T00:05:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 4547368421052
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\", env=\"dev\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=~\"error|warn\"",
+      "Start": "2024-01-01T10:00:00Z",
+      "End": "2024-01-01T11:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | detected_level=~\"error|warn\"",
+      "Start": "2024-01-01T10:00:00Z",
+      "End": "2024-01-01T11:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{region=\"ap-southeast-1\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"grafana\", env=\"prod\", region=\"us-west-2\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"}",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | detected_level=\"warn\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | json | duration_seconds \u003e 0.1 | detected_level!=\"debug\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} | logfmt | level=\"error\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 1,
+      "Step": 0
+    },
+    {
+      "Query": "{service_name=\"kubernetes\"} |~ \"error|exception\" | detected_level=\"error\"",
+      "Start": "2024-01-01T00:00:00Z",
+      "End": "2024-01-02T00:00:00Z",
+      "Direction": 0,
+      "Step": 0
+    }
+  ],
+  "provenance": {
+    "archive_sha256": "a3ffbdc68f3481444c16a7733e4640718af502bcef25d592e77d03da388c4aa1",
+    "commit": "d5b382b90738505d8bf7217ff3a1a8c90fc09b7e",
+    "generator": "pkg/logql/bench.(*GeneratorConfig).GenerateTestCases",
+    "project": "github.com/grafana/loki",
+    "seed": "1",
+    "version": "3.5.7"
+  }
+}
