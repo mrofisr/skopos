@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi compat-cerberus storage-test bench release release-dry-run release-check verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
 
 help:
 	@printf '%s\n' \
@@ -29,7 +29,8 @@ help:
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
 		'release-check     release preflight: vet, tests, Helm, vendor, script syntax' \
-		'verify-release    verify signatures and attestations for VERSION=...' \
+		'release-verify    verify a published release (TAG=vX.Y.Z): signatures, attestations, SBOMs, digest' \
+		'verify-release    alias for release-verify' \
 		'scorecard         run pinned OpenSSF Scorecard (needs GITHUB_AUTH_TOKEN)' \
 		'coverage          run tests and enforce the per-package coverage floor' \
 		'coverage-report   print per-package coverage against the floor' \
@@ -98,8 +99,8 @@ release:
 release-dry-run:
 	VERSION=$(VERSION) ./scripts/release.sh
 
-verify-release:
-	VERSION=$(VERSION) ./scripts/verify-release.sh
+release-verify verify-release:
+	TAG=$(TAG) VERSION=$(VERSION) ./scripts/verify-release.sh
 
 scorecard:
 	./scripts/scorecard.sh

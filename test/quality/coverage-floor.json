@@ -9,6 +9,7 @@
     "cmd/skopos-mcp": 68.8,
     "cmd/skopos-osv-check": 80,
     "cmd/skopos-prcheck": 0,
+    "cmd/skopos-release-verify": 86.1,
     "internal/auth": 100,
     "internal/chclient": 73.9,
     "internal/checkpoint": 84.9,
@@ -23,6 +24,7 @@
     "internal/prcheck": 100,
     "internal/prom": 75.2,
     "internal/quality": 67.4,
+    "internal/releaseverify": 78.6,
     "internal/semctx": 85.4,
     "internal/sqlgen": 66.5,
     "internal/tempo": 74.4

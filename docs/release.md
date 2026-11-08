@@ -61,8 +61,25 @@ created.
 ## Verify a release
 
 ```sh
-VERSION=0.1.0-alpha.2 ./scripts/verify-release.sh
+make release-verify TAG=v0.1.0-alpha.2
 ```
+
+The verifier downloads `values.release.yaml` from the published release and
+checks that:
+
+- the image and chart signatures chain to
+  `.github/workflows/release.yml` at the release tag and the GitHub Actions OIDC
+  issuer;
+- GitHub artifact attestations exist for both the image and the chart, signed by
+  that workflow;
+- the release publishes `skopos-gateway-<version>.spdx.json` and
+  `skopos-chart-<version>.spdx.json`;
+- the image digest in `values.release.yaml` equals the digest reported by
+  `cosign verify`.
+
+It then renders the chart with the downloaded values. Every missing or
+mismatched artifact fails the command. `VERSION=...` and a positional version
+remain accepted by `scripts/verify-release.sh`.
 
 Or manually:
 
@@ -78,7 +95,14 @@ cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.2 \
 gh attestation verify oci://ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.2 \
   --repo jawaracloud/skopos \
   --signer-workflow jawaracloud/skopos/.github/workflows/release.yml
+
+gh release view v0.1.0-alpha.2 \
+  --repo jawaracloud/skopos \
+  --json assets
 ```
+
+Compare the digest reported by `cosign verify` with the `digest:` line in the
+release's `values.release.yaml`.
 
 Do not use `--insecure-ignore-tlog`. The release workflow always records
 signatures in the transparency log.
