@@ -2,12 +2,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/jawaracloud/skopos/internal/issueops"
@@ -102,14 +104,31 @@ func run(args []string) error {
 	if repoName == "" && pr.Base.Repo != nil {
 		repoName = pr.Base.Repo.FullName
 	}
+	ctx := context.Background()
+	commits := []prcheck.Commit(nil)
+	if hasLabel(labels, "type:micro") && !hasLabel(labels, "red-first-exempt") {
+		if repoName == "" {
+			return fmt.Errorf("--repo or GITHUB_REPOSITORY is required for the red-first check")
+		}
+		filesRepo := repoName
+		if pr.Head.Repo != nil && pr.Head.Repo.FullName != "" {
+			filesRepo = pr.Head.Repo.FullName
+		}
+		commits, err = loadCommits(ctx, *ghBin, repoName, filesRepo, pr.Number)
+		if err != nil {
+			return fmt.Errorf("load pull request commits: %w", err)
+		}
+	}
+
 	client := issueops.NewGHClient(repoName)
 	client.Bin = *ghBin
-	result := prcheck.Evaluate(context.Background(), prcheck.Input{
-		Title:  pr.Title,
-		Body:   body,
-		Labels: labels,
-		Files:  files,
-		Fork:   fork,
+	result := prcheck.Evaluate(ctx, prcheck.Input{
+		Title:   pr.Title,
+		Body:    body,
+		Labels:  labels,
+		Files:   files,
+		Commits: commits,
+		Fork:    fork,
 	}, githubSource{client: client})
 
 	writeSummary(result, fork, pr.Number)
@@ -136,15 +155,64 @@ func readFiles(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read changed files: %w", err)
 	}
-	lines := strings.Split(string(data), "\n")
-	files := make([]string, 0, len(lines))
+	return nonEmptyLines(string(data)), nil
+}
+
+func nonEmptyLines(text string) []string {
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
 	for _, line := range lines {
 		name := strings.TrimSpace(line)
 		if name != "" {
-			files = append(files, name)
+			out = append(out, name)
 		}
 	}
-	return files, nil
+	return out
+}
+
+func hasLabel(labels []string, want string) bool {
+	for _, label := range labels {
+		if label == want {
+			return true
+		}
+	}
+	return false
+}
+
+func loadCommits(ctx context.Context, ghBin, pullRepo, filesRepo string, number int) ([]prcheck.Commit, error) {
+	out, err := ghAPI(ctx, ghBin, "--paginate",
+		fmt.Sprintf("repos/%s/pulls/%d/commits", pullRepo, number),
+		"--jq", ".[].sha")
+	if err != nil {
+		return nil, err
+	}
+	shas := strings.Fields(string(out))
+	commits := make([]prcheck.Commit, 0, len(shas))
+	for _, sha := range shas {
+		files, err := ghAPI(ctx, ghBin,
+			fmt.Sprintf("repos/%s/commits/%s", filesRepo, sha),
+			"--jq", ".files[].filename")
+		if err != nil {
+			return nil, fmt.Errorf("commit %s: %w", sha, err)
+		}
+		commits = append(commits, prcheck.Commit{SHA: sha, Files: nonEmptyLines(string(files))})
+	}
+	return commits, nil
+}
+
+func ghAPI(ctx context.Context, bin string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, bin, append([]string{"api"}, args...)...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("gh api: %s", msg)
+	}
+	return stdout.Bytes(), nil
 }
 
 func writeSummary(result prcheck.Result, fork bool, number int) {

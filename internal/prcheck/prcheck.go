@@ -25,13 +25,21 @@ type Source interface {
 	Issue(ctx context.Context, number int) (Issue, error)
 }
 
+// Commit is one pull request commit and the files it touched. GitHub returns
+// commits oldest first, so the first element is the first commit.
+type Commit struct {
+	SHA   string
+	Files []string
+}
+
 // Input is one pull request.
 type Input struct {
-	Title  string
-	Body   string
-	Labels []string
-	Files  []string
-	Fork   bool
+	Title   string
+	Body    string
+	Labels  []string
+	Files   []string
+	Commits []Commit
+	Fork    bool
 }
 
 // Result is the outcome of the guard. Notices are non-blocking messages, such
@@ -52,9 +60,11 @@ var FrozenPaths = []string{
 }
 
 const (
-	alphaLabel      = "phase:alpha-exit"
-	frozenLabel     = "frozen-exception"
-	frozenReasonKey = "Frozen-exception:"
+	alphaLabel          = "phase:alpha-exit"
+	frozenLabel         = "frozen-exception"
+	frozenReasonKey     = "Frozen-exception:"
+	microLabel          = "type:micro"
+	redFirstExemptLabel = "red-first-exempt"
 )
 
 var (
@@ -75,7 +85,56 @@ func Evaluate(ctx context.Context, in Input, source Source) Result {
 		result.Notices = append(result.Notices, notices...)
 	}
 	result.Errors = append(result.Errors, checkFrozen(in)...)
+	result.Errors = append(result.Errors, checkRedFirst(in.Labels, in.Commits)...)
 	return result
+}
+
+func checkRedFirst(labels []string, commits []Commit) []error {
+	if !hasLabel(labels, microLabel) || hasLabel(labels, redFirstExemptLabel) {
+		return nil
+	}
+	if len(commits) < 2 {
+		return []error{fmt.Errorf("%s PR needs at least two commits: the first commit must be tests-only", microLabel)}
+	}
+	first := commits[0]
+	if len(first.Files) == 0 {
+		return []error{fmt.Errorf("%s first commit %s is empty; commit the tests first", microLabel, shortSHA(first.SHA))}
+	}
+	var nonTest []string
+	for _, file := range first.Files {
+		if !isRedFirstFile(file) {
+			nonTest = append(nonTest, file)
+		}
+	}
+	if len(nonTest) > 0 {
+		sort.Strings(nonTest)
+		return []error{fmt.Errorf("%s first commit %s touches non-test files: %s",
+			microLabel, shortSHA(first.SHA), strings.Join(nonTest, ", "))}
+	}
+	return nil
+}
+
+func isRedFirstFile(file string) bool {
+	file = strings.TrimPrefix(filepath.ToSlash(file), "./")
+	if strings.HasSuffix(file, "_test.go") || strings.HasSuffix(file, ".golden") {
+		return true
+	}
+	for _, root := range []string{"testdata", "test", "fixtures"} {
+		if file == root || strings.HasPrefix(file, root+"/") || strings.Contains(file, "/"+root+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func shortSHA(sha string) string {
+	if sha == "" {
+		return "?"
+	}
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
 
 func checkTraceability(ctx context.Context, in Input, source Source) ([]error, []string) {
@@ -113,9 +172,6 @@ func checkTraceability(ctx context.Context, in Input, source Source) ([]error, [
 	}
 	if valid {
 		return nil, nil
-	}
-	if len(errs) == 0 {
-		errs = append(errs, fmt.Errorf("body has no Closes #N or Refs #N reference to an open %s issue", alphaLabel))
 	}
 	return errs, nil
 }

@@ -79,5 +79,16 @@ The `PR traceability and freeze guard` workflow only needs `contents: read`,
 
 Every behavior PR starts with a tests-only commit that fails for the stated
 reason, and the PR links the failing run. The check is defined in
-`docs/alpha-exit-plan.md` under STG-1. Bootstrap and tooling PRs may carry the
-`red-first-exempt` label.
+`docs/alpha-exit-plan.md` under STG-1.
+
+Pull requests labelled `type:micro` must have at least two commits. The first
+commit may only touch:
+
+- `*_test.go` and `.golden` files
+- `testdata/` and `fixtures/`
+- the repository `test/` tree
+
+Implementation in the first commit, a single-commit PR, or an empty first
+commit fails the guard. Docs and CI updates may carry `red-first-exempt` to
+skip the check. The same `pr-guard` workflow runs this check from the pull
+request commit list, so it survives a squash merge.
