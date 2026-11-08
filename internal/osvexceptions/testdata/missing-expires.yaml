@@ -1,0 +1,3 @@
+exceptions:
+  - id: GO-2026-0004
+    reason: Missing the expiry date that bounds the exception.

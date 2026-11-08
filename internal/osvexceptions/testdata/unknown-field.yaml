@@ -1,0 +1,5 @@
+exceptions:
+  - id: GO-2026-0005
+    reason: An unknown field makes the schema ambiguous.
+    expires: 2027-01-31
+    owner: security
