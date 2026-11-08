@@ -138,6 +138,7 @@ release-check: vet test helm-lint
 	$(HELM) template skopos $(CHART) --namespace observability >/dev/null
 	cd test/compat/prometheus && $(GO) mod verify && $(GO) vet ./... && $(GO) test -count=1 ./...
 	sh -n scripts/check-code-scanning.sh
+	sh -n scripts/check-osv-exceptions.sh
 	sh -n scripts/release.sh
 	sh -n scripts/verify-release.sh
 	sh -n scripts/sbom-fallback.sh

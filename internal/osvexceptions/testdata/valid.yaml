@@ -1,0 +1,8 @@
+# Valid exceptions: unexpired ids with a one-line reason.
+exceptions:
+  - id: GO-2026-6860
+    reason: Fixed in golang.org/x/net v0.62.0; no x/net package is linked into the gateway binary.
+    expires: 2027-01-31
+  - id: CVE-2026-97045
+    reason: Tracked in the same x/net bump and verified absent from the release binary.
+    expires: 2027-01-31

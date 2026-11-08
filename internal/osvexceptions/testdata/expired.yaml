@@ -1,0 +1,4 @@
+exceptions:
+  - id: GO-2025-0001
+    reason: Temporary exception kept for the expiry test.
+    expires: 2026-01-01

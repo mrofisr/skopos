@@ -1,0 +1,2 @@
+# Exceptions to the OSV/govulncheck gate. Empty means every finding blocks.
+exceptions: []

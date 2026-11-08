@@ -112,6 +112,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: scripts/check-code-scanning.sh
 
+      - name: Check OSV exceptions
+        run: scripts/check-osv-exceptions.sh
+
       - name: Run release checks
         run: |
           make release-check

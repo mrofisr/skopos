@@ -1,0 +1,7 @@
+exceptions:
+  - id: GO-2026-0003
+    reason: First copy of the advisory.
+    expires: 2027-01-31
+  - id: GO-2026-0003
+    reason: Duplicate entry that must fail.
+    expires: 2027-01-31

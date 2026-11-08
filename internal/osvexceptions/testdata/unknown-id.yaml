@@ -1,0 +1,4 @@
+exceptions:
+  - id: MAL-2026-0001
+    reason: The prefix is not a recognized advisory scheme.
+    expires: 2027-01-31

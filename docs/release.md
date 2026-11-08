@@ -28,6 +28,9 @@ means creating a new patch tag; published releases are immutable.
 5. Confirm that there are no open high or critical code-scanning alerts. The
    release preflight runs `scripts/check-code-scanning.sh`, which fails closed
    on API errors and names every blocking alert.
+6. Confirm that `docs/security/osv-exceptions.yaml` is empty or that every
+   exception has a reason and an unexpired date. The release preflight runs
+   `scripts/check-osv-exceptions.sh`.
 
 ## Create the release
 
@@ -42,8 +45,8 @@ git push origin v0.1.0-alpha.2
 
 1. Verifies that the tag is annotated, is an ancestor of `main`, and that the
    tag, release, and image tag do not already exist.
-2. Runs `scripts/check-code-scanning.sh`, `make release-check`, and
-   `go test -race ./...`.
+2. Runs `scripts/check-code-scanning.sh`, `scripts/check-osv-exceptions.sh`,
+   `make release-check`, and `go test -race ./...`.
 3. Builds the image, chart, and SBOMs in a read-only job.
 4. Pushes the image, signs it with keyless Sigstore, and attests provenance and
    SBOM.
