@@ -48,11 +48,19 @@ engines=$(q "SELECT count() FROM system.tables WHERE database = '${database}' AN
   exit 1
 }
 
+# Fixtures must stay inside the chart's TTLs (7 days for logs and traces,
+# 30 days for metrics). A fixed timestamp silently expires: the inserts
+# succeed, then the tables return zero rows once the TTL passes.
+now=$(date -u '+%Y-%m-%d %H:%M:%S')
+logs_ts="${now}.123456789"
+traces_ts="${now}.1"
+metrics_ts="$now"
+
 # Logs: the same record with different attribute insertion order is a replay
 # duplicate; a different body is a distinct record.
-q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName, LogAttributes) VALUES ('2026-11-01 00:00:00.123456789','t1','s1','INFO',9,'svc','same','evt',{'a':'1','b':'2'})"
-q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName, LogAttributes) VALUES ('2026-11-01 00:00:00.123456789','t1','s1','INFO',9,'svc','same','evt',{'b':'2','a':'1'})"
-q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName) VALUES ('2026-11-01 00:00:00.123456789','t1','s1','INFO',9,'svc','different','evt')"
+q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName, LogAttributes) VALUES ('${logs_ts}','t1','s1','INFO',9,'svc','same','evt',{'a':'1','b':'2'})"
+q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName, LogAttributes) VALUES ('${logs_ts}','t1','s1','INFO',9,'svc','same','evt',{'b':'2','a':'1'})"
+q "INSERT INTO \`${database}\`.\`otel_logs\` (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, EventName) VALUES ('${logs_ts}','t1','s1','INFO',9,'svc','different','evt')"
 
 logs_raw=$(q "SELECT count() FROM \`${database}\`.\`otel_logs\`")
 logs_final=$(q "SELECT count() FROM \`${database}\`.\`otel_logs\` FINAL")
@@ -62,9 +70,9 @@ logs_final=$(q "SELECT count() FROM \`${database}\`.\`otel_logs\` FINAL")
 }
 
 # Traces: (TraceId, SpanId) is the replay identity.
-q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('2026-11-01 00:00:00.1','trace1','span1','op','svc',10)"
-q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('2026-11-01 00:00:00.1','trace1','span1','op','svc',10)"
-q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('2026-11-01 00:00:00.1','trace1','span2','op','svc',10)"
+q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('${traces_ts}','trace1','span1','op','svc',10)"
+q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('${traces_ts}','trace1','span1','op','svc',10)"
+q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('${traces_ts}','trace1','span2','op','svc',10)"
 
 traces_raw=$(q "SELECT count() FROM \`${database}\`.\`otel_traces\`")
 traces_final=$(q "SELECT count() FROM \`${database}\`.\`otel_traces\` FINAL")
@@ -75,9 +83,9 @@ traces_final=$(q "SELECT count() FROM \`${database}\`.\`otel_traces\` FINAL")
 
 # Metrics: a replay duplicate keeps the same value; a different value is a
 # distinct data point.
-q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','2026-11-01 00:00:00','2026-11-01 00:00:00',1.5,{'k':'v'})"
-q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','2026-11-01 00:00:00','2026-11-01 00:00:00',1.5,{'k':'v'})"
-q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','2026-11-01 00:00:00','2026-11-01 00:00:00',2.5,{'k':'v'})"
+q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','${metrics_ts}','${metrics_ts}',1.5,{'k':'v'})"
+q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','${metrics_ts}','${metrics_ts}',1.5,{'k':'v'})"
+q "INSERT INTO \`${database}\`.\`otel_metrics_gauge\` (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes) VALUES ('svc','m','${metrics_ts}','${metrics_ts}',2.5,{'k':'v'})"
 
 metrics_raw=$(q "SELECT count() FROM \`${database}\`.\`otel_metrics_gauge\`")
 metrics_final=$(q "SELECT count() FROM \`${database}\`.\`otel_metrics_gauge\` FINAL")
@@ -88,7 +96,7 @@ metrics_final=$(q "SELECT count() FROM \`${database}\`.\`otel_metrics_gauge\` FI
 
 # The trace lookup index is derived; verify the materialized view survived the
 # schema application and still receives inserts.
-q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('2026-11-01 00:00:01.1','trace2','span3','op','svc',20)"
+q "INSERT INTO \`${database}\`.\`otel_traces\` (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration) VALUES ('${traces_ts}','trace2','span3','op','svc',20)"
 trace_index=$(q "SELECT count() FROM \`${database}\`.\`otel_traces_trace_id_ts\`")
 [ "$trace_index" -ge 2 ] || {
   echo "FAIL: trace id index has ${trace_index} rows, want at least 2" >&2
