@@ -14,7 +14,7 @@
     "internal/frontend": 87.3,
     "internal/httpapi": 91,
     "internal/issueops": 80.8,
-    "internal/loki": 76.6,
+    "internal/loki": 76.8,
     "internal/plan": 31.1,
     "internal/prcheck": 100,
     "internal/prom": 75.2,

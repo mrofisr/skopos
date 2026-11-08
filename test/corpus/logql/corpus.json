@@ -9,32 +9,114 @@
     {
       "timestamp": "2026-11-01T00:00:30Z",
       "body": "{\"level\":\"error\",\"status\":500,\"msg\":\"request timeout\"}",
-      "labels": {"service_name": "checkout", "severity_text": "ERROR"}
+      "labels": {
+        "service_name": "checkout",
+        "severity_text": "ERROR"
+      }
     },
     {
       "timestamp": "2026-11-01T00:03:30Z",
       "body": "{\"level\":\"error\",\"status\":503,\"msg\":\"still broken\"}",
-      "labels": {"service_name": "checkout", "severity_text": "ERROR"}
+      "labels": {
+        "service_name": "checkout",
+        "severity_text": "ERROR"
+      }
     },
     {
       "timestamp": "2026-11-01T00:01:00Z",
       "body": "{\"level\":\"info\",\"status\":200,\"msg\":\"ok\"}",
-      "labels": {"service_name": "checkout", "severity_text": "INFO"}
+      "labels": {
+        "service_name": "checkout",
+        "severity_text": "INFO"
+      }
     },
     {
       "timestamp": "2026-11-01T00:05:30Z",
       "body": "{\"level\":\"info\",\"status\":200,\"msg\":\"ok again\"}",
-      "labels": {"service_name": "checkout", "severity_text": "INFO"}
+      "labels": {
+        "service_name": "checkout",
+        "severity_text": "INFO"
+      }
     },
     {
       "timestamp": "2026-11-01T00:01:30Z",
       "body": "{\"level\":\"error\",\"status\":501,\"msg\":\"cart down\"}",
-      "labels": {"service_name": "cart", "severity_text": "ERROR"}
+      "labels": {
+        "service_name": "cart",
+        "severity_text": "ERROR"
+      }
     },
     {
       "timestamp": "2026-11-01T00:02:00Z",
       "body": "level=info status=200 msg=\"item added\"",
-      "labels": {"service_name": "inventory", "severity_text": "INFO"}
+      "labels": {
+        "service_name": "inventory",
+        "severity_text": "INFO"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:07:00Z",
+      "body": "{\n  \"level\": \"warn\",\n  \"msg\": \"multi line 東京\",\n  \"status\": 429\n}",
+      "labels": {
+        "service_name": "multiline",
+        "severity_text": "WARN"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:07:30Z",
+      "body": "héllo 東京 — naïve café",
+      "labels": {
+        "service_name": "unicode",
+        "severity_text": "INFO"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:08:00Z",
+      "body": "",
+      "labels": {
+        "service_name": "empty",
+        "severity_text": "INFO"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:08:30Z",
+      "body": "long-line-start xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx tail-marker",
+      "labels": {
+        "service_name": "long",
+        "severity_text": "INFO"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:09:00Z",
+      "body": "duplicate timestamp alpha",
+      "labels": {
+        "service_name": "dupe",
+        "severity_text": "INFO"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:09:00Z",
+      "body": "duplicate timestamp beta",
+      "labels": {
+        "service_name": "dupe",
+        "severity_text": "ERROR"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:09:30Z",
+      "body": "level=warn status=429 msg=\"rate limited\" user=\"ada lovelace\" path=/v1/query duration=12.5",
+      "labels": {
+        "service_name": "logfmt",
+        "severity_text": "WARN"
+      }
+    },
+    {
+      "timestamp": "2026-11-01T00:10:00Z",
+      "body": "{\"level\":\"error\",\"error\":{\"code\":503,\"kind\":\"upstream\"},\"msg\":\"nested failure\",\"ok\":false,\"tags\":[\"a\",\"b\"],\"nothing\":null}",
+      "labels": {
+        "service_name": "jsonnest",
+        "severity_text": "ERROR"
+      }
     }
   ],
   "cases": [
@@ -46,12 +128,24 @@
       "end": "2026-11-01T00:06:00Z",
       "expected_logs": [
         {
-          "timestamp": "2026-11-01T00:00:30Z",
-          "labels": {"level": "error", "status": "500", "msg": "request timeout"}
+          "timestamp": "2026-11-01T00:00:30.000000000Z",
+          "labels": {
+            "level": "error",
+            "msg": "request timeout",
+            "service_name": "checkout",
+            "severity_text": "ERROR",
+            "status": "500"
+          }
         },
         {
-          "timestamp": "2026-11-01T00:03:30Z",
-          "labels": {"level": "error", "status": "503", "msg": "still broken"}
+          "timestamp": "2026-11-01T00:03:30.000000000Z",
+          "labels": {
+            "level": "error",
+            "msg": "still broken",
+            "service_name": "checkout",
+            "severity_text": "ERROR",
+            "status": "503"
+          }
         }
       ]
     },
@@ -63,8 +157,14 @@
       "end": "2026-11-01T00:06:00Z",
       "expected_logs": [
         {
-          "timestamp": "2026-11-01T00:02:00Z",
-          "labels": {"level": "info", "status": "200", "msg": "item added"}
+          "timestamp": "2026-11-01T00:02:00.000000000Z",
+          "labels": {
+            "level": "info",
+            "msg": "item added",
+            "service_name": "inventory",
+            "severity_text": "INFO",
+            "status": "200"
+          }
         }
       ]
     },
@@ -75,7 +175,16 @@
       "start": "2026-11-01T00:00:00Z",
       "end": "2026-11-01T00:06:00Z",
       "expected_logs": [
-        {"timestamp": "2026-11-01T00:02:00Z"}
+        {
+          "timestamp": "2026-11-01T00:02:00.000000000Z",
+          "labels": {
+            "level": "info",
+            "msg": "item added",
+            "service_name": "inventory",
+            "severity_text": "INFO",
+            "status": "200"
+          }
+        }
       ]
     },
     {
@@ -93,7 +202,13 @@
       "start": "2026-11-01T00:00:00Z",
       "end": "2026-11-01T00:06:00Z",
       "expected_logs": [
-        {"timestamp": "2026-11-01T00:00:30Z"}
+        {
+          "timestamp": "2026-11-01T00:00:30.000000000Z",
+          "labels": {
+            "service_name": "checkout",
+            "severity_text": "ERROR"
+          }
+        }
       ]
     },
     {
@@ -105,23 +220,59 @@
       "step": "60s",
       "expected": [
         {
-          "metric": {"service_name": "checkout", "severity_text": "ERROR"},
+          "metric": {
+            "service_name": "checkout",
+            "severity_text": "ERROR"
+          },
           "values": [
-            [1793491260, "1"],
-            [1793491320, "1"],
-            [1793491380, "1"],
-            [1793491440, "2"],
-            [1793491500, "2"]
+            [
+              1793491260,
+              "1"
+            ],
+            [
+              1793491320,
+              "1"
+            ],
+            [
+              1793491380,
+              "1"
+            ],
+            [
+              1793491440,
+              "2"
+            ],
+            [
+              1793491500,
+              "2"
+            ]
           ]
         },
         {
-          "metric": {"service_name": "checkout", "severity_text": "INFO"},
+          "metric": {
+            "service_name": "checkout",
+            "severity_text": "INFO"
+          },
           "values": [
-            [1793491260, "1"],
-            [1793491320, "1"],
-            [1793491380, "1"],
-            [1793491440, "1"],
-            [1793491500, "1"]
+            [
+              1793491260,
+              "1"
+            ],
+            [
+              1793491320,
+              "1"
+            ],
+            [
+              1793491380,
+              "1"
+            ],
+            [
+              1793491440,
+              "1"
+            ],
+            [
+              1793491500,
+              "1"
+            ]
           ]
         }
       ]
@@ -135,9 +286,15 @@
       "step": "5m",
       "expected": [
         {
-          "metric": {"service_name": "checkout", "severity_text": "ERROR"},
+          "metric": {
+            "service_name": "checkout",
+            "severity_text": "ERROR"
+          },
           "values": [
-            [1793491500, "0.006666666666666667"]
+            [
+              1793491500,
+              "0.006666666666666667"
+            ]
           ]
         }
       ]
@@ -151,23 +308,57 @@
       "step": "60s",
       "expected": [
         {
-          "metric": {"severity_text": "ERROR"},
+          "metric": {
+            "severity_text": "ERROR"
+          },
           "values": [
-            [1793491260, "1"],
-            [1793491320, "1"],
-            [1793491380, "1"],
-            [1793491440, "2"],
-            [1793491500, "2"]
+            [
+              1793491260,
+              "1"
+            ],
+            [
+              1793491320,
+              "1"
+            ],
+            [
+              1793491380,
+              "1"
+            ],
+            [
+              1793491440,
+              "2"
+            ],
+            [
+              1793491500,
+              "2"
+            ]
           ]
         },
         {
-          "metric": {"severity_text": "INFO"},
+          "metric": {
+            "severity_text": "INFO"
+          },
           "values": [
-            [1793491260, "1"],
-            [1793491320, "1"],
-            [1793491380, "1"],
-            [1793491440, "1"],
-            [1793491500, "1"]
+            [
+              1793491260,
+              "1"
+            ],
+            [
+              1793491320,
+              "1"
+            ],
+            [
+              1793491380,
+              "1"
+            ],
+            [
+              1793491440,
+              "1"
+            ],
+            [
+              1793491500,
+              "1"
+            ]
           ]
         }
       ]
@@ -181,12 +372,26 @@
       "step": "60s",
       "expected": [
         {
-          "metric": {"level": "error"},
-          "values": [[1793491500, "2"]]
+          "metric": {
+            "level": "error"
+          },
+          "values": [
+            [
+              1793491500,
+              "2"
+            ]
+          ]
         },
         {
-          "metric": {"level": "info"},
-          "values": [[1793491500, "1"]]
+          "metric": {
+            "level": "info"
+          },
+          "values": [
+            [
+              1793491500,
+              "1"
+            ]
+          ]
         }
       ]
     },
@@ -199,12 +404,26 @@
       "step": "60s",
       "expected": [
         {
-          "metric": {"severity_text": "ERROR"},
-          "values": [[1793491500, "0.006666666666666667"]]
+          "metric": {
+            "severity_text": "ERROR"
+          },
+          "values": [
+            [
+              1793491500,
+              "0.006666666666666667"
+            ]
+          ]
         },
         {
-          "metric": {"severity_text": "INFO"},
-          "values": [[1793491500, "0.0033333333333333335"]]
+          "metric": {
+            "severity_text": "INFO"
+          },
+          "values": [
+            [
+              1793491500,
+              "0.0033333333333333335"
+            ]
+          ]
         }
       ]
     },
@@ -218,7 +437,156 @@
       "expected": [
         {
           "metric": {},
-          "values": [[1793491500, "0.01"]]
+          "values": [
+            [
+              1793491500,
+              "0.01"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "json_multiline_fields",
+      "kind": "log",
+      "query": "{service_name=\"multiline\"} | json | status=429 | level=\"warn\"",
+      "start": "2026-11-01T00:06:00Z",
+      "end": "2026-11-01T00:11:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:07:00.000000000Z",
+          "labels": {
+            "level": "warn",
+            "msg": "multi line 東京",
+            "service_name": "multiline",
+            "severity_text": "WARN",
+            "status": "429"
+          }
+        }
+      ]
+    },
+    {
+      "name": "json_nested_fields",
+      "kind": "log",
+      "query": "{service_name=\"jsonnest\"} | json | error_code=503",
+      "start": "2026-11-01T00:09:00Z",
+      "end": "2026-11-01T00:11:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:10:00.000000000Z",
+          "labels": {
+            "error_code": "503",
+            "error_kind": "upstream",
+            "level": "error",
+            "msg": "nested failure",
+            "ok": "false",
+            "service_name": "jsonnest",
+            "severity_text": "ERROR"
+          }
+        }
+      ]
+    },
+    {
+      "name": "logfmt_quoted_values",
+      "kind": "log",
+      "query": "{service_name=\"logfmt\"} | logfmt | duration > 10 | level=\"warn\"",
+      "start": "2026-11-01T00:09:00Z",
+      "end": "2026-11-01T00:11:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:09:30.000000000Z",
+          "labels": {
+            "duration": "12.5",
+            "level": "warn",
+            "msg": "rate limited",
+            "path": "/v1/query",
+            "service_name": "logfmt",
+            "severity_text": "WARN",
+            "status": "429",
+            "user": "ada lovelace"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unicode_line_filter",
+      "kind": "log",
+      "query": "{service_name=\"unicode\"} |= \"東京\"",
+      "start": "2026-11-01T00:07:00Z",
+      "end": "2026-11-01T00:08:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:07:30.000000000Z",
+          "labels": {
+            "service_name": "unicode",
+            "severity_text": "INFO"
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty_body_stream",
+      "kind": "log",
+      "query": "{service_name=\"empty\"}",
+      "start": "2026-11-01T00:07:00Z",
+      "end": "2026-11-01T00:09:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:08:00.000000000Z",
+          "labels": {
+            "service_name": "empty",
+            "severity_text": "INFO"
+          }
+        }
+      ]
+    },
+    {
+      "name": "long_line_filter",
+      "kind": "log",
+      "query": "{service_name=\"long\"} |= \"tail-marker\"",
+      "start": "2026-11-01T00:08:00Z",
+      "end": "2026-11-01T00:09:00Z",
+      "expected_logs": [
+        {
+          "timestamp": "2026-11-01T00:08:30.000000000Z",
+          "labels": {
+            "service_name": "long",
+            "severity_text": "INFO"
+          }
+        }
+      ]
+    },
+    {
+      "name": "identical_timestamps_count",
+      "kind": "metric",
+      "query": "count_over_time({service_name=\"dupe\"}[1m])",
+      "start": "2026-11-01T00:09:00Z",
+      "end": "2026-11-01T00:09:00Z",
+      "step": "60s",
+      "expected": [
+        {
+          "metric": {
+            "service_name": "dupe",
+            "severity_text": "ERROR"
+          },
+          "values": [
+            [
+              1793491740,
+              "1"
+            ]
+          ]
+        },
+        {
+          "metric": {
+            "service_name": "dupe",
+            "severity_text": "INFO"
+          },
+          "values": [
+            [
+              1793491740,
+              "1"
+            ]
+          ]
         }
       ]
     }

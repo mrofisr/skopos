@@ -42,15 +42,18 @@ DEFAULT_LABELS = {
     "env": "prod",
     "region": "us-east-1",
 }
+SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "upstream", "seed.json")
+
+
+def load_variants():
+    """Load the synthetic bodies shared with the fixture test."""
+    with open(SEED_FILE, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return [(item["level"], item["body"]) for item in payload["variants"]]
+
+
 # Bodies cover the line filters and parser stages used by the upstream corpus.
-VARIANTS = [
-    ("error", '{"level":"error","duration_seconds":0.5,"msg":"upstream error"}'),
-    ("error", 'level=error component=api duration_seconds=0.5 msg="upstream logfmt error"'),
-    ("warn", '{"level":"warn","duration_seconds":0.2,"msg":"upstream warn"}'),
-    ("warn", "upstream exception: connection reset"),
-    ("info", '{"level":"info","duration_seconds":0.05,"msg":"upstream ok"}'),
-    ("debug", "plain upstream line"),
-]
+VARIANTS = load_variants()
 SELECTOR_RE = re.compile(r"\{([^}]*)\}")
 MATCHER_RE = re.compile(r'\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]*)"\s*(?:,|$)')
 
@@ -514,8 +517,9 @@ def write_report(path, provenance, args, case_count, loki_entries, gateway_entri
     lines.append("- The upstream generator defines queries, not a static log dataset. The")
     lines.append("  harness seeds synthetic selector/variant streams so the filters execute;")
     lines.append("  it does not reproduce Loki's multi-gigabyte generated dataset.")
-    lines.append("- Log lines are deliberately small and identical across selectors. The")
-    lines.append("  comparison checks result shape and values, not storage throughput.")
+    lines.append("- Log lines cover JSON, logfmt, multi-line, unicode, empty, and long")
+    lines.append("  bodies, but are identical across selectors. The comparison checks")
+    lines.append("  result shape and values, not storage throughput.")
     lines.append("- Metric evaluation timestamps are compared at whole-millisecond")
     lines.append("  precision, which is Loki's response precision.")
     lines.append("- The reference Loki and ClickHouse fixtures contain only this run's")

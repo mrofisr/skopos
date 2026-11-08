@@ -1,0 +1,45 @@
+{
+  "description": "Synthetic log bodies seeded into both Loki and ClickHouse for the pinned upstream LogQL corpus. Each variant is emitted at every case end so line filters and parser stages execute against varied data.",
+  "variants": [
+    {
+      "level": "error",
+      "body": "{\"level\":\"error\",\"duration_seconds\":0.5,\"msg\":\"upstream error\"}"
+    },
+    {
+      "level": "error",
+      "body": "level=error component=api duration_seconds=0.5 msg=\"upstream logfmt error\""
+    },
+    {
+      "level": "warn",
+      "body": "{\"level\":\"warn\",\"duration_seconds\":0.2,\"msg\":\"upstream warn\"}"
+    },
+    {
+      "level": "warn",
+      "body": "level=warn component=api duration_seconds=0.2 msg=\"upstream logfmt warn\""
+    },
+    {
+      "level": "warn",
+      "body": "upstream exception: connection reset"
+    },
+    {
+      "level": "info",
+      "body": "{\"level\":\"info\",\"duration_seconds\":0.05,\"msg\":\"upstream ok\"}"
+    },
+    {
+      "level": "info",
+      "body": "{\n  \"level\": \"info\",\n  \"duration_seconds\": 0.05,\n  \"msg\": \"multi line 東京\"\n}"
+    },
+    {
+      "level": "info",
+      "body": "unicode héllo 東京 — naïve café"
+    },
+    {
+      "level": "debug",
+      "body": ""
+    },
+    {
+      "level": "info",
+      "body": "long upstream line yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy tail-marker"
+    }
+  ]
+}
