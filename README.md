@@ -243,6 +243,7 @@ gateway to the internet without TLS and an authenticating edge. See
 - [Tiered storage and backups](docs/storage.md)
 - [Durability checkpoint](docs/checkpoint.md)
 - [Helm chart repository](docs/chart-repository.md)
+- [Alpha exit plan](docs/alpha-exit-plan.md)
 - [Support matrix](docs/support-matrix.md)
 - [Beta gate status](docs/beta-gates.md)
 - [PromQL support](docs/promql-support.md)

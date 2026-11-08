@@ -4,6 +4,10 @@ This page is the single source of truth for the ADR's beta gates. Alpha means
 no compatibility guarantee; a gate is only "passed" when the evidence below is
 reproducible on the pinned references.
 
+Alpha exit is governed separately by the
+[alpha exit plan](alpha-exit-plan.md): its seven criteria must pass before any
+of the beta work below starts.
+
 | Gate | Status | Evidence | Remaining work |
 | --- | --- | --- | --- |
 | PromQL compliance tester | **Partial** | `test/compat/prometheus` runs 212 instant/range differential cases against the official Prometheus `promql` engine: 0 mismatches. | Integrate the official `prometheus/compliance/promql` suite with a target adapter that scrapes the compliance replayer into ClickHouse and starts the gateway. Filter to the published support list or expand support. |
