@@ -177,6 +177,13 @@ histograms.
 
 ## Tests
 
+- A function inventory test compares the vendored `parser.Functions` table
+  with the closed classes in `internal/prom/functions.go`: supported,
+  evaluator-rejected, and parser-disabled experimental functions. A parser
+  upgrade that adds or removes a function fails the test until it is
+  classified. Every non-supported function is exercised through the HTTP API
+  and must return `400` with `errorType: bad_data`, never a `200` with an empty
+  result.
 - Golden SQL tests for the emitter.
 - Unit tests for selectors, lookback and range-window boundaries, counter
   resets and zero-point extrapolation, aggregations (`topk`, `bottomk`,
