@@ -30,6 +30,37 @@ These rules are part of ADR 0001 and are not optional.
    signing path, or a mutable chart release from `main`. Follow
    [docs/release.md](docs/release.md).
 
+## Naming conventions
+
+Workflow and job names are user-facing, so they follow one convention:
+
+| Element | Convention | Example |
+| --- | --- | --- |
+| Workflow file | lowercase kebab-case | `pr-guard.yml` |
+| Workflow name | sentence case, proper nouns preserved | `PR guard` |
+| Job key | lowercase kebab-case | `publish-image` |
+| Job display name | sentence case, first word capitalized; official lowercase project names keep their casing | `Coverage ratchet`, `cerberus three-way differential` |
+| Step name | imperative sentence case; a tool-only step may keep the lowercase tool name | `Check out repository`, `actionlint` |
+
+Job display names become required status checks. Never rename a job display
+name without updating `docs/security/ruleset.json` and the live
+`main-protection` ruleset. The batch rename of existing names waits for AX-52.
+
+## Language policy
+
+- Go is the implementation language for product code and for repository rule
+  engines (manifest, coverage, PR guard, release checks).
+- GitHub workflow YAML is the glue: it sets triggers and permissions and calls
+  `gh` or `go run`. Business logic does not live in YAML.
+- Shell in `scripts/` is limited to thin orchestration of external tools
+  (release, signing, verification, SBOM). Parsing, validation, and decision
+  logic belong in Go with Go tests.
+- Existing Python under `test/` is frozen for the alpha. It may receive only
+  fixes that keep an existing black-box harness working. New test automation is
+  Go; migrating the remaining harnesses is a post-alpha decision.
+- Do not add a new language runtime or a new shell test framework for
+  repository checks.
+
 ## Test seams
 
 The v0.1 alpha test seams are:
