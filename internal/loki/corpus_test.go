@@ -179,7 +179,7 @@ func checkMetricCorpusCase(t *testing.T, query Query, entries []LogEntry, start,
 			if !ok {
 				t.Fatalf("expected value is not a string: %#v", pair[1])
 			}
-			gotTimestamp := float64(series.Samples[i].Timestamp.UnixNano()) / 1e9
+			gotTimestamp := float64(series.Samples[i].Timestamp.UnixMilli()) / 1000
 			if gotTimestamp != timestamp || formatMetricFloat(series.Samples[i].Value) != value {
 				t.Fatalf("series %#v sample %d = (%v, %q), want (%v, %q)", want.Metric, i, gotTimestamp, formatMetricFloat(series.Samples[i].Value), timestamp, value)
 			}

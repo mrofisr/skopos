@@ -60,8 +60,38 @@ Loki and Skopos differ in presentation-only details that the harness removes:
 - `stats` is omitted from the comparison.
 - Streams, series, and samples are sorted before comparison.
 
-Range-query evaluation points follow Loki: they are aligned to Unix-epoch
-multiples of `step`, with the first point rounded down and the last rounded up.
+Range-query evaluation points follow Loki: `step` is truncated to whole
+milliseconds, then points are aligned to Unix-epoch multiples of that step,
+with the first point rounded down and the last rounded up. This matters for the
+upstream benchmark's fractional steps.
+
+## Upstream benchmark corpus
+
+`test/corpus/logql/corpus.json` is a hand-curated contract. Loki does not ship
+its benchmark queries as a static file either: `pkg/logql/bench` generates them
+with a fixed seed. `upstream.sh` extracts the pinned source archive, runs that
+generator, and writes `test/compat/loki/upstream/corpus.json`.
+
+```sh
+# Regenerate the corpus from the pinned source and diff it against the commit.
+test/compat/loki/upstream.sh verify
+
+# Rewrite the committed corpus after changing the pinned Loki version.
+test/compat/loki/upstream.sh refresh
+
+# Start Loki plus a seeded ClickHouse gateway, run every case, write the report.
+test/compat/loki/upstream-run.sh --report docs/logql-upstream-baseline.md
+```
+
+The pinned tag, commit, archive SHA-256, and generator are recorded in
+`upstream.sh` and in the committed corpus. The generator defines queries and
+time ranges, not log data, so `upstream.py` seeds one synthetic stream per
+selector with bodies that exercise the corpus filters. Every case is shifted by
+one constant so the fixture ends five minutes before the run; query text,
+relative windows, steps, and directions are unchanged.
+
+The latest result is
+[`docs/logql-upstream-baseline.md`](../../../docs/logql-upstream-baseline.md).
 
 ## Limitations
 
@@ -69,10 +99,9 @@ multiples of `step`, with the first point rounded down and the last rounded up.
   run `record` together when adopting a new reference version.
 - The corpus covers the supported subset only. Unsupported LogQL must return an
   explicit HTTP 400, which is covered by unit tests rather than this harness.
-- The reference container uses filesystem storage and a 24-hour retention
+- The reference container uses filesystem storage and a one-year retention
   period; it is not a production configuration.
 - The corpus uses fixed timestamps. The harness config keeps those chunks in
-  the ingester (`max_chunk_age`/`chunk_idle_period: 24h`) so the short-lived
+  the ingester (`max_chunk_age`/`chunk_idle_period: 8760h`) so the disposable
   container can query them. Refresh the corpus (`record`) or shift its
-  timestamps if running against a date more than 24 hours after the corpus
-  date.
+  timestamps if running against a date more than a year after the corpus date.

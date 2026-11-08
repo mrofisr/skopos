@@ -245,6 +245,15 @@ func evaluationPoints(start, end time.Time, step time.Duration, maxSamples int) 
 	if step <= 0 {
 		return nil, fmt.Errorf("step must be positive")
 	}
+	// Loki carries the range-query step as whole milliseconds (loghttp's
+	// RangeQuery.Step and the queryrange codec convert it with
+	// time.Duration.Milliseconds). Truncate before aligning so a fractional
+	// millisecond step uses the same epoch grid as Loki; the upstream
+	// benchmark corpus includes a 189.473684210s step.
+	step = step.Truncate(time.Millisecond)
+	if step <= 0 {
+		return nil, fmt.Errorf("step must be at least 1ms")
+	}
 	if end.Before(start) {
 		return nil, fmt.Errorf("end is before start")
 	}
@@ -283,12 +292,20 @@ func ceilDiv(a, b int64) int64 {
 	return q
 }
 
+// lokiMetricTimestamp renders a sample timestamp the way Loki's model.Time
+// does: whole milliseconds since the Unix epoch, encoded as seconds. Using
+// UnixMilli avoids a last-bit float difference from Loki's response for
+// millisecond-aligned steps.
+func lokiMetricTimestamp(at time.Time) float64 {
+	return float64(at.UnixMilli()) / 1000
+}
+
 func matrixData(series []matrixSeries) []any {
 	out := make([]any, 0, len(series))
 	for _, s := range series {
 		values := make([]any, 0, len(s.Samples))
 		for _, sample := range s.Samples {
-			values = append(values, []any{float64(sample.Timestamp.UnixNano()) / 1e9, formatMetricFloat(sample.Value)})
+			values = append(values, []any{lokiMetricTimestamp(sample.Timestamp), formatMetricFloat(sample.Value)})
 		}
 		out = append(out, map[string]any{"metric": s.Labels, "values": values})
 	}
@@ -304,7 +321,7 @@ func vectorData(series []matrixSeries) []any {
 		sample := s.Samples[0]
 		out = append(out, map[string]any{
 			"metric": s.Labels,
-			"value":  []any{float64(sample.Timestamp.UnixNano()) / 1e9, formatMetricFloat(sample.Value)},
+			"value":  []any{lokiMetricTimestamp(sample.Timestamp), formatMetricFloat(sample.Value)},
 		})
 	}
 	return out

@@ -395,6 +395,10 @@ func TestMetricRequiresStepAndRejectsExcessSamples(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("zero step = %d %s", rec.Code, rec.Body)
 	}
+	rec = do(t, h, `/loki/api/v1/query_range?query=`+query+`&start=1793491200&end=1793491500&step=500us`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "at least 1ms") {
+		t.Fatalf("sub-millisecond step = %d %s", rec.Code, rec.Body)
+	}
 
 	mux := http.NewServeMux()
 	api := NewAPI(fakeFetcher{entries: metricEntries()}, "test-version")
@@ -536,6 +540,37 @@ func TestEvaluationPointsAlignToUnixStep(t *testing.T) {
 				t.Fatalf("%s: point %d = %d, want %d", tc.name, i, points[i].Unix(), want)
 			}
 		}
+	}
+}
+
+func TestEvaluationPointsTruncateStepToMilliseconds(t *testing.T) {
+	base := time.Unix(1793491200, 0).UTC()
+	points, err := evaluationPoints(
+		base.Add(1500*time.Microsecond),
+		base.Add(25*time.Millisecond),
+		10*time.Millisecond+123456*time.Nanosecond,
+		defaultMaxSamples,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []int64{
+		base.UnixNano(),
+		base.UnixNano() + 10*int64(time.Millisecond),
+		base.UnixNano() + 20*int64(time.Millisecond),
+		base.UnixNano() + 30*int64(time.Millisecond),
+	}
+	if len(points) != len(want) {
+		t.Fatalf("%d points, want %d: %#v", len(points), len(want), points)
+	}
+	for i, expected := range want {
+		if points[i].UnixNano() != expected {
+			t.Fatalf("point %d = %d, want %d", i, points[i].UnixNano(), expected)
+		}
+	}
+
+	if _, err := evaluationPoints(base, base.Add(time.Second), 500*time.Microsecond, defaultMaxSamples); err == nil {
+		t.Fatal("sub-millisecond step: got nil error")
 	}
 }
 

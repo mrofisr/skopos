@@ -8,6 +8,11 @@ The reference implementation for this document and the differential corpus is
 `otel_logs` table; it does not synthesize Loki's `detected_level` label or
 parser diagnostic labels (`__error__`, `__error_details__`).
 
+The upstream baseline in
+[`logql-upstream-baseline.md`](logql-upstream-baseline.md) runs the pinned
+Loki 3.5.7 benchmark corpus against both Loki and Skopos and records every
+match, mismatch, and unsupported query.
+
 ## Endpoints
 
 | Endpoint | Status |
@@ -199,7 +204,10 @@ returns `resultType: "vector"`. Behavior:
   `step`.
 - Evaluation points match Loki: the first point is the requested `start`
   rounded down to a Unix-epoch multiple of `step`, and the last is `end`
-  rounded up to the next multiple. Samples are emitted in ascending time order.
+  rounded up to the next multiple. `step` is truncated to whole milliseconds
+  before alignment, matching Loki's internal range-query step, so fractional
+  steps such as `189.473684210` use the same grid. Samples are emitted in
+  ascending time order.
 - The range selector is inclusive at both ends: `[5m]` at time `t` includes an
   entry whose timestamp is exactly `t-5m`.
 - Zero-count steps are omitted, as in Loki. A series is present only if it has
@@ -281,3 +289,8 @@ Other limits:
   `internal/loki.TestLogQLCorpus` and by the real-Loki differential harness.
 - Differential harness: `test/compat/loki/run.sh verify` (Docker + Python 3);
   see `test/compat/loki/README.md` for the optional seeded-gateway comparison.
+- Upstream corpus: `test/compat/loki/upstream.sh` pins Loki 3.5.7 by tag,
+  commit, and archive SHA-256 and regenerates
+  `test/compat/loki/upstream/corpus.json` from `pkg/logql/bench`.
+  `test/compat/loki/upstream-run.sh` starts Loki plus the ClickHouse gateway,
+  seeds both, and writes the baseline report with `--report`.
