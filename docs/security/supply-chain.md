@@ -10,7 +10,7 @@ compromise. Every control below links to the place that enforces it.
 | --- | --- | --- | --- |
 | Who triggers releases | One annotated `vX.Y.Z` tag; no manual publish | `.github/workflows/release.yml` trigger and preflight | Workflow refuses non-annotated tags, non-`main` commits, existing tags, releases, and image tags |
 | Who can create release tags | Repository admins only | Tag ruleset for `refs/tags/v*` | GitHub ruleset; update and deletion blocked |
-| Who can change `main` | Pull request with required checks, zero required approvals, admins included | `main` ruleset | Ruleset with `enforce_admins=true`; direct pushes and force pushes blocked |
+| Who can change `main` | Pull request with required checks, zero required approvals, admins included | `main` ruleset; [`ruleset.json`](ruleset.json) | Ruleset with `enforce_admins=true`; direct pushes and force pushes blocked. `make ruleset-check` keeps the desired state aligned with the workflow job names. |
 | Agent authority | Non-admin token with contents and pull-request write; no admin, workflow, or secret access | [Agent access](agent-access.md) | Token permission check and ruleset drill |
 | What CI executes | `pull_request` workflows; no `pull_request_target` | `.github/workflows/ci.yml`; `policy` job | `zizmor` and an explicit pattern check |
 | Workflow permissions | Read-only by default; write scopes only in publish jobs | Workflow-level `permissions` | `policy` job and code review |
@@ -28,6 +28,30 @@ compromise. Every control below links to the place that enforces it.
 | Consumer verification | Documented cosign and `gh attestation verify` commands | `docs/release.md`; `scripts/verify-release.sh` | `make verify-release` |
 | Secure chart default | Gateway disabled unless release values enable it | `deploy/helm/skopos/values.yaml` | Default install cannot pull a mutable image tag |
 | Incident response | Token, release, and dependency playbooks | `docs/security/incident-response.md` | Maintainer runbook |
+
+## Ruleset as code
+
+[`ruleset.json`](ruleset.json) is the desired state of the `main-protection`
+branch ruleset. It records the required status checks, the workflows those
+checks come from, and the accepted zero-approval solo-maintainer exception.
+`ci.yml` supplies the main matrix and `dependency-review.yml` supplies the
+separate dependency-review check; both workflows are required.
+`make ruleset-check` extracts the job display names from each required workflow
+and fails when the file and the workflows disagree, including a renamed job, a
+duplicate check, or a check that exists only in the ruleset. The check is
+offline: it proves the repository is internally consistent, not that GitHub has
+accepted the file.
+
+Applying the file is a maintainer action, not part of a pull request:
+
+```sh
+jq '.ruleset' docs/security/ruleset.json > /tmp/main-ruleset.json
+gh api -X PUT repos/jawaracloud/skopos/rulesets/26493931 --input /tmp/main-ruleset.json
+```
+
+Change the file and the live ruleset in the same release cycle. The
+`review_exception` and `required_workflows` fields are repository metadata and
+are not sent to the API.
 
 ## Where we still fall short
 

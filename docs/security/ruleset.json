@@ -1,0 +1,101 @@
+{
+  "review_exception": {
+    "required_approving_review_count": 0,
+    "reason": "Solo maintainer: the pull request and required checks are the gate; no fake second reviewer.",
+    "documented_at": "docs/openssf-scorecard.md#review-exception-one-maintainer"
+  },
+  "required_workflows": [
+    "ci.yml",
+    "dependency-review.yml"
+  ],
+  "ruleset": {
+    "name": "main-protection",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "include": [
+          "refs/heads/main"
+        ],
+        "exclude": []
+      }
+    },
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "required_linear_history"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "dismissal_restriction": {
+            "enabled": false,
+            "allowed_actors": []
+          },
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": true,
+          "require_extra_approval_for_unattributed_changes": false,
+          "allowed_merge_methods": [
+            "squash",
+            "rebase"
+          ]
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": true,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "Go build, vet, test",
+              "integration_id": 15368
+            },
+            {
+              "context": "Coverage ratchet",
+              "integration_id": 15368
+            },
+            {
+              "context": "ClickHouse integration",
+              "integration_id": 15368
+            },
+            {
+              "context": "Tempo and Loki differentials",
+              "integration_id": 15368
+            },
+            {
+              "context": "cerberus three-way differential",
+              "integration_id": 15368
+            },
+            {
+              "context": "S3 tiered storage and backup (RustFS)",
+              "integration_id": 15368
+            },
+            {
+              "context": "Helm lint and render",
+              "integration_id": 15368
+            },
+            {
+              "context": "Workflow policy",
+              "integration_id": 15368
+            },
+            {
+              "context": "Dependency review",
+              "integration_id": 15368
+            }
+          ]
+        }
+      }
+    ],
+    "bypass_actors": []
+  }
+}

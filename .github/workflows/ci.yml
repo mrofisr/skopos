@@ -1,4 +1,4 @@
-name: ci
+name: CI
 
 # Every pull request runs the full matrix. Do not add path filters: required
 # checks must report on every change, including Helm, Dockerfile, workflow, and
@@ -325,6 +325,8 @@ jobs:
         run: '"$(go env GOPATH)/bin/actionlint"'
       - name: zizmor
         run: '"$(go env GOPATH)/bin/zizmor" --offline --min-severity=low .github/workflows'
+      - name: Check ruleset consistency
+        run: make ruleset-check
       - name: Reject blocked workflow patterns
         run: |
           set -eu

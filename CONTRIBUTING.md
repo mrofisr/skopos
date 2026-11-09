@@ -43,8 +43,9 @@ Workflow and job names are user-facing, so they follow one convention:
 | Step name | imperative sentence case; a tool-only step may keep the lowercase tool name | `Check out repository`, `actionlint` |
 
 Job display names become required status checks. Never rename a job display
-name without updating `docs/security/ruleset.json` and the live
-`main-protection` ruleset. The batch rename of existing names waits for AX-52.
+name without updating `docs/security/ruleset.json`, running
+`make ruleset-check`, and updating the live `main-protection` ruleset. The
+AX-52 batch rename changed only `dependency-review`, to `Dependency review`.
 
 ## Language policy
 

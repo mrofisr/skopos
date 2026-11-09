@@ -1,4 +1,4 @@
-name: scorecard
+name: Scorecard
 
 # Public repository path: run the official OpenSSF Scorecard action and publish
 # the result to the public Scorecard API. The CLI fallback in

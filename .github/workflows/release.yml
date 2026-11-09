@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 # A release is created only by pushing an annotated vX.Y.Z tag whose commit is
 # already on main. There is no manual publish path: re-run the tag workflow or
