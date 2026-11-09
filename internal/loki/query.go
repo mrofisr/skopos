@@ -348,9 +348,99 @@ func parseMetricQuery(text string) (Query, error) {
 		return query, nil
 	case "sum":
 		return parseSumMetric(rest)
+	case "vector":
+		return parseConstantVector(rest)
 	default:
 		return Query{}, fmt.Errorf("loki: unsupported metric function %q", name)
 	}
+}
+
+// parseConstantVector parses vector(<number>) and one binary operation between
+// two such expressions. This is the narrow scalar-vector subset Grafana's Loki
+// datasource health check uses: vector(1)+vector(1). Constant expressions are
+// folded at parse time and never read logs.
+func parseConstantVector(rest string) (Query, error) {
+	left, rest, err := parseVectorCall(rest)
+	if err != nil {
+		return Query{}, err
+	}
+	rest = strings.TrimSpace(rest)
+	if rest == "" {
+		return constantVectorQuery(left), nil
+	}
+	op, after := readArithmeticOperator(rest)
+	if op == "" {
+		return Query{}, fmt.Errorf("loki: unsupported constant vector expression suffix %q", rest)
+	}
+	after = strings.TrimSpace(after)
+	name, afterCall := readIdentifier(after)
+	if name != "vector" {
+		return Query{}, fmt.Errorf("loki: constant vector expressions must combine vector(<number>) operands")
+	}
+	right, rest, err := parseVectorCall(afterCall)
+	if err != nil {
+		return Query{}, err
+	}
+	if trailing := strings.TrimSpace(rest); trailing != "" {
+		return Query{}, fmt.Errorf("loki: unsupported constant vector expression suffix %q", trailing)
+	}
+	value, err := applyConstantOperator(op, left, right)
+	if err != nil {
+		return Query{}, err
+	}
+	return constantVectorQuery(value), nil
+}
+
+func parseVectorCall(rest string) (float64, string, error) {
+	rest = strings.TrimSpace(rest)
+	if rest == "" || rest[0] != '(' {
+		return 0, "", fmt.Errorf("loki: vector must be followed by a number in parentheses")
+	}
+	close, err := matchingParen(rest, 0)
+	if err != nil {
+		return 0, "", err
+	}
+	inner := strings.TrimSpace(rest[1:close])
+	if inner == "" {
+		return 0, "", fmt.Errorf("loki: vector requires a number")
+	}
+	value, err := strconv.ParseFloat(inner, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, "", fmt.Errorf("loki: vector requires a finite number, got %q", inner)
+	}
+	return value, strings.TrimSpace(rest[close+1:]), nil
+}
+
+func readArithmeticOperator(rest string) (string, string) {
+	for _, op := range []string{"+", "-", "*", "/", "%", "^"} {
+		if strings.HasPrefix(rest, op) {
+			return op, rest[len(op):]
+		}
+	}
+	return "", rest
+}
+
+func applyConstantOperator(op string, left, right float64) (float64, error) {
+	switch op {
+	case "+":
+		return left + right, nil
+	case "-":
+		return left - right, nil
+	case "*":
+		return left * right, nil
+	case "/":
+		return left / right, nil
+	case "%":
+		return math.Mod(left, right), nil
+	case "^":
+		return math.Pow(left, right), nil
+	default:
+		return 0, fmt.Errorf("loki: unsupported constant vector operator %q", op)
+	}
+}
+
+func constantVectorQuery(value float64) Query {
+	return Query{Metric: &MetricQuery{Constant: &value}}
 }
 
 func parseSumMetric(rest string) (Query, error) {

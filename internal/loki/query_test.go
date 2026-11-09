@@ -235,6 +235,35 @@ func TestParseMetricQueries(t *testing.T) {
 	}
 }
 
+func TestParseConstantVectorQueries(t *testing.T) {
+	tests := []struct {
+		query string
+		want  float64
+	}{
+		{`vector(1)`, 1},
+		{`vector(1)+vector(1)`, 2},
+		{`vector(2.5) + vector(0.5)`, 3},
+		{`vector(2) - vector(3)`, -1},
+		{`vector(2) * vector(3)`, 6},
+		{`vector(6) / vector(2)`, 3},
+		{`vector(5) % vector(2)`, 1},
+		{`vector(2) ^ vector(3)`, 8},
+		{`vector(-1)`, -1},
+	}
+	for _, tc := range tests {
+		query, err := Parse(tc.query)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.query, err)
+		}
+		if query.Metric == nil || query.Metric.Constant == nil {
+			t.Fatalf("%s: not a constant vector query", tc.query)
+		}
+		if *query.Metric.Constant != tc.want {
+			t.Errorf("%s constant = %v, want %v", tc.query, *query.Metric.Constant, tc.want)
+		}
+	}
+}
+
 func TestRejectsUnsupportedLogQL(t *testing.T) {
 	for _, query := range []string{
 		`{service_name="checkout"} | pattern "<_> <_>"`,
@@ -249,6 +278,15 @@ func TestRejectsUnsupportedLogQL(t *testing.T) {
 		`count_over_time({service_name="checkout"}[0m])`,
 		`sum by (x) (avg(count_over_time({service_name="checkout"}[5m])))`,
 		`sum by (x) (sum(count_over_time({service_name="checkout"}[5m])))`,
+		`vector()`,
+		`vector(foo)`,
+		`vector(NaN)`,
+		`vector(1) + vector(1) + vector(1)`,
+		`vector(1) + 1`,
+		`1 + vector(1)`,
+		`vector(1) + vector(2) * vector(3)`,
+		`vector(1) -`,
+		`vector(1) or vector(1)`,
 		`{service_name="checkout"`,
 		`{service_name=checkout}`,
 	} {

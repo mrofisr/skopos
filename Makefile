@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
 
 help:
 	@printf '%s\n' \
@@ -23,6 +23,7 @@ help:
 		'helm-lint         lint the Helm chart' \
 		'helm-template     render the Helm chart' \
 		'e2e-obi           run the real OBI end-to-end harness (Docker, Linux)' \
+		'e2e-grafana       verify Grafana datasource provisioning and health (Docker)' \
 		'compat-cerberus   run the cerberus three-way differential' \
 		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
@@ -83,6 +84,9 @@ check: vet test helm-lint fuzz
 
 e2e-obi:
 	./test/e2e/obi/run.sh
+
+e2e-grafana:
+	./test/e2e/obi/grafana.sh
 
 compat-cerberus:
 	./test/compat/cerberus/run.sh
@@ -145,6 +149,8 @@ release-check: vet test helm-lint
 	sh -n scripts/sbom-fallback.sh
 	sh -n scripts/scorecard.sh
 	sh -n test/e2e/obi/run.sh
+	sh -n test/e2e/obi/grafana.sh
+	sh -n test/e2e/obi/seed.sh
 	sh -n test/e2e/obi/verify.sh
 	sh -n test/e2e/obi/load.sh
 	sh -n test/e2e/obi/render-schema.sh

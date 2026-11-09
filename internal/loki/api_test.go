@@ -384,6 +384,77 @@ func TestMetricInstantVector(t *testing.T) {
 	}
 }
 
+func TestConstantVectorQueries(t *testing.T) {
+	fetcher := &recordingFetcher{}
+	api := NewAPI(fetcher, "test-version")
+	api.Now = func() time.Time { return time.Unix(4, 0).UTC() }
+	mux := http.NewServeMux()
+	api.Register(mux)
+
+	query := url.QueryEscape(`vector(1)+vector(1)`)
+	rec := do(t, mux, `/loki/api/v1/query?query=`+query+`&time=4`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("instant status = %d %s", rec.Code, rec.Body)
+	}
+	var instant struct {
+		Data struct {
+			ResultType string `json:"resultType"`
+			Result     []struct {
+				Metric map[string]string `json:"metric"`
+				Value  []any             `json:"value"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &instant); err != nil {
+		t.Fatalf("decode instant: %v", err)
+	}
+	if instant.Data.ResultType != "vector" || len(instant.Data.Result) != 1 {
+		t.Fatalf("instant data = %#v", instant.Data)
+	}
+	result := instant.Data.Result[0]
+	if len(result.Metric) != 0 {
+		t.Fatalf("instant metric = %#v, want no labels", result.Metric)
+	}
+	if len(result.Value) != 2 || result.Value[0] != float64(4) || result.Value[1] != "2" {
+		t.Fatalf("instant value = %#v, want [4, \"2\"]", result.Value)
+	}
+	if len(fetcher.calls) != 0 {
+		t.Fatalf("constant query fetched logs: %#v", fetcher.calls)
+	}
+
+	rec = do(t, mux, `/loki/api/v1/query_range?query=`+query+`&start=1&end=4&step=1`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("range status = %d %s", rec.Code, rec.Body)
+	}
+	var ranged struct {
+		Data struct {
+			ResultType string `json:"resultType"`
+			Result     []struct {
+				Metric map[string]string `json:"metric"`
+				Values [][]any           `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &ranged); err != nil {
+		t.Fatalf("decode range: %v", err)
+	}
+	if ranged.Data.ResultType != "matrix" || len(ranged.Data.Result) != 1 {
+		t.Fatalf("range data = %#v", ranged.Data)
+	}
+	values := ranged.Data.Result[0].Values
+	if len(values) != 4 {
+		t.Fatalf("range values = %#v, want 4 points", values)
+	}
+	for index, sample := range values {
+		if len(sample) != 2 || sample[0] != float64(index+1) || sample[1] != "2" {
+			t.Fatalf("range point %d = %#v, want [%d, \"2\"]", index, sample, index+1)
+		}
+	}
+	if len(fetcher.calls) != 0 {
+		t.Fatalf("constant range query fetched logs: %#v", fetcher.calls)
+	}
+}
+
 func TestMetricRequiresStepAndRejectsExcessSamples(t *testing.T) {
 	h, _ := metricAPI(t)
 	query := url.QueryEscape(`count_over_time({service_name="checkout"}[5m])`)

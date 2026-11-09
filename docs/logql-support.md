@@ -191,6 +191,20 @@ sum (count_over_time({service_name="checkout"}[5m]))
 Supported functions: `count_over_time` and `rate`. `rate` returns log entries
 per second (`count / range seconds`), not bytes per second.
 
+The constant vector expressions Grafana's Loki datasource health check sends
+are also supported:
+
+```logql
+vector(1)
+vector(1)+vector(1)
+```
+
+`vector(<number>)` produces one unlabeled series. A single binary operation
+(`+`, `-`, `*`, `/`, `%`, `^`) between two `vector(<number>)` expressions is
+folded at parse time. Constant queries do not read logs and emit their value at
+every requested step, including zero. Nested or mixed arithmetic is rejected
+explicitly.
+
 Supported aggregation: bare `sum(...)`, which produces one `{}` series, and
 `sum by (label, ...) (...)`, which keeps only the listed labels. Group labels
 missing from a stream are omitted from the output series, matching Loki. Other
@@ -253,11 +267,14 @@ Explicitly rejected:
 - Parser stages `| pattern`, `| regexp`, `| unpack`, `| ip`, and `| pack`.
 - Pipeline stages `| line_format`, `| label_format`, `| drop`, `| keep`,
   `| decolorize`, `| unwrap`, and `| label_filter`.
-- LogQL metric functions other than `count_over_time` and `rate`, including
-  `bytes_rate`, `bytes_over_time`, `sum_over_time`, `avg_over_time`,
-  `max_over_time`, `min_over_time`, `quantile_over_time`, and `stdvar_over_time`.
+- LogQL metric functions other than `count_over_time`, `rate`, and the
+  constant `vector(<number>)` expressions above, including `bytes_rate`,
+  `bytes_over_time`, `sum_over_time`, `avg_over_time`, `max_over_time`,
+  `min_over_time`, `quantile_over_time`, and `stdvar_over_time`.
 - Aggregations other than `sum` / `sum by`, and arithmetic between metric
   expressions or selectors.
+- Nested constant vector arithmetic, arithmetic with a scalar operand, and
+  constant vectors combined with log metric queries.
 - `offset`, vector matching, `bool`, and query frontend sharding syntax.
 
 Other limits:
