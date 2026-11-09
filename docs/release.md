@@ -123,6 +123,24 @@ helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
 Download `values.release.yaml` from the GitHub release. Verify the OCI chart
 before installing when your policy requires it.
 
+## Quickstart doc-test
+
+`make quickstart-test` is the EC5 evidence command. It runs the shell block
+tagged `quickstart` in the README verbatim against the published chart:
+
+1. `cmd/skopos-quickstart` extracts the tagged block and requires exactly one
+   `oci://` chart reference and one strict-SemVer `--version`.
+2. It runs `helm show chart <ref> --version <version>` and fails before creating
+   a cluster when the chart version is not in the registry.
+3. The harness downloads `values.release.yaml` from the matching GitHub release,
+   creates a clean k3d cluster with a private kubeconfig, runs the extracted
+   block verbatim, and checks the ClickHouse StatefulSet and gateway Deployment
+   roll out.
+
+Requires `go`, `helm`, `k3d`, `kubectl`, and an authenticated `gh`. The run is
+intentionally red until the chart version named in the README is published;
+`SKOPOS_QUICKSTART_KEEP=1` keeps the cluster for inspection.
+
 ## Local dry run
 
 `make release VERSION=0.1.0-alpha.2` builds the image, chart, SBOMs, metadata,
