@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -42,6 +42,7 @@ help:
 		'issues-lint-live  validate the live alpha-exit issues (read-only)' \
 		'issues-sync       dry-run the label and issue sync (APPLY=1 to mutate)' \
 		'ruleset-check     check the main ruleset against workflow job names' \
+		'quickstart-test   run the README quickstart in a clean k3d cluster' \
 		'check             vet + test + fuzz + helm lint'
 
 build:
@@ -94,6 +95,9 @@ compat-cerberus:
 
 storage-test:
 	./test/integration/s3/run.sh
+
+quickstart-test:
+	./scripts/quickstart-test.sh
 
 bench:
 	./test/bench/run.sh
@@ -148,6 +152,7 @@ release-check: vet test helm-lint ruleset-check
 	cd test/compat/prometheus && $(GO) mod verify && $(GO) vet ./... && $(GO) test -count=1 ./...
 	sh -n scripts/check-code-scanning.sh
 	sh -n scripts/check-osv-exceptions.sh
+	sh -n scripts/quickstart-test.sh
 	sh -n scripts/release.sh
 	sh -n scripts/verify-release.sh
 	sh -n scripts/sbom-fallback.sh

@@ -125,7 +125,7 @@ helm install skopos ./deploy/helm/skopos \
 
 Published releases use the OCI chart and the attached digest-pinned values:
 
-```sh
+```sh quickstart
 helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
   --version 0.1.0-alpha.2 \
   -f values.release.yaml \
