@@ -1,4 +1,4 @@
-name: issues
+name: Issues
 
 # The issue lint is read-only but needs an authenticated API call, so it runs
 # on a schedule and on demand instead of on every pull request. Fork PRs never

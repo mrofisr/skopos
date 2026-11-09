@@ -1,4 +1,4 @@
-name: pr-guard
+name: PR guard
 
 # Read-only on purpose. A same-repository branch runs the guard from the pull
 # request head; a fork checks out the base commit so fork code never runs with

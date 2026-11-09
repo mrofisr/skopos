@@ -19,7 +19,7 @@ claim.
 | OSV / `golang.org/x/net` | Fixed | `GO-2026-6860` (CVE-2026-78661) and `GO-2026-6866` (CVE-2026-97045) affect `golang.org/x/net` before v0.62.0. The root module and `test/compat/prometheus` now pin **v0.62.0**. An OSV API query for v0.62.0 returns no vulnerabilities. |
 | `govulncheck` | Clean | `govulncheck v1.9.0 ./...` reports `No vulnerabilities found.` |
 | Tests | Pass | `go test ./...`, `go test -race ./...`, `go test -cover ./...`, and `go vet ./...` pass after the dependency update. `go mod verify` reports `all modules verified`. |
-| Branch ruleset | Enforced on `main` | `main-protection` (ruleset `26493931`) requires a pull request, green required checks, linear history, and blocks force pushes and deletion. It has no bypass actors and applies to admins. It requires **zero approving reviews** by design. |
+| Branch ruleset | Enforced on `main` | `main-protection` (ruleset `26493931`, desired state in [`security/ruleset.json`](security/ruleset.json)) requires a pull request, green required checks, linear history, and blocks force pushes and deletion. It has no bypass actors and applies to admins. It requires **zero approving reviews** by design. |
 | Review | Accepted exception, not fully met | The project has one maintainer. The PR and required checks are the gate; there is no fake second reviewer. The residual risk is recorded below. |
 | Scorecard | Last published 6.8; local post-fix checks improve | The published API snapshot still shows Vulnerabilities 8. A local CLI v5.6.0 `--local=.` run after the dependency bump reports Vulnerabilities 10 ("0 existing vulnerabilities detected") and Packaging 10. Local mode does not evaluate GitHub rulesets or Code-Review, so its overall score is not comparable with the published result. |
 
@@ -148,9 +148,11 @@ These actions cannot be done from a pull request:
    read-only** lets the Branch-Protection check read the ruleset. This is a
    measurement improvement, not a security control; do not add a long-lived
    admin token just for the score.
-2. **Rulesets.** `main` and `v*` tag rulesets are the enforced path. Decide
-   separately whether to extend the PR/check ruleset to `development`; this
-   change does not modify repository settings.
+2. **Rulesets.** `main` and `v*` tag rulesets are the enforced path. Apply
+   changes to [`security/ruleset.json`](security/ruleset.json) and the live
+   `main-protection` ruleset together; this change does not modify repository
+   settings. Decide separately whether to extend the PR/check ruleset to
+   `development`.
 3. **PR-based review.** Continue using PRs. The solo-maintainer exception is
    documented above; do not fake a second approval. Add the approval
    requirements when a second maintainer joins.

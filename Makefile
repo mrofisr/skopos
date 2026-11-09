@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check
 
 help:
 	@printf '%s\n' \
@@ -41,6 +41,7 @@ help:
 		'issues-lint       validate the issue manifest' \
 		'issues-lint-live  validate the live alpha-exit issues (read-only)' \
 		'issues-sync       dry-run the label and issue sync (APPLY=1 to mutate)' \
+		'ruleset-check     check the main ruleset against workflow job names' \
 		'check             vet + test + fuzz + helm lint'
 
 build:
@@ -80,7 +81,7 @@ helm-lint:
 helm-template:
 	$(HELM) template skopos $(CHART) --namespace observability
 
-check: vet test helm-lint fuzz
+check: vet test helm-lint fuzz ruleset-check
 
 e2e-obi:
 	./test/e2e/obi/run.sh
@@ -136,7 +137,10 @@ issues-lint-live:
 issues-sync:
 	$(GO) run ./cmd/skopos-issues sync $(if $(APPLY),--apply,)
 
-release-check: vet test helm-lint
+ruleset-check:
+	$(GO) run ./cmd/skopos-ruleset-check
+
+release-check: vet test helm-lint ruleset-check
 	$(GO) mod verify
 	$(GO) mod vendor
 	git diff --exit-code -- vendor go.mod go.sum
