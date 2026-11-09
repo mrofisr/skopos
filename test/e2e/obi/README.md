@@ -51,6 +51,42 @@ You can run the assertions alone against an existing stack:
 SKOPOS_E2E_GATEWAY_URL=http://127.0.0.1:18081 ./test/e2e/obi/verify.sh
 ```
 
+## Grafana datasource harness
+
+The same Compose file also runs a Grafana datasource check without OBI or the
+collector, so it works on a standard CI runner without privileged mode:
+
+```sh
+make e2e-grafana
+# or
+./test/e2e/obi/grafana.sh
+```
+
+The harness starts ClickHouse, the seed job, the gateway, and a
+digest-pinned `grafana/grafana` container. It renders the example provisioning
+from `deploy/examples/grafana/provisioning/datasources/skopos.yaml`, rewrites
+the Kubernetes service URL to the Compose gateway, and asks Grafana for the
+datasource list and each datasource's health. The default host ports are
+gateway `18082`, ClickHouse HTTP `18124`, ClickHouse native `19001`, and
+Grafana `13000`; override them with the usual `SKOPOS_E2E_*_PORT` variables.
+
+The harness has two negative self-checks:
+
+```sh
+./test/e2e/obi/grafana.sh --self-test stopped
+./test/e2e/obi/grafana.sh --self-test auth
+```
+
+`stopped` stops the gateway and requires the checker to fail with the
+connection error. `auth` enables gateway basic auth but provisions Grafana with
+a wrong password, and requires the checker to fail with an authentication
+error. Both keep the stack's containers and logs on failure and remove them on
+success, like the OBI harness.
+
+The seed job inserts one OBI-shaped metric, log, and trace so the stack is
+ready for the journey tickets; the datasource health checks themselves do not
+depend on the seed.
+
 ## Requirements
 
 - Linux kernel 5.8+ with BTF (`/sys/kernel/btf/vmlinux`) and tracefs

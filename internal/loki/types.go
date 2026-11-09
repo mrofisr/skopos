@@ -69,12 +69,15 @@ type LabelFilter struct {
 }
 
 // MetricQuery is the supported LogQL metric subset: count_over_time, rate,
-// and an optional sum or sum by (...) aggregation.
+// and an optional sum or sum by (...) aggregation. Constant is set for
+// constant vector expressions such as vector(1)+vector(1); those queries do
+// not read logs.
 type MetricQuery struct {
 	Function  string
 	Range     time.Duration
 	Aggregate bool
 	GroupBy   []string
+	Constant  *float64
 }
 
 // Query is a parsed LogQL query. When Metric is nil this is a log query.

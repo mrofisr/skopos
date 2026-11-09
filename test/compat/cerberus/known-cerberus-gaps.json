@@ -8,6 +8,7 @@
     "promql/histogram_quantile_range",
     "promql/summary_count_range",
     "logql/rate",
+    "logql/constant_vector_health",
     "traceql/search/all traces",
     "traceql/search/span attribute",
     "traceql/search/anchored regex with wildcard",

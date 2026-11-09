@@ -62,12 +62,12 @@ ghcr.io/tsouza/cerberus:<tag> --format '{{json .RepoDigests}}'`.
 | Signal | Cases | Source |
 | --- | ---: | --- |
 | PromQL | 44 (36 instant, 8 range) | `promql.json` + `metrics.json` |
-| LogQL | 11 | `test/corpus/logql/corpus.json` |
+| LogQL | 19 | `test/corpus/logql/corpus.json` |
 | TraceQL search | 83 | `test/corpus/traceql/corpus.json` |
 | TraceQL tag scopes | 5 scopes in 1 check | same corpus |
 | TraceQL tag values | 10 | same corpus |
 | TraceQL trace-by-id | 3 | same corpus |
-| **Total** | **152 checks** | |
+| **Total** | **160 checks** | |
 
 PromQL covers selectors and regex matchers, `rate`/`increase`, classic
 `histogram_quantile`, histogram `_count`/`_sum`, summary quantiles/count/sum,
@@ -93,7 +93,7 @@ three agree.
 
 Log entries model Loki stream labels as OTel resource attributes
 (`service.name`, `severity_text`) and also fill the exporter's `ServiceName`
-and `SeverityText` columns. The corpus is the same 11-case file used by
+and `SeverityText` columns. The corpus is the same 19-case file used by
 `test/compat/loki`; its expected values were recorded from Loki 3.5.7 and the
 live reference check is `test/compat/loki/run.sh verify`.
 
@@ -127,22 +127,22 @@ aggregation, a metric value, a matched span set, a tag name/value, or an event
 or link is printed as a unified diff. The harness prints every case with
 `--verbose` and every failure by default.
 
-## Current result on this host (2026-11-07)
+## Current result (2026-11-09)
 
-Docker 29.9.3, Compose 5.7.0, kernel 6.18.55, x86_64.
+Measured by the `cerberus three-way differential` CI job on `ubuntu-24.04`.
 
 ```text
-summary: 152 cases; 96 pass; 56 known cerberus gaps; 0 cerberus regressions; 0 fixed baseline entries; 0 Skopos divergences
+summary: 160 cases; 103 pass; 57 known cerberus gaps; 0 cerberus regressions; 0 fixed baseline entries; 0 Skopos divergences
 ok: Skopos matches the reference on every corpus case
 ```
 
 The gate is zero for Skopos against the reference, and zero against cerberus on
 every case where cerberus implements the feature. Cerberus v1.23.1 diverges on
-56 checks; every one was traced to cerberus behavior, not to Skopos or the
+57 checks; every one was traced to cerberus behavior, not to Skopos or the
 corpus. The exact case keys are pinned in `known-cerberus-gaps.json`: a new
 cerberus divergence fails the gate as `CERBERUS_REGRESSION`, and a documented
 gap that starts passing fails as `CERBERUS_FIXED` until the baseline is updated.
-The next section groups the 56 by root cause with a reproducer.
+The next section groups the 57 by root cause with a reproducer.
 
 ## Known cerberus gaps
 
@@ -200,7 +200,26 @@ curl -sG localhost:18092/loki/api/v1/query_range \
 # cerberus returns 1793491260 and 1793491560; reference returns 1793491500
 ```
 
-### 4. TraceQL search summary uses the matched span, not the full trace (20 checks)
+### 4. LogQL constant vectors return no data (1 check)
+
+Cerberus has no LogQL constant-vector evaluator, so a query that never reads a
+log stream returns an empty result. Loki and Skopos fold
+`vector(1)+vector(1)` to the unlabeled value `2` at every evaluation point.
+Grafana's pinned Loki datasource health check uses exactly this query, which is
+why the corpus covers it.
+
+Affected: `constant_vector_health`.
+
+```sh
+curl -sG localhost:18092/loki/api/v1/query_range \
+  --data-urlencode 'query=vector(1)+vector(1)' \
+  --data-urlencode start=2026-11-01T00:00:00Z \
+  --data-urlencode end=2026-11-01T00:05:00Z \
+  --data-urlencode step=60s
+# cerberus returns []; reference and Skopos return {} 2 at each step
+```
+
+### 5. TraceQL search summary uses the matched span, not the full trace (20 checks)
 
 When the matching spans do not include the root, cerberus reports the earliest
 matched span as `startTimeUnixNano` instead of the trace start. When a child
@@ -220,14 +239,14 @@ curl -sG localhost:18092/api/search --data-urlencode 'q={ span:status = ok }' --
 # trace 4bf... start=1793491200500000000; reference and Skopos start=1793491200000000000
 ```
 
-### 5. TraceQL event time-since-start is unsupported (1 check)
+### 6. TraceQL event time-since-start is unsupported (1 check)
 
 `{ event:timeSinceStart >= 1s }` matches the checkout trace on Tempo and
 Skopos; cerberus returns an empty trace list.
 
 Affected: `event time since start`.
 
-### 6. TraceQL unsupported-construct error parity (23 checks)
+### 7. TraceQL unsupported-construct error parity (23 checks)
 
 The corpus marks structural operators, multiple spansets, pipelines, metrics
 queries, grouping, unknown span intrinsics, and instrumentation attributes as
@@ -248,7 +267,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -G localhost:18092/api/search \
 # cerberus 200; Tempo and Skopos 400
 ```
 
-### 7. TraceQL tag-value discovery is incomplete (5 checks)
+### 8. TraceQL tag-value discovery is incomplete (5 checks)
 
 | Tag | Cerberus | Reference / Skopos |
 | --- | --- | --- |
@@ -262,7 +281,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -G localhost:18092/api/search \
 curl -s localhost:18092/api/v2/search/tag/span:kind/values?start=1793491140\&end=1793491800
 ```
 
-### 8. Trace-by-id omits events and links (1 check)
+### 9. Trace-by-id omits events and links (1 check)
 
 For trace `4bf92f3577b34da6a3ce929d0e0e4736`, cerberus returns the spans with
 correct IDs/names/attributes but no `events` (the corpus has an `exception`
@@ -275,7 +294,7 @@ response-shape omission.
 curl -s localhost:18092/api/v2/traces/4bf92f3577b34da6a3ce929d0e0e4736
 ```
 
-### 9. Presentation-only omissions (not counted as gaps)
+### 10. Presentation-only omissions (not counted as gaps)
 
 These are visible in the wire format but do not change any corpus query result;
 the normalizer ignores them:
@@ -299,7 +318,7 @@ the normalizer ignores them:
 | `seed/main.go` | Renders the chart schema, seeds logs/traces/metrics, writes OpenMetrics. Reuses `test/corpus/traceql`. |
 | `metrics.json` | Deterministic metric fixture (gauges, counter, histogram, summary). |
 | `promql.json` | 44 PromQL cases with the instant/range evaluation times. |
-| `known-cerberus-gaps.json` | Exact baseline of the 56 documented cerberus divergences. |
+| `known-cerberus-gaps.json` | Exact baseline of the 57 documented cerberus divergences. |
 | `harness.py` | Normalization, three-way comparison, exact diffs, baseline check, and reporting. |
 
 The harness is manual by default only in the sense that it is not run on every

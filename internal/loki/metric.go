@@ -33,8 +33,9 @@ func badMetricf(format string, args ...any) error {
 // evaluateMetric evaluates a parsed metric query at the provided ascending
 // evaluation timestamps. It fetches one extra range selector of history before
 // the first step, filters entries through the selector and pipeline, groups
-// them, and computes count_over_time or rate. Zero-count steps are omitted,
-// matching Loki.
+// them, and computes count_over_time or rate. Constant vector queries skip the
+// fetch and return their folded value at every point. Zero-count steps are
+// omitted, matching Loki.
 func (a *API) evaluateMetric(ctx context.Context, query Query, points []time.Time) ([]matrixSeries, error) {
 	if query.Metric == nil {
 		return nil, badMetricf("loki: not a metric query")
@@ -42,15 +43,22 @@ func (a *API) evaluateMetric(ctx context.Context, query Query, points []time.Tim
 	if len(points) == 0 {
 		return nil, badMetricf("loki: no evaluation timestamps")
 	}
-	if a.MaxRange > 0 && query.Metric.Range > a.MaxRange {
-		return nil, badMetricf("loki: range selector [%s] exceeds the maximum query range %s", query.Metric.Range, a.MaxRange)
-	}
 	maxSamples := a.MaxSamples
 	if maxSamples <= 0 {
 		maxSamples = defaultMaxSamples
 	}
 	if len(points) > maxSamples {
 		return nil, badMetricf("loki: query has %d steps, exceeding the %d-sample limit", len(points), maxSamples)
+	}
+	if query.Metric.Constant != nil {
+		samples := make([]matrixSample, 0, len(points))
+		for _, at := range points {
+			samples = append(samples, matrixSample{Timestamp: at, Value: *query.Metric.Constant})
+		}
+		return []matrixSeries{{Labels: map[string]string{}, Samples: samples}}, nil
+	}
+	if a.MaxRange > 0 && query.Metric.Range > a.MaxRange {
+		return nil, badMetricf("loki: range selector [%s] exceeds the maximum query range %s", query.Metric.Range, a.MaxRange)
 	}
 	start := points[0]
 	end := points[len(points)-1]
