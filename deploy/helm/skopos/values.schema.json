@@ -1207,6 +1207,9 @@
               "type": "string",
               "pattern": "^[0-9]+(ms|s|m|h)$"
             },
+            "profile": {
+              "type": "boolean"
+            },
             "logLevel": {
               "type": "string",
               "enum": [

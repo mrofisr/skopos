@@ -375,3 +375,37 @@ func TestMetadataTTL(t *testing.T) {
 		t.Fatal("FromLookup accepted an invalid metadata TTL")
 	}
 }
+
+func TestProfileFlag(t *testing.T) {
+	cfg, err := FromLookup(lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Profile {
+		t.Fatal("Profile defaulted to true")
+	}
+	cfg, err = FromLookup(lookupFrom(map[string]string{"SKOPOS_PROFILE": "true"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Profile {
+		t.Fatal("Profile did not read SKOPOS_PROFILE")
+	}
+}
+
+func TestProfileFlagRejectsInvalidValue(t *testing.T) {
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_PROFILE": "yes"})); err == nil {
+		t.Fatal("SKOPOS_PROFILE=yes was accepted")
+	}
+}
+
+func TestFromEnvReadsProfile(t *testing.T) {
+	t.Setenv("SKOPOS_PROFILE", "true")
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Profile {
+		t.Fatal("FromEnv did not read SKOPOS_PROFILE")
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"runtime/debug"
 	"time"
 
@@ -37,6 +38,8 @@ type Config struct {
 	Register func(*http.ServeMux)
 	// Metrics serves the Prometheus registry. Nil disables the /metrics route.
 	Metrics http.Handler
+	// Profile enables the auth-protected /debug/pprof routes.
+	Profile bool
 }
 
 // Server owns the gateway handlers.
@@ -49,6 +52,7 @@ type Server struct {
 	auth             *auth.Basic
 	register         func(*http.ServeMux)
 	metrics          http.Handler
+	profile          bool
 }
 
 // New validates cfg and returns a server.
@@ -83,6 +87,7 @@ func New(cfg Config) (*Server, error) {
 		auth:             cfg.Auth,
 		register:         cfg.Register,
 		metrics:          cfg.Metrics,
+		profile:          cfg.Profile,
 	}, nil
 }
 
@@ -98,6 +103,16 @@ func (s *Server) Handler() http.Handler {
 			s.metrics.ServeHTTP(w, r)
 		}))
 	}
+	if s.profile {
+		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+		for _, name := range []string{"allocs", "block", "goroutine", "heap", "mutex", "threadcreate"} {
+			mux.Handle("GET /debug/pprof/"+name, pprof.Handler(name))
+		}
+	}
 	if s.register != nil {
 		s.register(mux)
 	}
@@ -110,6 +125,12 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.metrics != nil {
 		known["/metrics"] = struct{}{}
+	}
+	if s.profile {
+		known["/debug/pprof/"] = struct{}{}
+		for _, name := range []string{"allocs", "block", "cmdline", "goroutine", "heap", "mutex", "profile", "symbol", "threadcreate", "trace"} {
+			known["/debug/pprof/"+name] = struct{}{}
+		}
 	}
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
