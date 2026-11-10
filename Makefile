@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -27,6 +27,7 @@ help:
 		'compat-cerberus   run the cerberus three-way differential' \
 		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
+		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
 		'release-check     release preflight: vet, tests, Helm, vendor, script syntax' \
@@ -102,6 +103,9 @@ quickstart-test:
 bench:
 	./test/bench/run.sh
 
+bench-gate:
+	SKOPOS_BENCH_GATE=1 ./test/bench/run.sh
+
 release:
 	VERSION=$(VERSION) ./scripts/release.sh
 
@@ -116,33 +120,33 @@ scorecard:
 
 coverage:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/skopos-coverage gate --profile coverage.out --floor test/quality/coverage-floor.json --previous-ref origin/development
+	$(GO) run ./cmd/repoctl coverage gate --profile coverage.out --floor test/quality/coverage-floor.json --previous-ref origin/development
 
 coverage-report:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/skopos-coverage report --profile coverage.out --floor test/quality/coverage-floor.json
+	$(GO) run ./cmd/repoctl coverage report --profile coverage.out --floor test/quality/coverage-floor.json
 
 coverage-write:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/skopos-coverage write --profile coverage.out --floor test/quality/coverage-floor.json
+	$(GO) run ./cmd/repoctl coverage write --profile coverage.out --floor test/quality/coverage-floor.json
 
 issues-manifest:
-	$(GO) run ./cmd/skopos-issues manifest --write
+	$(GO) run ./cmd/repoctl issues manifest --write
 
 issues-manifest-check:
-	$(GO) run ./cmd/skopos-issues manifest --check
+	$(GO) run ./cmd/repoctl issues manifest --check
 
 issues-lint:
-	$(GO) run ./cmd/skopos-issues lint
+	$(GO) run ./cmd/repoctl issues lint
 
 issues-lint-live:
-	$(GO) run ./cmd/skopos-issues lint --live
+	$(GO) run ./cmd/repoctl issues lint --live
 
 issues-sync:
-	$(GO) run ./cmd/skopos-issues sync $(if $(APPLY),--apply,)
+	$(GO) run ./cmd/repoctl issues sync $(if $(APPLY),--apply,)
 
 ruleset-check:
-	$(GO) run ./cmd/skopos-ruleset-check
+	$(GO) run ./cmd/repoctl ruleset
 
 release-check: vet test helm-lint ruleset-check
 	$(GO) mod verify
@@ -150,8 +154,6 @@ release-check: vet test helm-lint ruleset-check
 	git diff --exit-code -- vendor go.mod go.sum
 	$(HELM) template skopos $(CHART) --namespace observability >/dev/null
 	cd test/compat/prometheus && $(GO) mod verify && $(GO) vet ./... && $(GO) test -count=1 ./...
-	sh -n scripts/check-code-scanning.sh
-	sh -n scripts/check-osv-exceptions.sh
 	sh -n scripts/quickstart-test.sh
 	sh -n scripts/release.sh
 	sh -n scripts/verify-release.sh

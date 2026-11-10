@@ -26,11 +26,11 @@ means creating a new patch tag; published releases are immutable.
 3. Merge the version bump through a pull request with all required checks.
 4. Confirm that the commit is on `main` and CI is green.
 5. Confirm that there are no open high or critical code-scanning alerts. The
-   release preflight runs `scripts/check-code-scanning.sh`, which fails closed
+   release preflight runs `go run ./cmd/repoctl codescan`, which fails closed
    on API errors and names every blocking alert.
 6. Confirm that `docs/security/osv-exceptions.yaml` is empty or that every
    exception has a reason and an unexpired date. The release preflight runs
-   `scripts/check-osv-exceptions.sh`.
+   `go run ./cmd/repoctl osv`.
 
 ## Create the release
 
@@ -45,7 +45,7 @@ git push origin v0.1.0-alpha.2
 
 1. Verifies that the tag is annotated, is an ancestor of `main`, and that the
    tag, release, and image tag do not already exist.
-2. Runs `scripts/check-code-scanning.sh`, `scripts/check-osv-exceptions.sh`,
+2. Runs `go run ./cmd/repoctl codescan`, `go run ./cmd/repoctl osv`,
    `make release-check`, and `go test -race ./...`.
 3. Builds the image, chart, and SBOMs in a read-only job.
 4. Pushes the image, signs it with keyless Sigstore, and attests provenance and
@@ -128,7 +128,7 @@ before installing when your policy requires it.
 `make quickstart-test` is the EC5 evidence command. It runs the shell block
 tagged `quickstart` in the README verbatim against the published chart:
 
-1. `cmd/skopos-quickstart` extracts the tagged block and requires exactly one
+1. `go run ./cmd/repoctl quickstart` extracts the tagged block and requires exactly one
    `oci://` chart reference and one strict-SemVer `--version`.
 2. It runs `helm show chart <ref> --version <version>` and fails before creating
    a cluster when the chart version is not in the registry.

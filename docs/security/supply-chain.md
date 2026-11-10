@@ -38,7 +38,10 @@ checks come from, and the accepted zero-approval solo-maintainer exception.
 separate dependency-review check; both workflows are required.
 `make ruleset-check` extracts the job display names from each required workflow
 and fails when the file and the workflows disagree, including a renamed job, a
-duplicate check, or a check that exists only in the ruleset. The check is
+duplicate check, or a check that exists only in the ruleset. `allow_extra_jobs`
+lets a required workflow carry jobs that are not individually required; it is
+how the planned `CI gate` aggregator can become the single required check while
+the matrix jobs stay in `ci.yml`. The check is
 offline: it proves the repository is internally consistent, not that GitHub has
 accepted the file.
 

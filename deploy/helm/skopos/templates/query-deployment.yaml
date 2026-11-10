@@ -1,4 +1,6 @@
 {{- if and .Values.gateway.enabled .Values.distributed.enabled }}
+{{- include "skopos.validateAdmission" . }}
+{{- $goMemLimit := include "skopos.goMemLimit" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -111,6 +113,18 @@ spec:
               value: {{ .Values.gateway.config.readinessTimeout | quote }}
             - name: SKOPOS_MAX_REQUEST_BYTES
               value: {{ .Values.gateway.config.maxRequestBytes | int64 | quote }}
+            {{- if $goMemLimit }}
+            - name: GOMEMLIMIT
+              value: {{ $goMemLimit | quote }}
+            {{- end }}
+            {{- if gt (int .Values.gateway.config.maxInflight) 0 }}
+            - name: SKOPOS_MAX_INFLIGHT
+              value: {{ .Values.gateway.config.maxInflight | quote }}
+            - name: SKOPOS_QUEUE_DEPTH
+              value: {{ .Values.gateway.config.queueDepth | quote }}
+            - name: SKOPOS_QUEUE_WAIT
+              value: {{ printf "%ds" (int64 .Values.gateway.config.queueWaitSeconds) | quote }}
+            {{- end }}
             - name: SKOPOS_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}
             {{- with .Values.query.extraEnv }}

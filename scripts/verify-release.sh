@@ -45,7 +45,7 @@ gh release download "$tag" \
   --pattern values.release.yaml \
   --dir "$tmp"
 
-go run ./cmd/skopos-release-verify \
+go run ./cmd/repoctl release-verify \
   --repo "$repo" \
   --image-repository "$image_repository" \
   --chart-ref "$chart_ref" \

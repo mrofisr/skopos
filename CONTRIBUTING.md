@@ -30,6 +30,22 @@ These rules are part of ADR 0001 and are not optional.
    signing path, or a mutable chart release from `main`. Follow
    [docs/release.md](docs/release.md).
 
+## Repository layout
+
+The layout and language policy is [ADR 0004](docs/adr/0004-repository-layout-and-language-policy.md),
+summarised in [docs/structure.md](docs/structure.md) and enforced by
+`internal/archtest`. The short version:
+
+- `cmd/` holds binaries only: the shipped `gateway`, `skopos-checkpoint`, and
+  `skopos-mcp`, plus the one developer tool, `repoctl`.
+- A repository check is a package under `cmd/repoctl/internal/<name>` with a
+  `Run(ctx, env, args)` entry point and one registry line in `cmd/repoctl`.
+  Do not add another `cmd/skopos-*` binary or a Makefile-only script.
+- GitHub access goes through `cmd/repoctl/internal/ghapi`. Check logic does not
+  exec `gh` or call `net/http` directly.
+- `main` packages wire dependencies and call `Run`; they hold no parsing,
+  validation, or decision logic. `cmd/gateway` is grandfathered until RS-31.
+
 ## Naming conventions
 
 Workflow and job names are user-facing, so they follow one convention:
@@ -56,9 +72,13 @@ AX-52 batch rename changed only `dependency-review`, to `Dependency review`.
 - Shell in `scripts/` is limited to thin orchestration of external tools
   (release, signing, verification, SBOM). Parsing, validation, and decision
   logic belong in Go with Go tests.
-- Existing Python under `test/` is frozen for the alpha. It may receive only
-  fixes that keep an existing black-box harness working. New test automation is
-  Go; migrating the remaining harnesses is a post-alpha decision.
+- No new Python. The existing harnesses under `test/` are frozen until their
+  parity-first ports land, in this order: `test/bench/bench.py` (blocks AX-25),
+  the cerberus three-way harness, then the Loki harness and its seed/upstream
+  scripts. A Go port is accepted only when it reproduces the recorded Python
+  result on pinned inputs; a difference is investigated and documented, never
+  silently adjusted. The Python file is deleted in a later PR. See
+  [ADR 0004](docs/adr/0004-repository-layout-and-language-policy.md).
 - Do not add a new language runtime or a new shell test framework for
   repository checks.
 

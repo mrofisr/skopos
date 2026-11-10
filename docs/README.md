@@ -13,6 +13,7 @@ your role; every link is relative to this `docs/` directory.
 | [Support matrix](support-matrix.md) | What is implemented and what is explicitly not supported |
 | [Beta gate status](beta-gates.md) | Evidence for each quality gate and what remains open |
 | [Quality gates](quality.md) | Coverage ratchet, floor file, and red-first evidence |
+| [Metrics](metrics.md) | `/metrics` registry, HTTP RED metrics, and unsupported-query counter |
 
 ## AI SRE context
 
@@ -71,6 +72,7 @@ budgets, and MCP tools.
 | [ADR 0001](adr/0001-observability-stack.md) | OBI + Collector + ClickHouse + compatible gateway, scope and decisions |
 | [ADR 0002](adr/0002-distributed-read-path.md) | Distributed frontend/query split, S3 retention, full-text, no compactor |
 | [ADR 0003](adr/0003-replay-deduplication.md) | ReplacingMergeTree replay dedup, row hashes, FINAL, online migration |
+| [ADR 0004](adr/0004-repository-layout-and-language-policy.md) | One `repoctl` tool, tool-private packages, Go for logic, Python migration order |
 | [Dependency policy](dependencies.md) | Go modules, pinned images, reference test containers, supply chain |
 
 ## Security and project process

@@ -1,0 +1,19 @@
+# HELP skopos_context_coverage_ratio Documented metrics divided by observed metrics, capped at 1.
+# TYPE skopos_context_coverage_ratio gauge
+skopos_context_coverage_ratio{signal="metrics"} 0.75
+# HELP skopos_context_documented Number of documented catalog entries.
+# TYPE skopos_context_documented gauge
+skopos_context_documented{signal="logs"} 2
+skopos_context_documented{signal="metrics"} 3
+skopos_context_documented{signal="services"} 1
+skopos_context_documented{signal="traces"} 3
+# HELP skopos_context_low_coverage 1 when observed entries exist and coverage is below 0.8.
+# TYPE skopos_context_low_coverage gauge
+skopos_context_low_coverage{signal="logs"} 1
+skopos_context_low_coverage{signal="metrics"} 1
+skopos_context_low_coverage{signal="traces"} 0
+# HELP skopos_context_observed Number of observed catalog entries.
+# TYPE skopos_context_observed gauge
+skopos_context_observed{signal="logs"} 3
+skopos_context_observed{signal="metrics"} 4
+skopos_context_observed{signal="traces"} 2

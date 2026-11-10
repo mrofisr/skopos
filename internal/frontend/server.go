@@ -32,6 +32,8 @@ type Config struct {
 	MaxRequestBytes  int64
 	Auth             *auth.Basic
 	Transport        http.RoundTripper
+	// Metrics serves the local Prometheus registry. It is never proxied.
+	Metrics http.Handler
 }
 
 type backend struct {
@@ -50,6 +52,7 @@ type Server struct {
 	auth             *auth.Basic
 	client           *http.Client
 	next             atomic.Uint64
+	metrics          http.Handler
 }
 
 // New validates cfg and constructs a frontend server.
@@ -107,6 +110,7 @@ func New(cfg Config) (*Server, error) {
 		proxyTimeout:     cfg.ProxyTimeout,
 		maxRequestBytes:  cfg.MaxRequestBytes,
 		auth:             cfg.Auth,
+		metrics:          cfg.Metrics,
 		client: &http.Client{
 			Transport: transport,
 			// A proxy must not follow redirects; the client sees them.
@@ -138,12 +142,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
 	mux.HandleFunc("GET /version", s.versionHandler)
+	if s.metrics != nil {
+		mux.Handle("GET /metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store")
+			s.metrics.ServeHTTP(w, r)
+		}))
+	}
 	mux.HandleFunc("/", s.proxy)
 
 	known := map[string]struct{}{
 		"/healthz": {},
 		"/readyz":  {},
 		"/version": {},
+	}
+	if s.metrics != nil {
+		known["/metrics"] = struct{}{}
 	}
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

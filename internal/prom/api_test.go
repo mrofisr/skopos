@@ -218,3 +218,22 @@ func TestBadRequestsAndExecutionErrors(t *testing.T) {
 		t.Fatalf("bad query = %d %s", rec.Code, rec.Body)
 	}
 }
+
+func TestUnsupportedFeatureClassification(t *testing.T) {
+	tests := []struct {
+		message string
+		want    string
+	}{
+		{message: "prom: subqueries are not supported", want: "subquery"},
+		{message: `prom: unsupported function "foo"`, want: "function"},
+		{message: `prom: unsupported aggregation "avg"`, want: "aggregation"},
+		{message: "prom: unsupported result type prom.Matrix", want: ""},
+		{message: "prom: unsupported expression *parser.BinaryExpr", want: "unsupported"},
+		{message: "prom: bad query", want: ""},
+	}
+	for _, test := range tests {
+		if got := unsupportedFeature(errors.New(test.message)); got != test.want {
+			t.Errorf("unsupportedFeature(%q) = %q, want %q", test.message, got, test.want)
+		}
+	}
+}

@@ -35,6 +35,8 @@ type API struct {
 	MaxRange   time.Duration
 	MaxSamples int
 	Now        func() time.Time
+	// Timeout is the per-request query deadline. Zero disables the deadline.
+	Timeout time.Duration
 }
 
 // NewAPI returns a Loki-compatible API.
@@ -63,6 +65,15 @@ func (a *API) now() time.Time {
 	return time.Now()
 }
 
+// withTimeout applies the configured query deadline to the request context.
+func (a *API) withTimeout(r *http.Request) (*http.Request, context.CancelFunc) {
+	if a.Timeout <= 0 {
+		return r, func() {}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), a.Timeout)
+	return r.WithContext(ctx), cancel
+}
+
 // fetchRange asks a pushdown-capable fetcher for the union of queries and
 // falls back to an unfiltered time-range fetch otherwise. Evaluation in Go is
 // always applied by the caller.
@@ -74,6 +85,8 @@ func (a *API) fetchRange(ctx context.Context, queries []Query, start, end time.T
 }
 
 func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid form: "+err.Error())
 		return
@@ -99,7 +112,7 @@ func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := a.fetchRange(r.Context(), []Query{query}, start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	limit := parseLimit(r.FormValue("limit"), 100, 5000)
@@ -163,7 +176,7 @@ func (a *API) handleMetricQuery(w http.ResponseWriter, r *http.Request, query Qu
 		}
 		series, err := a.evaluateMetric(r.Context(), query, []time.Time{at})
 		if err != nil {
-			writeMetricError(w, err)
+			a.writeMetricError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -194,7 +207,7 @@ func (a *API) handleMetricQuery(w http.ResponseWriter, r *http.Request, query Qu
 	}
 	series, err := a.evaluateMetric(r.Context(), query, points)
 	if err != nil {
-		writeMetricError(w, err)
+		a.writeMetricError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -214,13 +227,38 @@ func (a *API) maxSamples() int {
 	return defaultMaxSamples
 }
 
-func writeMetricError(w http.ResponseWriter, err error) {
+func (a *API) writeMetricError(w http.ResponseWriter, err error) {
 	var bad badMetricQuery
 	if errors.As(err, &bad) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeError(w, http.StatusInternalServerError, err.Error())
+	a.writeRequestError(w, err)
+}
+
+// The Loki 3.5.7 reference writes timeouts and cancellations as plain text,
+// not JSON. The messages are copied from pkg/util/server/error.go.
+const (
+	lokiTimeoutMessage  = "request timed out, decrease the duration of the request or add more label matchers (prefer exact match over regex match) to reduce the amount of data processed"
+	lokiCanceledMessage = "the request was cancelled by the client"
+)
+
+func (a *API) writeRequestError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		writePlainError(w, http.StatusGatewayTimeout, lokiTimeoutMessage)
+	case errors.Is(err, context.Canceled):
+		writePlainError(w, 499, lokiCanceledMessage)
+	default:
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+func writePlainError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(status)
+	_, _ = fmt.Fprint(w, message)
 }
 
 func parseMetricStep(value string) (time.Duration, error) {
@@ -341,6 +379,8 @@ func formatMetricFloat(v float64) string {
 }
 
 func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid form: "+err.Error())
 		return
@@ -360,7 +400,7 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := a.fetchRange(r.Context(), selectors, start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	names := make(map[string]struct{})
@@ -382,6 +422,8 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid form: "+err.Error())
 		return
@@ -406,7 +448,7 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := a.fetchRange(r.Context(), selectors, start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	values := make(map[string]struct{})
@@ -428,6 +470,8 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid form: "+err.Error())
 		return
@@ -448,7 +492,7 @@ func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := a.fetchRange(r.Context(), selectors, start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	seen := make(map[string]map[string]string)

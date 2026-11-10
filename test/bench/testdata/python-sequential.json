@@ -1,0 +1,129 @@
+{
+  "base_url": "http://127.0.0.1:39663",
+  "mode": "sequential",
+  "iterations": 2,
+  "warmup": 1,
+  "trace_id": "abc123",
+  "results": [
+    {
+      "name": "prom_instant_count",
+      "kind": "prom",
+      "iterations": 2,
+      "p50_ms": 0.71,
+      "p95_ms": 0.87,
+      "p99_ms": 0.87,
+      "min_ms": 0.71,
+      "max_ms": 0.87,
+      "mean_ms": 0.79,
+      "response_bytes": 63
+    },
+    {
+      "name": "prom_instant_by_service",
+      "kind": "prom",
+      "iterations": 2,
+      "p50_ms": 0.65,
+      "p95_ms": 0.73,
+      "p99_ms": 0.73,
+      "min_ms": 0.65,
+      "max_ms": 0.73,
+      "mean_ms": 0.69,
+      "response_bytes": 63
+    },
+    {
+      "name": "prom_histogram_p95",
+      "kind": "prom",
+      "iterations": 2,
+      "p50_ms": 0.69,
+      "p95_ms": 0.78,
+      "p99_ms": 0.78,
+      "min_ms": 0.69,
+      "max_ms": 0.78,
+      "mean_ms": 0.74,
+      "response_bytes": 63
+    },
+    {
+      "name": "prom_range_6h",
+      "kind": "prom_range",
+      "iterations": 2,
+      "p50_ms": 0.65,
+      "p95_ms": 0.7,
+      "p99_ms": 0.7,
+      "min_ms": 0.65,
+      "max_ms": 0.7,
+      "mean_ms": 0.67,
+      "response_bytes": 63
+    },
+    {
+      "name": "prom_series",
+      "kind": "prom",
+      "iterations": 2,
+      "p50_ms": 0.68,
+      "p95_ms": 0.7,
+      "p99_ms": 0.7,
+      "min_ms": 0.68,
+      "max_ms": 0.7,
+      "mean_ms": 0.69,
+      "response_bytes": 30
+    },
+    {
+      "name": "prom_label_values",
+      "kind": "prom",
+      "iterations": 2,
+      "p50_ms": 0.65,
+      "p95_ms": 0.68,
+      "p99_ms": 0.68,
+      "min_ms": 0.65,
+      "max_ms": 0.68,
+      "mean_ms": 0.67,
+      "response_bytes": 30
+    },
+    {
+      "name": "tempo_search",
+      "kind": "tempo",
+      "iterations": 2,
+      "p50_ms": 0.65,
+      "p95_ms": 0.67,
+      "p99_ms": 0.67,
+      "min_ms": 0.65,
+      "max_ms": 0.67,
+      "mean_ms": 0.66,
+      "response_bytes": 33
+    },
+    {
+      "name": "tempo_trace_by_id",
+      "kind": "tempo",
+      "iterations": 2,
+      "p50_ms": 0.58,
+      "p95_ms": 0.61,
+      "p99_ms": 0.61,
+      "min_ms": 0.58,
+      "max_ms": 0.61,
+      "mean_ms": 0.6,
+      "response_bytes": 20
+    },
+    {
+      "name": "tempo_tags",
+      "kind": "tempo",
+      "iterations": 2,
+      "p50_ms": 0.62,
+      "p95_ms": 0.64,
+      "p99_ms": 0.64,
+      "min_ms": 0.62,
+      "max_ms": 0.64,
+      "mean_ms": 0.63,
+      "response_bytes": 13
+    },
+    {
+      "name": "loki_query_range",
+      "kind": "loki",
+      "iterations": 2,
+      "p50_ms": 0.61,
+      "p95_ms": 0.61,
+      "p99_ms": 0.61,
+      "min_ms": 0.61,
+      "max_ms": 0.61,
+      "mean_ms": 0.61,
+      "response_bytes": 64
+    }
+  ]
+}

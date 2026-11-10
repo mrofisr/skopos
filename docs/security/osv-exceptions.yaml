@@ -15,5 +15,5 @@
 #       reason: why the finding is not exploitable in Skopos
 #       expires: 2027-01-31   # last day the exception is valid, inclusive
 #
-# Run scripts/check-osv-exceptions.sh after editing this file.
+# Run `go run ./cmd/repoctl osv` after editing this file.
 exceptions: []

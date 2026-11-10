@@ -119,6 +119,46 @@ single-binary deployment. `SKOPOS_MODE=worker` is an explicit alias for
 `SKOPOS_MODE=query`; both register the three query heads. ClickHouse remains
 the backend and owns merges/compaction; this is not a ClickHouse HA topology.
 
+## Admission limits
+
+Admission is disabled by default. Set `gateway.config.maxInflight` to bound
+concurrent requests per query head; `gateway.config.queueDepth` and
+`gateway.config.queueWaitSeconds` add a bounded FIFO wait queue and must be set
+together. The chart rejects a queue without an in-flight cap.
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set gateway.enabled=true \
+  --set gateway.config.maxInflight=16 \
+  --set gateway.config.queueDepth=16 \
+  --set gateway.config.queueWaitSeconds=2
+```
+
+The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
+`SKOPOS_QUEUE_WAIT` environment variables for a binary install. The chart also
+sets `GOMEMLIMIT` to 90% of `gateway.resources.limits.memory`, or to
+`gateway.goMemLimit` when set; omit both to leave `GOMEMLIMIT` unset. At
+startup the gateway warns when `maxInflight x maxResponseBytes` exceeds the
+Go memory limit. A rejected
+request gets the head's error shape, `Retry-After: 1`, and increments
+`skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
+are exempt, so probes and scrapes keep working under load.
+
+## Prometheus Operator
+
+`metrics.serviceMonitor.enabled=true` renders a `ServiceMonitor` for `/metrics`
+when the Prometheus Operator CRDs are installed. The selector must match the
+gateway Service; an empty selector fails the render. The default is disabled.
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set gateway.enabled=true \
+  --set metrics.serviceMonitor.enabled=true \
+  --set-json 'metrics.serviceMonitor.selector={"app.kubernetes.io/name":"skopos"}'
+```
+
 ## Basic authentication
 
 Authentication is optional and disabled by default. When enabled, all query

@@ -178,3 +178,59 @@ Usage: include "skopos.image" (dict "image" .Values.clickhouse.image)
 {{- define "skopos.obi.clusterRoleName" -}}
 {{- printf "%s-%s-obi" (include "skopos.fullname" .) .Release.Namespace | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{- define "skopos.validateAdmission" -}}
+{{- $max := int .Values.gateway.config.maxInflight -}}
+{{- $depth := int .Values.gateway.config.queueDepth -}}
+{{- $wait := int .Values.gateway.config.queueWaitSeconds -}}
+{{- if lt $max 0 -}}
+{{- fail "gateway.config.maxInflight must not be negative" -}}
+{{- end -}}
+{{- if lt $depth 0 -}}
+{{- fail "gateway.config.queueDepth must not be negative" -}}
+{{- end -}}
+{{- if lt $wait 0 -}}
+{{- fail "gateway.config.queueWaitSeconds must not be negative" -}}
+{{- end -}}
+{{- if and (eq $max 0) (or (gt $depth 0) (gt $wait 0)) -}}
+{{- fail "gateway.config.queueDepth and gateway.config.queueWaitSeconds require gateway.config.maxInflight" -}}
+{{- end -}}
+{{- if and (gt $depth 0) (eq $wait 0) -}}
+{{- fail "gateway.config.queueWaitSeconds must be positive when gateway.config.queueDepth is set" -}}
+{{- end -}}
+{{- if and (eq $depth 0) (gt $wait 0) -}}
+{{- fail "gateway.config.queueDepth must be positive when gateway.config.queueWaitSeconds is set" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "skopos.memoryBytes" -}}
+{{- $value := toString . -}}
+{{- $units := dict "Ki" 1024 "Mi" 1048576 "Gi" 1073741824 "K" 1000 "M" 1000000 "G" 1000000000 "B" 1 -}}
+{{- $unit := "" -}}
+{{- range $suffix, $_ := $units -}}
+{{- if hasSuffix $suffix $value -}}{{- $unit = $suffix -}}{{- end -}}
+{{- end -}}
+{{- $number := $value -}}
+{{- if $unit -}}{{- $number = trimSuffix $unit $value -}}{{- end -}}
+{{- if not (regexMatch "^[0-9]+$" $number) -}}
+{{- fail (printf "invalid memory quantity %q" $value) -}}
+{{- end -}}
+{{- $multiplier := 1 -}}
+{{- if $unit -}}{{- $multiplier = index $units $unit -}}{{- end -}}
+{{- int64 (mulf (float64 $number) (float64 $multiplier)) -}}
+{{- end -}}
+
+{{- define "skopos.goMemLimit" -}}
+{{- if .Values.gateway.goMemLimit -}}
+{{- include "skopos.memoryBytes" .Values.gateway.goMemLimit -}}
+{{- else -}}
+{{- with .Values.gateway.resources -}}
+{{- with .limits -}}
+{{- with .memory -}}
+{{- $bytes := include "skopos.memoryBytes" . | int64 -}}
+{{- int64 (mulf (float64 $bytes) 0.9) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

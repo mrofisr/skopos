@@ -302,3 +302,60 @@ func TestNonFrontendIgnoresQueryURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestAdmissionConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     map[string]string
+		want    [3]string
+		wantErr string
+	}{
+		{name: "disabled by default", want: [3]string{"0", "0", "0s"}},
+		{name: "in-flight only", env: map[string]string{"SKOPOS_MAX_INFLIGHT": "4"}, want: [3]string{"4", "0", "0s"}},
+		{name: "queue", env: map[string]string{
+			"SKOPOS_MAX_INFLIGHT": "4",
+			"SKOPOS_QUEUE_DEPTH":  "4",
+			"SKOPOS_QUEUE_WAIT":   "100ms",
+		}, want: [3]string{"4", "4", "100ms"}},
+		{name: "invalid inflight", env: map[string]string{"SKOPOS_MAX_INFLIGHT": "many"}, wantErr: "SKOPOS_MAX_INFLIGHT"},
+		{name: "invalid depth", env: map[string]string{"SKOPOS_QUEUE_DEPTH": "many"}, wantErr: "SKOPOS_QUEUE_DEPTH"},
+		{name: "invalid wait", env: map[string]string{"SKOPOS_QUEUE_WAIT": "soon"}, wantErr: "SKOPOS_QUEUE_WAIT"},
+		{name: "negative inflight", env: map[string]string{"SKOPOS_MAX_INFLIGHT": "-1"}, wantErr: "must not be negative"},
+		{name: "negative depth", env: map[string]string{"SKOPOS_QUEUE_DEPTH": "-1"}, wantErr: "must not be negative"},
+		{name: "negative wait", env: map[string]string{"SKOPOS_QUEUE_WAIT": "-1s"}, wantErr: "must not be negative"},
+		{name: "queue without inflight", env: map[string]string{
+			"SKOPOS_QUEUE_DEPTH": "4",
+			"SKOPOS_QUEUE_WAIT":  "1s",
+		}, wantErr: "require SKOPOS_MAX_INFLIGHT"},
+		{name: "depth without wait", env: map[string]string{
+			"SKOPOS_MAX_INFLIGHT": "4",
+			"SKOPOS_QUEUE_DEPTH":  "4",
+		}, wantErr: "must be set together"},
+		{name: "wait without depth", env: map[string]string{
+			"SKOPOS_MAX_INFLIGHT": "4",
+			"SKOPOS_QUEUE_WAIT":   "1s",
+		}, wantErr: "must be set together"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := FromLookup(lookupFrom(test.env))
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("FromLookup: %v", err)
+			}
+			got := [3]string{
+				strconv.Itoa(cfg.MaxInflight),
+				strconv.Itoa(cfg.QueueDepth),
+				cfg.QueueWait.String(),
+			}
+			if got != test.want {
+				t.Fatalf("admission = %v, want %v", got, test.want)
+			}
+		})
+	}
+}

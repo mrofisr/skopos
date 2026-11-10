@@ -1,0 +1,20 @@
+# Known layout violations for ADR 0004. This file is a ratchet: it may only
+# shrink. A new violation fails the archtest, and a listed violation that no
+# longer exists also fails, which forces the line to be removed.
+#
+# Format: rule<TAB>path
+#
+# The cmd-binary and internal-tooling entries disappear as each tool moves to
+# cmd/repoctl (RS-05 to RS-09). The python entries disappear after the
+# parity-first ports (RS-20 to RS-23).
+
+# Tooling binaries that still live outside cmd/repoctl.
+
+# Repository tooling packages that still live in internal/.
+
+# Python harnesses awaiting their parity-first Go ports.
+python	test/bench/bench.py
+python	test/compat/cerberus/harness.py
+python	test/compat/loki/harness.py
+python	test/compat/loki/seed_clickhouse.py
+python	test/compat/loki/upstream.py

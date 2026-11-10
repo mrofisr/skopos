@@ -53,6 +53,9 @@ type Config struct {
 	MaxResponseBytes   int64
 	ReadinessTimeout   time.Duration
 	MaxRequestBytes    int64
+	MaxInflight        int
+	QueueDepth         int
+	QueueWait          time.Duration
 	QueryURLs          []string
 	QueryTimeout       time.Duration
 	AuthEnabled        bool
@@ -87,6 +90,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		MaxResponseBytes:   64 << 20,
 		ReadinessTimeout:   2 * time.Second,
 		MaxRequestBytes:    1 << 20,
+		MaxInflight:        0,
+		QueueDepth:         0,
+		QueueWait:          0,
 		QueryTimeout:       30 * time.Second,
 		LogLevel:           slog.LevelInfo,
 	}
@@ -165,6 +171,15 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.MaxRequestBytes, err = intEnv(lookup, "SKOPOS_MAX_REQUEST_BYTES", cfg.MaxRequestBytes); err != nil {
 		return Config{}, err
 	}
+	if cfg.MaxInflight, err = intValueEnv(lookup, "SKOPOS_MAX_INFLIGHT", cfg.MaxInflight); err != nil {
+		return Config{}, err
+	}
+	if cfg.QueueDepth, err = intValueEnv(lookup, "SKOPOS_QUEUE_DEPTH", cfg.QueueDepth); err != nil {
+		return Config{}, err
+	}
+	if cfg.QueueWait, err = durationEnv(lookup, "SKOPOS_QUEUE_WAIT", cfg.QueueWait); err != nil {
+		return Config{}, err
+	}
 	if cfg.AuthEnabled, err = boolEnv(lookup, "SKOPOS_AUTH_ENABLED", false); err != nil {
 		return Config{}, err
 	}
@@ -239,6 +254,15 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	}
 	if cfg.MaxQueryRange <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_MAX_QUERY_RANGE: must be positive")
+	}
+	if cfg.MaxInflight < 0 || cfg.QueueDepth < 0 || cfg.QueueWait < 0 {
+		return Config{}, fmt.Errorf("SKOPOS_MAX_INFLIGHT, SKOPOS_QUEUE_DEPTH, and SKOPOS_QUEUE_WAIT must not be negative")
+	}
+	if cfg.MaxInflight == 0 && (cfg.QueueDepth > 0 || cfg.QueueWait > 0) {
+		return Config{}, fmt.Errorf("SKOPOS_QUEUE_DEPTH and SKOPOS_QUEUE_WAIT require SKOPOS_MAX_INFLIGHT")
+	}
+	if (cfg.QueueDepth > 0) != (cfg.QueueWait > 0) {
+		return Config{}, fmt.Errorf("SKOPOS_QUEUE_DEPTH and SKOPOS_QUEUE_WAIT must be set together")
 	}
 	return cfg, nil
 }

@@ -35,6 +35,8 @@ type Config struct {
 	// Register adds the query-head routes to the server mux. It is called
 	// before the JSON 404 catch-all.
 	Register func(*http.ServeMux)
+	// Metrics serves the Prometheus registry. Nil disables the /metrics route.
+	Metrics http.Handler
 }
 
 // Server owns the gateway handlers.
@@ -46,6 +48,7 @@ type Server struct {
 	maxRequestBytes  int64
 	auth             *auth.Basic
 	register         func(*http.ServeMux)
+	metrics          http.Handler
 }
 
 // New validates cfg and returns a server.
@@ -79,6 +82,7 @@ func New(cfg Config) (*Server, error) {
 		maxRequestBytes:  cfg.MaxRequestBytes,
 		auth:             cfg.Auth,
 		register:         cfg.Register,
+		metrics:          cfg.Metrics,
 	}, nil
 }
 
@@ -88,6 +92,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
 	mux.HandleFunc("GET /version", s.versionHandler)
+	if s.metrics != nil {
+		mux.Handle("GET /metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store")
+			s.metrics.ServeHTTP(w, r)
+		}))
+	}
 	if s.register != nil {
 		s.register(mux)
 	}
@@ -97,6 +107,9 @@ func (s *Server) Handler() http.Handler {
 		"/healthz": {},
 		"/readyz":  {},
 		"/version": {},
+	}
+	if s.metrics != nil {
+		known["/metrics"] = struct{}{}
 	}
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

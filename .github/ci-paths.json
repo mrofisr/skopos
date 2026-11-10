@@ -1,0 +1,89 @@
+{
+  "force": [
+    ".github/workflows/ci.yml",
+    ".github/ci-paths.json",
+    ".golangci.yml",
+    "internal/tools/**"
+  ],
+  "groups": {
+    "go": [
+      "**/*.go",
+      "**/go.mod",
+      "**/go.sum",
+      "vendor/**",
+      "Makefile",
+      "test/quality/**",
+      "docs/alpha-exit-plan.md",
+      "issues/**",
+      "test/bench/**",
+      "test/e2e/**",
+      "**/testdata/**"
+    ],
+    "integration": [
+      "test/integration/**",
+      "deploy/helm/skopos/files/**"
+    ],
+    "compat": [
+      "test/compat/**",
+      "test/corpus/**",
+      "docs/logql-upstream-baseline.md",
+      "docs/promql-support.md"
+    ],
+    "cerberus": [
+      "test/compat/cerberus/**",
+      "test/corpus/**"
+    ],
+    "storage": [
+      "deploy/**",
+      "test/integration/s3/**"
+    ],
+    "helm": [
+      "deploy/**"
+    ],
+    "policy": [
+      ".github/**",
+      "docs/security/**",
+      "docs/openssf-scorecard.md",
+      "docs/**"
+    ],
+    "docker": [
+      "Dockerfile",
+      ".dockerignore",
+      "cmd/**"
+    ]
+  },
+  "jobs": {
+    "go": [
+      "go"
+    ],
+    "coverage": [
+      "go"
+    ],
+    "integration": [
+      "go",
+      "integration"
+    ],
+    "compat": [
+      "go",
+      "compat"
+    ],
+    "cerberus": [
+      "go",
+      "cerberus"
+    ],
+    "storage": [
+      "storage"
+    ],
+    "helm": [
+      "helm"
+    ],
+    "policy": [
+      "go",
+      "policy"
+    ],
+    "docker": [
+      "go",
+      "docker"
+    ]
+  }
+}

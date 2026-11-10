@@ -110,10 +110,10 @@ jobs:
       - name: Check open code-scanning alerts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/check-code-scanning.sh
+        run: go run ./cmd/repoctl codescan
 
       - name: Check OSV exceptions
-        run: scripts/check-osv-exceptions.sh
+        run: go run ./cmd/repoctl osv
 
       - name: Run release checks
         run: |

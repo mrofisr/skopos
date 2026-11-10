@@ -194,9 +194,11 @@ catalog entry. It proposes observed type/unit/description only, sets
 `approval: "human_required"`, and never writes the catalog. A human must review
 and commit the catalog change.
 
-`GET /metrics` exposes Prometheus text gauges for documented/observed counts,
-coverage ratio, and low-coverage alerts. Scrape it with the same Basic auth as
-the context API if auth is enabled.
+`GET /metrics` is served by the gateway's shared Prometheus registry (and by
+the frontend in distributed mode, never proxied to workers). The registry
+merges the build-info gauge with the context gauges for documented/observed
+counts, coverage ratio, and low-coverage alerts. Scrape it with the same Basic
+auth as the context API if auth is enabled.
 
 ### Service response
 

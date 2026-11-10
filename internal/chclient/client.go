@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -35,6 +36,10 @@ type Config struct {
 	MaxResultRows    uint64
 	MaxResponseBytes int64
 	HTTPClient       *http.Client
+	// Observer receives per-query accounting. Nil disables it.
+	Observer QueryObserver
+	// Logger defaults to a discard logger.
+	Logger *slog.Logger
 }
 
 // Client executes read-only SQL against ClickHouse over HTTP.
@@ -49,6 +54,28 @@ type Client struct {
 	maxResultRows    uint64
 	maxResponseBytes int64
 	http             *http.Client
+	observer         QueryObserver
+	logger           *slog.Logger
+}
+
+// QueryObserver receives one query's outcome and ClickHouse read accounting.
+type QueryObserver interface {
+	QueryDone(head, result string, duration time.Duration, readRows, readBytes uint64)
+}
+
+type headContextKey struct{}
+
+// WithHead labels queries issued under ctx with a query head.
+func WithHead(ctx context.Context, head string) context.Context {
+	return context.WithValue(ctx, headContextKey{}, head)
+}
+
+func headFromContext(ctx context.Context) string {
+	head, _ := ctx.Value(headContextKey{}).(string)
+	if head == "" {
+		return "unknown"
+	}
+	return head
 }
 
 // Column is a ClickHouse result column.
@@ -199,6 +226,9 @@ func New(cfg Config) (*Client, error) {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: cfg.Timeout}
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	return &Client{
 		base:             u,
 		database:         cfg.Database,
@@ -210,6 +240,8 @@ func New(cfg Config) (*Client, error) {
 		maxResultRows:    cfg.MaxResultRows,
 		maxResponseBytes: cfg.MaxResponseBytes,
 		http:             cfg.HTTPClient,
+		observer:         cfg.Observer,
+		logger:           cfg.Logger,
 	}, nil
 }
 
@@ -229,7 +261,36 @@ func (c *Client) Ping(ctx context.Context) error {
 // Query executes one parameterized read statement. It appends FORMAT JSON and
 // parses the response. A statement whose first keyword is not SELECT or WITH is
 // rejected before any network call.
-func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (*Result, error) {
+func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (result *Result, err error) {
+	var (
+		readRows  uint64
+		readBytes uint64
+	)
+	if c.observer != nil {
+		started := time.Now()
+		head := headFromContext(ctx)
+		defer func() {
+			outcome := "ok"
+			if err != nil {
+				outcome = "error"
+			}
+			c.observer.QueryDone(head, outcome, time.Since(started), readRows, readBytes)
+		}()
+	}
+	if recorder := RecorderFromContext(ctx); recorder != nil {
+		defer func() {
+			message := ""
+			if err != nil {
+				message = err.Error()
+			}
+			recorder.Record(QueryRecord{
+				SQL:      sql,
+				Tables:   tablesFromSQL(sql),
+				ReadRows: readRows,
+				Error:    message,
+			})
+		}()
+	}
 	if !isReadOnlySQL(sql) {
 		return nil, errors.New("chclient: only SELECT and WITH statements are allowed")
 	}
@@ -293,6 +354,7 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (*R
 		return nil, fmt.Errorf("chclient: request: %w", err)
 	}
 	defer resp.Body.Close()
+	readRows, readBytes = parseSummary(resp.Header.Get("X-ClickHouse-Summary"), c.logger)
 
 	limited := io.LimitReader(resp.Body, c.maxResponseBytes+1)
 	data, err := io.ReadAll(limited)
@@ -329,7 +391,7 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (*R
 		return nil, parseError(resp.StatusCode, data)
 	}
 
-	result := &Result{Columns: raw.Meta, Rows: make([]map[string]any, 0, len(raw.Data))}
+	result = &Result{Columns: raw.Meta, Rows: make([]map[string]any, 0, len(raw.Data))}
 	for _, rawRow := range raw.Data {
 		row := make(map[string]any, len(rawRow))
 		for k, v := range rawRow {
@@ -618,4 +680,31 @@ func parseError(status int, data []byte) error {
 		code = m[1]
 	}
 	return &Error{StatusCode: status, Code: code, Message: message}
+}
+
+type clickHouseSummary struct {
+	ReadRows  string `json:"read_rows"`
+	ReadBytes string `json:"read_bytes"`
+}
+
+// parseSummary reads the X-ClickHouse-Summary header. A missing or malformed
+// header counts zero rows and is logged at debug rather than failing a query.
+func parseSummary(raw string, logger *slog.Logger) (uint64, uint64) {
+	if raw == "" {
+		logger.Debug("clickhouse summary header is missing")
+		return 0, 0
+	}
+	var summary clickHouseSummary
+	if err := json.Unmarshal([]byte(raw), &summary); err != nil {
+		logger.Debug("clickhouse summary header is malformed", "error", err)
+		return 0, 0
+	}
+	rows, rowsErr := strconv.ParseUint(summary.ReadRows, 10, 64)
+	bytesRead, bytesErr := strconv.ParseUint(summary.ReadBytes, 10, 64)
+	if rowsErr != nil || bytesErr != nil {
+		logger.Debug("clickhouse summary counters are malformed",
+			"read_rows", summary.ReadRows, "read_bytes", summary.ReadBytes)
+		return 0, 0
+	}
+	return rows, bytesRead
 }

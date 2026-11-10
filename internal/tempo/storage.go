@@ -122,7 +122,7 @@ func (f *ClickHouseFetcher) fetch(ctx context.Context, query plan.Query) ([]Span
 	if err != nil {
 		return nil, fmt.Errorf("tempo: build trace query: %w", err)
 	}
-	result, err := f.Client.Query(ctx, emitted.SQL, emitted.Params)
+	result, err := f.Client.Query(chclient.WithHead(ctx, "tempo"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return nil, fmt.Errorf("tempo: query traces: %w", err)
 	}

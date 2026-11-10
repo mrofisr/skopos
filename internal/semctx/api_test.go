@@ -593,7 +593,7 @@ func TestCoverageAlerts(t *testing.T) {
 	}
 }
 
-func TestMetricsEndpoint(t *testing.T) {
+func TestMetricsRouteRemoved(t *testing.T) {
 	observer := &fakeObserver{items: []ObservedMetric{
 		{Name: "observed_metric_total", Type: "counter", Unit: "requests"},
 	}}
@@ -603,20 +603,8 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	NewAPI(EmptyCatalog()).WithObserver(observer).WithSignalObserver(signals).Register(mux)
-	rec := get(t, mux, "/metrics")
-	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") {
-		t.Fatalf("metrics = %d %q", rec.Code, rec.Header().Get("Content-Type"))
-	}
-	for _, want := range []string{
-		`skopos_context_documented{signal="metrics"} 0`,
-		`skopos_context_observed{signal="metrics"} 1`,
-		`skopos_context_observed{signal="logs"} 1`,
-		`skopos_context_observed{signal="traces"} 1`,
-		`skopos_context_low_coverage{signal="metrics"} 1`,
-	} {
-		if !strings.Contains(rec.Body.String(), want) {
-			t.Fatalf("metrics body missing %q:\n%s", want, rec.Body)
-		}
+	if rec := get(t, mux, "/metrics"); rec.Code != http.StatusNotFound {
+		t.Fatalf("metrics route is still registered: status = %d", rec.Code)
 	}
 }
 
@@ -685,5 +673,24 @@ func TestMethodNotAllowed(t *testing.T) {
 	apiFor(t, mustCatalog(t)).ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
+func TestNewAPINilCatalog(t *testing.T) {
+	api := NewAPI(nil)
+	if api.Catalog == nil {
+		t.Fatal("NewAPI(nil) left a nil catalog")
+	}
+	if len(api.Catalog.Metrics) != 0 || len(api.Catalog.Services) != 0 {
+		t.Fatalf("nil catalog became non-empty: %#v", api.Catalog)
+	}
+}
+
+func TestObservedSeverity(t *testing.T) {
+	if got := observedSeverity(""); got != nil {
+		t.Fatalf("observedSeverity(\"\") = %v, want nil", got)
+	}
+	if got := observedSeverity("error"); len(got) != 1 || got[0] != "error" {
+		t.Fatalf("observedSeverity(error) = %v", got)
 	}
 }

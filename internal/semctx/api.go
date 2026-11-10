@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -75,7 +74,6 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/context/coverage", a.handleCoverage)
 	mux.HandleFunc("GET /api/v1/context/suggestions", a.handleSuggestions)
 	mux.HandleFunc("GET /.well-known/skopos.json", a.handleWellKnown)
-	mux.HandleFunc("GET /metrics", a.handleMetrics)
 }
 
 type metricResponse struct {
@@ -892,66 +890,6 @@ func parseOptionalBool(raw string) (bool, error) {
 		return false, nil
 	}
 	return strconv.ParseBool(raw)
-}
-
-func (a *API) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	minCoverage := 0.8
-	var b strings.Builder
-	b.WriteString("# HELP skopos_context_documented Number of documented catalog entries.\n")
-	b.WriteString("# TYPE skopos_context_documented gauge\n")
-	fmt.Fprintf(&b, "skopos_context_documented{signal=\"metrics\"} %d\n", len(a.Catalog.Metrics))
-	fmt.Fprintf(&b, "skopos_context_documented{signal=\"services\"} %d\n", len(a.Catalog.Services))
-	fmt.Fprintf(&b, "skopos_context_documented{signal=\"logs\"} %d\n", len(a.Catalog.Logs))
-	fmt.Fprintf(&b, "skopos_context_documented{signal=\"traces\"} %d\n", len(a.Catalog.Traces))
-
-	if a.Observer != nil {
-		if observed, err := a.Observer.ListObserved(r.Context()); err == nil {
-			fmt.Fprintf(&b, "skopos_context_observed{signal=\"metrics\"} %d\n", len(observed))
-			coverage := 0.0
-			if len(observed) > 0 {
-				coverage = float64(len(a.Catalog.Metrics)) / float64(len(observed))
-				if coverage > 1 {
-					coverage = 1
-				}
-			}
-			fmt.Fprintf(&b, "skopos_context_coverage_ratio{signal=\"metrics\"} %g\n", coverage)
-			alert := 0
-			if len(observed) > 0 && coverage < minCoverage {
-				alert = 1
-			}
-			fmt.Fprintf(&b, "skopos_context_low_coverage{signal=\"metrics\"} %d\n", alert)
-		} else {
-			b.WriteString("skopos_context_observed_available{signal=\"metrics\"} 0\n")
-		}
-	}
-	if a.SignalObserver != nil {
-		logs, logsErr := a.SignalObserver.ListObservedLogs(r.Context())
-		traces, tracesErr := a.SignalObserver.ListObservedTraces(r.Context())
-		if logsErr == nil {
-			fmt.Fprintf(&b, "skopos_context_observed{signal=\"logs\"} %d\n", len(logs))
-			alert := 0
-			if len(logs) > 0 && float64(len(a.Catalog.Logs))/float64(len(logs)) < minCoverage {
-				alert = 1
-			}
-			fmt.Fprintf(&b, "skopos_context_low_coverage{signal=\"logs\"} %d\n", alert)
-		} else {
-			b.WriteString("skopos_context_observed_available{signal=\"logs\"} 0\n")
-		}
-		if tracesErr == nil {
-			fmt.Fprintf(&b, "skopos_context_observed{signal=\"traces\"} %d\n", len(traces))
-			alert := 0
-			if len(traces) > 0 && float64(len(a.Catalog.Traces))/float64(len(traces)) < minCoverage {
-				alert = 1
-			}
-			fmt.Fprintf(&b, "skopos_context_low_coverage{signal=\"traces\"} %d\n", alert)
-		} else {
-			b.WriteString("skopos_context_observed_available{signal=\"traces\"} 0\n")
-		}
-	}
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, b.String())
 }
 
 func (a *API) handleWellKnown(w http.ResponseWriter, r *http.Request) {

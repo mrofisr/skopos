@@ -1,15 +1,32 @@
 name: CI
 
-# Every pull request runs the full matrix. Do not add path filters: required
-# checks must report on every change, including Helm, Dockerfile, workflow, and
-# documentation-only changes.
+# Every pull request into a protected branch runs the full matrix. Do not add
+# path filters: a workflow skipped by `paths` leaves its required checks
+# Pending forever and blocks the pull request.
+#
+# Pull requests are the trigger; there is no bare push trigger, because a
+# branch with an open pull request would otherwise run the matrix twice. A
+# nightly full run on the default branch is the post-merge safety net. Manual
+# dispatch covers a one-off full run.
 
 on:
-  push:
   pull_request:
+    branches:
+      - development
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+# Superseded pull request runs cancel each other. Every other event has a
+# unique run_id, so a scheduled, manual, or tag run is never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   HELM_VERSION: v3.22.1
@@ -19,10 +36,42 @@ env:
   ZIZMOR_SHA256: bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b
 
 jobs:
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      go: ${{ steps.paths.outputs.go }}
+      coverage: ${{ steps.paths.outputs.coverage }}
+      integration: ${{ steps.paths.outputs.integration }}
+      compat: ${{ steps.paths.outputs.compat }}
+      cerberus: ${{ steps.paths.outputs.cerberus }}
+      storage: ${{ steps.paths.outputs.storage }}
+      helm: ${{ steps.paths.outputs.helm }}
+      policy: ${{ steps.paths.outputs.policy }}
+      docker: ${{ steps.paths.outputs.docker }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - name: Map changed paths
+        id: paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/repoctl changes --event "$GITHUB_EVENT_PATH"
+
   go:
     name: Go build, vet, test
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.go != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +115,8 @@ jobs:
     name: Coverage ratchet
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.coverage != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,6 +135,8 @@ jobs:
     name: ClickHouse integration
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.integration != 'false' }}
     services:
       clickhouse:
         image: clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7
@@ -120,6 +173,8 @@ jobs:
     name: Tempo and Loki differentials
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.compat != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,6 +194,8 @@ jobs:
     name: cerberus three-way differential
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.cerberus != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,6 +213,8 @@ jobs:
     name: S3 tiered storage and backup (RustFS)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.storage != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -172,6 +231,8 @@ jobs:
     name: Helm lint and render
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.helm != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -207,6 +268,73 @@ jobs:
             --set clickhouse.database=otel_test \
             --set clickhouse.persistence.storageClass=standard \
             --set gateway.replicaCount=2 > /tmp/skopos-overrides.yaml
+      - name: Render admission limits
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set gateway.config.maxInflight=4 \
+            --set gateway.config.queueDepth=4 \
+            --set gateway.config.queueWaitSeconds=1 > /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_MAX_INFLIGHT' /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_QUEUE_DEPTH' /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_QUEUE_WAIT' /tmp/skopos-admission.yaml
+      - name: Reject invalid admission limits
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set gateway.config.maxInflight=4 \
+            --set gateway.config.queueDepth=4 \
+            > /tmp/skopos-admission-invalid.yaml 2> /tmp/skopos-admission-invalid.err; then
+            echo "expected admission without a queue wait to fail" >&2
+            exit 1
+          fi
+          grep -q 'queueWaitSeconds' /tmp/skopos-admission-invalid.err
+      - name: Render the Go memory limit
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true > /tmp/skopos-mem.yaml
+          limit=$(awk '/name: GOMEMLIMIT/{getline; gsub(/[^0-9]/,"",$0); print $0}' /tmp/skopos-mem.yaml)
+          test -n "$limit"
+          test "$limit" -le 268435456
+      - name: Reject an invalid Go memory limit
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set gateway.goMemLimit=banana \
+            > /tmp/skopos-mem-invalid.yaml 2> /tmp/skopos-mem-invalid.err; then
+            echo "expected an invalid Go memory limit to fail" >&2
+            exit 1
+          fi
+          grep -q 'goMemLimit' /tmp/skopos-mem-invalid.err
+      - name: Omit GOMEMLIMIT without resource limits
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set gateway.resources.limits=null > /tmp/skopos-mem-none.yaml
+          if grep -q 'GOMEMLIMIT' /tmp/skopos-mem-none.yaml; then
+            echo "GOMEMLIMIT must be omitted when no memory limit is set" >&2
+            exit 1
+          fi
+      - name: Render the opt-in ServiceMonitor
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set metrics.serviceMonitor.enabled=true \
+            --set-json 'metrics.serviceMonitor.selector={"app.kubernetes.io/name":"skopos"}' \
+            > /tmp/skopos-servicemonitor.yaml
+          grep -q 'kind: ServiceMonitor' /tmp/skopos-servicemonitor.yaml
+          grep -q 'path: /metrics' /tmp/skopos-servicemonitor.yaml
+          grep -q 'port: http' /tmp/skopos-servicemonitor.yaml
+      - name: Reject an empty ServiceMonitor selector
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set metrics.serviceMonitor.enabled=true \
+            > /tmp/skopos-servicemonitor-invalid.yaml 2> /tmp/skopos-servicemonitor-invalid.err; then
+            echo "expected an empty ServiceMonitor selector to fail" >&2
+            exit 1
+          fi
+          grep -q 'selector must not be empty' /tmp/skopos-servicemonitor-invalid.err
       - name: Render with digest-pinned gateway image
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -287,10 +415,34 @@ jobs:
           fi
           grep -q 'requires checkpoint.s3.endpoint, .bucket, and .prefix' /tmp/skopos-checkpoint-invalid.err
 
+  docker:
+    name: Docker image build
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.docker != 'false' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build -t skopos-ci .
+      - name: Assert the exported filesystem
+        run: |
+          set -eu
+          docker create --name skopos-ci-check skopos-ci >/dev/null
+          docker export skopos-ci-check > /tmp/skopos-ci.tar
+          docker rm skopos-ci-check >/dev/null
+          tar -tf /tmp/skopos-ci.tar | grep -qx 'gateway'
+          tar -tf /tmp/skopos-ci.tar | grep -qx 'skopos-checkpoint'
+
   policy:
     name: Workflow policy
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.policy != 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -327,6 +479,12 @@ jobs:
         run: '"$(go env GOPATH)/bin/zizmor" --offline --min-severity=low .github/workflows'
       - name: Check ruleset consistency
         run: make ruleset-check
+      - name: Workflow trigger policy
+        run: go run ./cmd/repoctl workflow-lint
+      - name: Workflow documentation
+        run: go run ./cmd/repoctl workflows-doc --check
+      - name: Support matrix
+        run: go run ./test/supportmatrix --check
       - name: Reject blocked workflow patterns
         run: |
           set -eu
@@ -342,3 +500,34 @@ jobs:
         run: go install github.com/google/go-licenses@v1.6.0
       - name: License policy
         run: '"$(go env GOPATH)/bin/go-licenses" check ./... --allowed_licenses=Apache-2.0,BSD-3-Clause,MIT,ISC'
+
+  ci-gate:
+    name: CI gate
+    runs-on: ubuntu-24.04
+    needs:
+      - changes
+      - go
+      - coverage
+      - integration
+      - compat
+      - cerberus
+      - storage
+      - helm
+      - docker
+      - policy
+    if: always()
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - name: Evaluate job results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: go run ./cmd/repoctl ci-gate
