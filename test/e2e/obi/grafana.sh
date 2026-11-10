@@ -40,7 +40,9 @@ export SKOPOS_E2E_GRAFANA_PORT=${SKOPOS_E2E_GRAFANA_PORT:-13000}
 
 gateway_url=http://127.0.0.1:${SKOPOS_E2E_GATEWAY_PORT}
 grafana_url=http://127.0.0.1:${SKOPOS_E2E_GRAFANA_PORT}
+prometheus_url=http://127.0.0.1:${SKOPOS_E2E_PROMETHEUS_PORT:-18093}
 provisioning_out="$here/.render/grafana/provisioning/datasources"
+render_out="$here/.render"
 check_log="$here/.render/grafana-check.log"
 
 if [ "$mode" = auth ]; then
@@ -60,7 +62,7 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     echo "grafana: harness failed (exit $status); keeping containers for inspection" >&2
     compose ps >&2
-    for svc in clickhouse gateway grafana seed; do
+    for svc in clickhouse gateway grafana prometheus seed; do
       echo "----- $svc logs (tail) -----" >&2
       compose logs --no-color --tail=40 "$svc" >&2
     done
@@ -119,10 +121,21 @@ if ! grep -q 'http://gateway:18081' "$provisioning_out/skopos.yaml"; then
   echo "grafana: rendered provisioning does not point at the compose gateway" >&2
   exit 1
 fi
+cp "$here/grafana-reference-datasource.yaml" "$provisioning_out/reference.yaml"
+
+echo "grafana: generating the shared seed"
+mkdir -p "$render_out/prometheus"
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+go run ./test/e2e/obi/seedgen \
+  --sql "$render_out/grafana-seed.sql" \
+  --openmetrics "$render_out/prometheus/grafana-seed.om" \
+  --now "$now"
 
 echo "grafana: starting a clean stack"
 compose down -v --remove-orphans >/dev/null 2>&1 || true
-compose up -d --build clickhouse clickhouse-init seed gateway grafana
+compose run --rm --no-deps --entrypoint promtool prometheus \
+  tsdb create-blocks-from openmetrics /seed/grafana-seed.om /prometheus
+compose up -d --build clickhouse clickhouse-init seed gateway grafana prometheus
 
 wait_for() {
   url=$1
@@ -142,11 +155,13 @@ wait_for() {
 
 wait_for "$gateway_url/readyz" gateway 90
 wait_for "$grafana_url/api/health" grafana 90
+wait_for "$prometheus_url/-/ready" prometheus 90
 
 run_check() {
   go run ./cmd/repoctl grafana-check \
     --grafana-url "$grafana_url" \
-    --provisioning "$root/deploy/examples/grafana/provisioning/datasources/skopos.yaml"
+    --provisioning "$root/deploy/examples/grafana/provisioning/datasources/skopos.yaml" \
+    "$@"
 }
 
 expect_failure() {
@@ -170,7 +185,7 @@ expect_failure() {
 
 case "$mode" in
   verify)
-    run_check
+    run_check --journey
     ;;
   stopped)
     echo "grafana: stopping the gateway to prove the health check fails"

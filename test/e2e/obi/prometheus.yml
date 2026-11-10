@@ -1,0 +1,6 @@
+# Reference Prometheus for the Grafana journey. It never scrapes: the harness
+# loads the same deterministic samples as the ClickHouse seed with
+# `promtool tsdb create-blocks-from openmetrics`.
+global:
+  scrape_interval: 1h
+scrape_configs: []

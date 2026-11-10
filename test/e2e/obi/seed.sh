@@ -1,7 +1,7 @@
 #!/bin/sh
-# Seed the Grafana harness tables with one OBI-shaped metric, log, and trace.
-# The datasource health checks do not require data, but seeded rows keep the
-# stack useful for the journey tickets and catch a broken schema early.
+# Seed the Grafana harness tables with one OBI-shaped log and trace. The
+# Grafana journey samples come from the generated GRAFANA_SEED_SQL file, so
+# ClickHouse and the reference Prometheus share exactly the same metrics.
 set -eu
 
 host=${CLICKHOUSE_HOST:-clickhouse}
@@ -17,14 +17,6 @@ query() {
     --user "$user" \
     --query "$1"
 }
-
-query "INSERT INTO otel_metrics_gauge
-  (ServiceName, MetricName, TimeUnix, StartTimeUnix, Value, Attributes, ResourceAttributes)
-  VALUES
-  ('skopos-e2e-server', 'http_server_request_duration_count',
-   now(), now() - INTERVAL 1 MINUTE, 1,
-   {'http.request.method':'GET','http.response.status_code':'200'},
-   {'service.name':'skopos-e2e-server'})"
 
 query "INSERT INTO otel_logs
   (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body,
@@ -42,4 +34,13 @@ query "INSERT INTO otel_traces
    1000000, 'SPAN_KIND_SERVER', 'STATUS_CODE_OK',
    {'service.name':'skopos-e2e-server'}, {'http.request.method':'GET'})"
 
-echo "seed: inserted one metric, log, and trace"
+if [ -n "${GRAFANA_SEED_SQL:-}" ]; then
+  clickhouse-client \
+    --host "$host" \
+    --database "$database" \
+    --user "$user" \
+    --multiquery <"$GRAFANA_SEED_SQL"
+  echo "seed: inserted the Grafana journey samples from $GRAFANA_SEED_SQL"
+fi
+
+echo "seed: inserted one log and trace"

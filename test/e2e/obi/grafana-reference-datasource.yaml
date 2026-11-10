@@ -1,0 +1,15 @@
+# Test-only datasource for the Grafana journey. The product example keeps only
+# the Skopos datasources; this file points at the reference Prometheus that the
+# harness seeds with the same samples as ClickHouse.
+apiVersion: 1
+
+datasources:
+  - name: Reference Prometheus
+    type: prometheus
+    uid: reference-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 30s
