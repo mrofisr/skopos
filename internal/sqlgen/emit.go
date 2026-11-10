@@ -540,7 +540,7 @@ var unaryOps = map[string]string{
 }
 
 var scalarFunctions = map[string]struct{}{
-	"toString": {}, "toFloat64": {}, "toInt64": {}, "toUInt64": {},
+	"toString": {}, "toFloat64": {}, "toFloat64OrNull": {}, "toInt64": {}, "toUInt64": {},
 	"toDateTime": {}, "toDate": {}, "toUnixTimestamp64Nano": {},
 	"toStartOfInterval": {}, "toStartOfMinute": {}, "toStartOfFiveMinutes": {},
 	"toStartOfHour": {}, "toStartOfDay": {}, "formatDateTime": {},

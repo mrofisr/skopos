@@ -267,9 +267,16 @@ For search queries, the safe intrinsic subset compiles to ClickHouse `WHERE`:
 `span:name` equality/inequality, `duration` comparisons with units, and
 `span:status`/`span:kind` equality/inequality with the OTel enum mapping. `&&`
 pushes every supported child; `||` pushes only when every child is supported.
-Regex operators, attribute filters, and trace-level intrinsics stay in Go, so
-the result is never narrowed incorrectly. Values are always parameters, never
-concatenated into SQL.
+Regex operators, trace-level intrinsics, and attribute keys that cannot be
+typed stay in Go, so the result is never narrowed incorrectly. Values are
+always parameters, never concatenated into SQL.
+
+Attribute filters also push when the comparison is safe: `span.` and
+`resource.` equality/inequality require `mapContains` so a missing key never
+matches an empty value, and numeric comparisons use `toFloat64OrNull`.
+Attribute keys and values with dots, quotes, or unicode are parameters, not SQL
+text. Numeric versus string comparison follows the parsed literal; quoted
+`>`/`<` comparisons stay in Go.
 
 ## Known limitations
 
