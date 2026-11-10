@@ -120,6 +120,14 @@ services:
     ports:
       - "${SKOPOS_E2E_GATEWAY_PORT:-18081}:18081"
 
+  loki:
+    image: grafana/loki:3.5.7@sha256:0eaee7bf39cc83aaef46914fb58f287d4f4c4be6ec96b86c2ed55719a75e49c8
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "127.0.0.1:${SKOPOS_E2E_LOKI_PORT:-18094}:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+
   prometheus:
     image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     user: "0"

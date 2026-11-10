@@ -291,7 +291,7 @@ func (j Journey) subquery(ctx context.Context, cfg JourneyConfig) (string, error
 	if !strings.Contains(strings.ToLower(result.Error), "subquer") {
 		return "", fmt.Errorf("error %q does not mention the subquery", result.Error)
 	}
-	return fmt.Sprintf("explicit error: %s", result.Error), nil
+	return fmt.Sprintf("explicit error: %s", strings.TrimSpace(result.Error)), nil
 }
 
 func (j Journey) query(ctx context.Context, uid, expr string, cfg JourneyConfig, instant bool) ([]frame, error) {
@@ -393,17 +393,32 @@ func (j Journey) get(ctx context.Context, path string) (int, []byte, error) {
 }
 
 func (j Journey) post(ctx context.Context, path string, body []byte) (int, []byte, error) {
+	return postJSON(ctx, j.Client, path, body)
+}
+
+func (j Journey) httpClient() *http.Client {
+	return httpClientFor(j.Client)
+}
+
+func httpClientFor(client Client) *http.Client {
+	if client.HTTP != nil {
+		return client.HTTP
+	}
+	return &http.Client{Timeout: 30 * time.Second}
+}
+
+func postJSON(ctx context.Context, client Client, path string, body []byte) (int, []byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		strings.TrimRight(j.Client.BaseURL, "/")+path, bytes.NewReader(body))
+		strings.TrimRight(client.BaseURL, "/")+path, bytes.NewReader(body))
 	if err != nil {
 		return 0, nil, err
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
-	if j.Client.Username != "" {
-		request.SetBasicAuth(j.Client.Username, j.Client.Password)
+	if client.Username != "" {
+		request.SetBasicAuth(client.Username, client.Password)
 	}
-	response, err := j.httpClient().Do(request)
+	response, err := httpClientFor(client).Do(request)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -413,13 +428,6 @@ func (j Journey) post(ctx context.Context, path string, body []byte) (int, []byt
 		return 0, nil, err
 	}
 	return response.StatusCode, responseBody, nil
-}
-
-func (j Journey) httpClient() *http.Client {
-	if j.Client.HTTP != nil {
-		return j.Client.HTTP
-	}
-	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // resolveRateInterval mirrors Grafana's $__rate_interval: at least four scrape

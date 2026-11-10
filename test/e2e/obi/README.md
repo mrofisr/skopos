@@ -63,7 +63,8 @@ make e2e-grafana
 ```
 
 The harness starts ClickHouse, the seed job, the gateway, a digest-pinned
-`grafana/grafana` container, and a digest-pinned reference Prometheus. It
+`grafana/grafana` container, a digest-pinned reference Prometheus, and a
+digest-pinned reference Loki. It
 renders the example provisioning from
 `deploy/examples/grafana/provisioning/datasources/skopos.yaml`, rewrites the
 Kubernetes service URL to the Compose gateway, adds a test-only
@@ -87,6 +88,17 @@ openmetrics`, so both backends hold identical data. `repoctl grafana-check
 
 Every frame is compared with the reference Prometheus datasource.
 
+`repoctl grafana-check --loki-journey` sends Grafana's Loki requests for:
+
+- the label and `service_name` label-value calls;
+- a stream selector with a line filter;
+- `| json` with a `level="error"` label filter;
+- a `sum(count_over_time(...[1m]))` log-volume query;
+- an `| unwrap` stage, which Skopos must reject with an explicit error.
+
+Log lines, timestamps, and the metric frames are compared with the reference
+Loki datasource.
+
 The harness has two negative self-checks:
 
 ```sh
@@ -100,9 +112,11 @@ a wrong password, and requires the checker to fail with an authentication
 error. Both keep the stack's containers and logs on failure and remove them on
 success, like the OBI harness.
 
-The seed job inserts one OBI-shaped log and trace and the generated metric
-samples, so the stack is ready for the Prometheus journey; the datasource
-health checks themselves do not depend on the seed.
+The seed job inserts one OBI-shaped trace and the generated metric and log
+samples, so the stack is ready for the journeys; the datasource health checks
+themselves do not depend on the seed. `seedgen` writes the same log lines as
+SQL for ClickHouse and as a Loki push body, which the harness posts to the
+reference Loki.
 
 ## Requirements
 

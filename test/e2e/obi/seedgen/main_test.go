@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -86,5 +87,77 @@ func TestGenerateRejectsDegenerateCounts(t *testing.T) {
 	samples := generate(now, 0, 0, 30*time.Second)
 	if len(samples) != 2 {
 		t.Fatalf("len = %d, want 2 (one service, two samples)", len(samples))
+	}
+}
+
+func TestLogsAlternateLevel(t *testing.T) {
+	now := time.Date(2026, 11, 10, 7, 0, 0, 0, time.UTC)
+	entries := logs(now, 1, 3, 30*time.Second)
+	if len(entries) != 3 {
+		t.Fatalf("len = %d, want 3", len(entries))
+	}
+	for i, entry := range entries {
+		want := "info"
+		if i%2 == 1 {
+			want = "error"
+		}
+		if !strings.Contains(entry.Body, `"level":"`+want+`"`) {
+			t.Errorf("entry %d body = %s, want level %s", i, entry.Body, want)
+		}
+	}
+	if got, want := entries[0].Time, now.Add(-time.Minute); !got.Equal(want) {
+		t.Fatalf("first time = %s, want %s", got, want)
+	}
+}
+
+func TestWriteLogSQL(t *testing.T) {
+	now := time.Date(2026, 11, 10, 7, 0, 0, 0, time.UTC)
+	entries := logs(now, 1, 3, 30*time.Second)
+	var out bytes.Buffer
+	if err := writeLogSQL(&out, entries); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"INSERT INTO otel_logs",
+		"toDateTime64('2026-11-10 06:59:00.000000000', 9)",
+		"map('service.name', 'skopos-e2e-server-0')",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("SQL missing %q:\n%s", want, text)
+		}
+	}
+	if strings.HasSuffix(strings.TrimSpace(text), ",") {
+		t.Error("SQL does not end with a semicolon")
+	}
+}
+
+func TestWriteLokiPush(t *testing.T) {
+	now := time.Date(2026, 11, 10, 7, 0, 0, 0, time.UTC)
+	entries := logs(now, 2, 2, 30*time.Second)
+	var out bytes.Buffer
+	if err := writeLokiPush(&out, entries); err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Streams []struct {
+			Stream map[string]string `json:"stream"`
+			Values [][2]string       `json:"values"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("push body: %v", err)
+	}
+	if len(payload.Streams) != 2 {
+		t.Fatalf("streams = %d, want 2", len(payload.Streams))
+	}
+	if got := payload.Streams[0].Stream["service_name"]; got != "skopos-e2e-server-0" {
+		t.Fatalf("first service = %q", got)
+	}
+	if got := len(payload.Streams[0].Values); got != 2 {
+		t.Fatalf("values = %d, want 2", got)
+	}
+	if payload.Streams[0].Values[0][1] == "" {
+		t.Fatal("empty log line")
 	}
 }

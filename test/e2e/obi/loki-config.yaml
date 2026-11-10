@@ -1,0 +1,45 @@
+# Reference Loki for the Grafana journey. The same config as the LogQL
+# differential harness: filesystem storage, fixed-timestamp fixtures kept for a
+# year, and no authentication.
+auth_enabled: false
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+ingester:
+  # The corpus uses fixed timestamps around the project date. Keep them in the
+  # ingester instead of flushing to the short-lived filesystem store before the
+  # harness queries them. The long values are safe because this instance is
+  # disposable and the corpus must not age out of CI.
+  max_chunk_age: 8760h
+  chunk_idle_period: 8760h
+  flush_check_period: 30s
+limits_config:
+  reject_old_samples: false
+  allow_structured_metadata: true
+  # Keep fixed-timestamp fixtures for a year in this disposable instance.
+  retention_period: 8760h
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: false
+  delete_request_store: filesystem
