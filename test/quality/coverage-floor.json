@@ -30,7 +30,7 @@
     "internal/loki": 79.1,
     "internal/metrics": 99.1,
     "internal/plan": 31.1,
-    "internal/prom": 80.2,
+    "internal/prom": 80.3,
     "internal/semctx": 85.4,
     "internal/sqlgen": 66.5,
     "internal/tempo": 75.6,

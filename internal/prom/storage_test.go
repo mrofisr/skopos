@@ -24,11 +24,14 @@ type fakeClickHouse struct {
 	mu            sync.Mutex
 	rows          map[string][]map[string]any
 	labelValues   map[string][]string
+	labelNames    map[string][]string
 	seen          []string
 	bodies        []string
 	failDiscovery bool
 	failValuesAt  int
 	valueCalls    int
+	failNamesAt   int
+	nameCalls     int
 }
 
 func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +53,28 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if f.failDiscovery && strings.Contains(query, "metric_filter") && strings.Contains(query, "LIMIT") {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = io.WriteString(w, `{"exception":"discovery down"}`)
+		return
+	}
+	if strings.Contains(query, "mapKeys") {
+		f.mu.Lock()
+		f.nameCalls++
+		call := f.nameCalls
+		names := f.labelNames[table]
+		f.mu.Unlock()
+		if f.failNamesAt > 0 && call == f.failNamesAt {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"exception":"names down"}`)
+			return
+		}
+		rows := make([]map[string]any, 0, len(names))
+		for _, name := range names {
+			rows = append(rows, map[string]any{"name": name})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"meta": []map[string]string{{"name": "name", "type": "String"}},
+			"data": rows,
+		})
 		return
 	}
 	if strings.Contains(query, "DISTINCT") {

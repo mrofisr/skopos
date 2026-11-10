@@ -36,6 +36,11 @@ type LabelValueFetcher interface {
 	LabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error)
 }
 
+// LabelNameFetcher is the optional pushdown surface for label names.
+type LabelNameFetcher interface {
+	LabelNames(ctx context.Context, sel Selector, start, end time.Time, limit int) ([]string, error)
+}
+
 // API serves the Prometheus HTTP API endpoints used by Grafana.
 type API struct {
 	Engine   QueryEngine
@@ -234,16 +239,39 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 	if len(selectors) == 0 {
 		selectors = []Selector{{}}
 	}
-	names := make(map[string]struct{})
-	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
-		if err != nil {
-			a.writeEngineError(w, r, err)
+	limit := 0
+	if raw := r.FormValue("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "bad_data", "limit must be a non-negative integer")
 			return
 		}
-		for _, s := range series {
-			for name := range s.Labels {
+		limit = parsed
+	}
+
+	names := make(map[string]struct{})
+	if fetcher, ok := a.Fetcher.(LabelNameFetcher); ok && allLabelValuesPushdown(selectors) {
+		for _, sel := range selectors {
+			found, err := fetcher.LabelNames(ctx, sel, start, end, limit)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, name := range found {
 				names[name] = struct{}{}
+			}
+		}
+	} else {
+		for _, sel := range selectors {
+			series, err := a.Fetcher.Fetch(ctx, sel, start, end)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, s := range series {
+				for name := range s.Labels {
+					names[name] = struct{}{}
+				}
 			}
 		}
 	}
@@ -252,6 +280,9 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 		out = append(out, name)
 	}
 	sort.Strings(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
 	writeSuccess(w, out)
 }
 

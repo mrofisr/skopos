@@ -789,3 +789,114 @@ func LabelValuesPushdown(sel Selector) bool {
 	}
 	return true
 }
+
+// LabelNames returns label names for name-only selectors. Other selectors are
+// handled by the API fallback.
+func (f *ClickHouseFetcher) LabelNames(ctx context.Context, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	ttl := f.MetadataTTL
+	if ttl <= 0 {
+		ttl = defaultMetadataTTL
+	}
+	bucket := int64(ttl / time.Second)
+	if bucket < 1 {
+		bucket = 1
+	}
+	key := labelNamesKey{
+		Selector: sel.String(),
+		Start:    start.Unix() / bucket,
+		End:      end.Unix() / bucket,
+		Limit:    limit,
+	}
+	cache := f.cacheFor()
+	cache.labelMu.Lock()
+	cache.labelRequests[key] = labelNamesRequest{selector: sel, start: start, end: end, limit: limit}
+	cache.labelMu.Unlock()
+	values, err := cache.labelNames.Get(ctx, key)
+	cache.labelMu.Lock()
+	delete(cache.labelRequests, key)
+	cache.labelMu.Unlock()
+	return values, err
+}
+
+func (f *ClickHouseFetcher) loadLabelNames(ctx context.Context, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	tables, err := f.candidateTables(ctx, sel)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]struct{})
+	add := func(name string) {
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	for _, table := range tables {
+		tableName := ""
+		known := []string{}
+		switch table {
+		case tableGauge:
+			tableName = f.Names.MetricsGauge
+			known = []string{"__name__", "service_name"}
+		case tableSum:
+			tableName = f.Names.MetricsSum
+			known = []string{"__name__", "service_name"}
+		case tableHistogram:
+			tableName = f.Names.MetricsHistogram
+			known = []string{"__name__", "service_name", "le"}
+		case tableSummary:
+			tableName = f.Names.MetricsSummary
+			known = []string{"__name__", "service_name", "quantile"}
+		}
+		nonEmpty, err := f.cacheFor().nonEmpty.Get(ctx, tableName)
+		if err != nil {
+			return nil, err
+		}
+		if !nonEmpty {
+			continue
+		}
+		for _, name := range known {
+			add(name)
+		}
+		query := plan.Query{
+			Signal: plan.SignalMetrics,
+			Table:  tableName,
+			Select: []plan.SelectItem{{
+				Expr:  plan.F("arrayJoin", plan.F("mapKeys", plan.Col("Attributes"))),
+				Alias: "name",
+			}},
+			Where:      metricNameFilter(sel),
+			GroupBy:    []string{"name"},
+			TimeColumn: "TimeUnix",
+			TimeRange: &plan.TimeRange{
+				Start:        start,
+				End:          end,
+				EndInclusive: true,
+			},
+		}
+		if limit > 0 {
+			query.Limit = limit
+		}
+		emitted, err := f.Emitter.Emit(query)
+		if err != nil {
+			return nil, fmt.Errorf("prom: build label names query: %w", err)
+		}
+		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		if err != nil {
+			return nil, fmt.Errorf("prom: label names query %s: %w", tableName, err)
+		}
+		for i := 0; i < result.Len(); i++ {
+			name, ok := result.String(i, "name")
+			if ok {
+				add(name)
+			}
+		}
+	}
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
