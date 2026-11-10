@@ -19,12 +19,18 @@ type Rule struct {
 	SecuritySeverityLevel string `json:"security_severity_level"`
 }
 
+// Tool is the scanner that produced an alert.
+type Tool struct {
+	Name string `json:"name"`
+}
+
 // Alert is the subset of a code-scanning alert used by the release gate.
 type Alert struct {
 	Number  int    `json:"number"`
 	State   string `json:"state"`
 	HTMLURL string `json:"html_url"`
 	Rule    Rule   `json:"rule"`
+	Tool    Tool   `json:"tool"`
 }
 
 // OpenAlerts returns every open code-scanning alert. Any transport, status, or

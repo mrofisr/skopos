@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/command"
 )
@@ -27,6 +28,7 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	fs.SetOutput(env.Stderr)
 	repo := fs.String("repo", "", "repository in owner/name form (default GITHUB_REPOSITORY)")
 	fixture := fs.String("fixture", "", "read alerts from a JSON file instead of the API")
+	ignoreTool := fs.String("ignore-tool", "Scorecard", "comma-separated scanner names to ignore (posture findings)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -61,9 +63,24 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 		}
 	}
 
-	if err := Evaluate(alerts); err != nil {
+	ignored := make(map[string]struct{})
+	for _, name := range strings.Split(*ignoreTool, ",") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			ignored[strings.ToLower(name)] = struct{}{}
+		}
+	}
+	considered := alerts[:0]
+	for _, alert := range alerts {
+		if _, ok := ignored[strings.ToLower(alert.Tool.Name)]; ok {
+			continue
+		}
+		considered = append(considered, alert)
+	}
+	if err := Evaluate(considered); err != nil {
 		return err
 	}
-	fmt.Fprintf(env.Stdout, "codescan: %d open alerts, 0 high or critical\n", len(alerts))
+	fmt.Fprintf(env.Stdout, "codescan: %d open alerts, %d ignored scanners, 0 high or critical\n",
+		len(alerts), len(alerts)-len(considered))
 	return nil
 }
