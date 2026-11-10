@@ -129,7 +129,7 @@ func (f *ClickHouseFetcher) FetchRangeFiltered(ctx context.Context, start, end t
 	if !ok {
 		return f.FetchRange(ctx, start, end)
 	}
-	traceIDs, err := f.matchingTraceIDs(ctx, predicate, start, end)
+	traceIDs, err := f.matchingTraceIDs(ctx, predicate, start, end, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -147,15 +147,30 @@ func (f *ClickHouseFetcher) FetchRangeFiltered(ctx context.Context, start, end t
 	})
 }
 
-func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan.Expr, start, end time.Time) ([]string, error) {
+func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan.Expr, start, end time.Time, limit int) ([]string, error) {
+	selects := []plan.SelectItem{{Expr: plan.Col("TraceId")}}
+	groupBy := []string(nil)
+	orderBy := []plan.Order(nil)
+	scanLimit := f.MaxRows
+	if limit > 0 {
+		selects = append([]plan.SelectItem{{
+			Expr:  plan.Agg("min", plan.Col("Timestamp")),
+			Alias: "start",
+		}}, selects...)
+		groupBy = []string{"TraceId"}
+		orderBy = []plan.Order{{By: "start", Desc: true}, {By: "TraceId"}}
+		scanLimit = limit
+	}
 	query := plan.Query{
 		Signal:     plan.SignalTraces,
 		Table:      f.Names.Traces,
-		Select:     []plan.SelectItem{{Expr: plan.Col("TraceId")}},
+		Select:     selects,
 		Where:      predicate,
+		GroupBy:    groupBy,
+		OrderBy:    orderBy,
 		TimeColumn: "Timestamp",
 		TimeRange:  &plan.TimeRange{Start: start, End: end, EndInclusive: true},
-		Limit:      f.MaxRows,
+		Limit:      scanLimit,
 	}
 	emitted, err := f.Emitter.Emit(query)
 	if err != nil {
@@ -165,8 +180,8 @@ func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan
 	if err != nil {
 		return nil, fmt.Errorf("tempo: query matching trace ids: %w", err)
 	}
-	if result.Len() >= f.MaxRows {
-		return nil, fmt.Errorf("tempo: query reached the %d-row trace limit", f.MaxRows)
+	if result.Len() >= scanLimit {
+		return nil, fmt.Errorf("tempo: query reached the %d-row trace limit", scanLimit)
 	}
 	seen := make(map[string]bool, result.Len())
 	traceIDs := make([]string, 0, result.Len())
@@ -179,6 +194,31 @@ func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan
 		traceIDs = append(traceIDs, traceID)
 	}
 	return traceIDs, nil
+}
+
+// FetchRangeFilteredLimited pushes trace ordering and limit into the trace-ID
+// query when the caller has no duration filters to apply afterwards.
+func (f *ClickHouseFetcher) FetchRangeFilteredLimited(ctx context.Context, start, end time.Time, filter Filter, limit int) ([]Span, error) {
+	predicate, ok := FilterPredicate(filter)
+	if !ok || limit <= 0 {
+		return f.FetchRangeFiltered(ctx, start, end, filter)
+	}
+	traceIDs, err := f.matchingTraceIDs(ctx, predicate, start, end, limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(traceIDs) == 0 {
+		return nil, nil
+	}
+	return f.fetch(ctx, plan.Query{
+		Signal:     plan.SignalTraces,
+		Table:      f.Names.Traces,
+		Select:     spanSelects(),
+		Where:      plan.In{Expr: plan.Col("TraceId"), Values: traceIDParams(traceIDs)},
+		TimeColumn: "Timestamp",
+		TimeRange:  &plan.TimeRange{Start: start, End: end, EndInclusive: true},
+		Limit:      f.MaxRows,
+	})
 }
 
 func traceIDParams(traceIDs []string) []plan.Expr {

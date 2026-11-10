@@ -236,3 +236,42 @@ func TestFetchRangeFilteredAttributeSQL(t *testing.T) {
 		t.Fatalf("attribute value leaked into SQL:\n%s", fake.bodies[0])
 	}
 }
+
+func TestFetchRangeFilteredLimitedSQL(t *testing.T) {
+	fetcher, fake := newTraceFetcher(t)
+	filter := mustFilter(t, `{ span:name = "GET /cart" }`)
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := fetcher.FetchRangeFilteredLimited(context.Background(), start, start.Add(time.Hour), filter, 5); err != nil {
+		t.Fatalf("FetchRangeFilteredLimited: %v", err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.bodies) != 2 {
+		t.Fatalf("queries = %d, want two", len(fake.bodies))
+	}
+	for _, want := range []string{"GROUP BY", "ORDER BY", "DESC", "LIMIT"} {
+		if !strings.Contains(fake.bodies[0], want) {
+			t.Errorf("trace-id SQL missing %q:\n%s", want, fake.bodies[0])
+		}
+	}
+	if !strings.Contains(fake.bodies[1], "IN") {
+		t.Errorf("span SQL missing IN:\n%s", fake.bodies[1])
+	}
+}
+
+func TestFetchRangeFilteredLimitedFallsBackForUnsafeFilter(t *testing.T) {
+	fetcher, fake := newTraceFetcher(t)
+	filter := mustFilter(t, `{ span.foo =~ "bar" }`)
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := fetcher.FetchRangeFilteredLimited(context.Background(), start, start.Add(time.Hour), filter, 5); err != nil {
+		t.Fatalf("FetchRangeFilteredLimited: %v", err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.bodies) != 1 {
+		t.Fatalf("queries = %d, want the unfiltered range", len(fake.bodies))
+	}
+	if strings.Contains(fake.bodies[0], "ORDER BY") {
+		t.Fatalf("unsafe filter was ordered/pushed:\n%s", fake.bodies[0])
+	}
+}

@@ -117,11 +117,16 @@ func (a *API) handleSearch(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.FormValue("limit"), 20, 1000)
 	spss := parseLimit(r.FormValue("spss"), 3, 1000)
 	var spans []Span
-	if filtered, ok := a.Fetcher.(interface {
-		FetchRangeFiltered(context.Context, time.Time, time.Time, Filter) ([]Span, error)
-	}); ok {
-		spans, err = filtered.FetchRangeFiltered(r.Context(), start, end, filter)
-	} else {
+	switch {
+	case minDuration == 0 && maxDuration == 0 && limit > 0 && hasLimitedFetcher(a.Fetcher):
+		spans, err = a.Fetcher.(interface {
+			FetchRangeFilteredLimited(context.Context, time.Time, time.Time, Filter, int) ([]Span, error)
+		}).FetchRangeFilteredLimited(r.Context(), start, end, filter, limit)
+	case hasFilteredFetcher(a.Fetcher):
+		spans, err = a.Fetcher.(interface {
+			FetchRangeFiltered(context.Context, time.Time, time.Time, Filter) ([]Span, error)
+		}).FetchRangeFiltered(r.Context(), start, end, filter)
+	default:
 		spans, err = a.Fetcher.FetchRange(r.Context(), start, end)
 	}
 	if err != nil {
@@ -943,4 +948,18 @@ func traceQLUnsupportedFeature(err error) string {
 	default:
 		return ""
 	}
+}
+
+func hasFilteredFetcher(fetcher TraceFetcher) bool {
+	_, ok := fetcher.(interface {
+		FetchRangeFiltered(context.Context, time.Time, time.Time, Filter) ([]Span, error)
+	})
+	return ok
+}
+
+func hasLimitedFetcher(fetcher TraceFetcher) bool {
+	_, ok := fetcher.(interface {
+		FetchRangeFilteredLimited(context.Context, time.Time, time.Time, Filter, int) ([]Span, error)
+	})
+	return ok
 }
