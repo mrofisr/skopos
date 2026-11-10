@@ -83,7 +83,7 @@ func TestFilterPredicateIntrinsics(t *testing.T) {
 		{query: `{ span:status = error }`, want: []string{"StatusCode", "span_status", "Error"}, ok: true},
 		{query: `{ span:kind = server }`, want: []string{"SpanKind", "span_kind", "Server"}, ok: true},
 		{query: `{ span:name =~ "GET.*" }`, ok: false},
-		{query: `{ span.foo = "bar" }`, want: []string{"SpanAttributes", "mapContains"}, ok: true},
+		{query: `{ span.foo = "bar" }`, ok: false},
 	}
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestFilterPredicateBooleanCombinations(t *testing.T) {
 	if !ok || !strings.Contains(fmt.Sprintf("%#v", predicate), "SpanName") {
 		t.Fatalf("AND with an unsupported child should push the supported child: %#v", predicate)
 	}
-	if _, ok := FilterPredicate(mustFilter(t, `{ span:name = "GET /cart" || span.foo =~ "bar" }`)); ok {
+	if _, ok := FilterPredicate(mustFilter(t, `{ span:name = "GET /cart" || span.foo = "bar" }`)); ok {
 		t.Fatal("OR with an unsupported child must not push")
 	}
 }
@@ -145,7 +145,7 @@ func TestFetchRangeFilteredSQL(t *testing.T) {
 
 func TestFetchRangeFilteredFallback(t *testing.T) {
 	fetcher, fake := newTraceFetcher(t)
-	filter := mustFilter(t, `{ span.foo =~ "bar" }`)
+	filter := mustFilter(t, `{ span.foo = "bar" }`)
 	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	if _, err := fetcher.FetchRangeFiltered(context.Background(), start, start.Add(time.Hour), filter); err != nil {
 		t.Fatalf("FetchRangeFiltered: %v", err)
@@ -162,75 +162,5 @@ func TestIntrinsicDurationUnits(t *testing.T) {
 		if _, ok := FilterPredicate(mustFilter(t, query)); !ok {
 			t.Errorf("%s did not push", query)
 		}
-	}
-}
-
-func TestFilterPredicateAttributes(t *testing.T) {
-	tests := []struct {
-		query string
-		want  []string
-		ok    bool
-	}{
-		{query: `{ span.http.method = "GET" }`, want: []string{"SpanAttributes", "mapContains", "span_attr_key", "GET"}, ok: true},
-		{query: `{ resource.service.name = "checkout" }`, want: []string{"ResourceAttributes", "mapContains", "resource_attr_key"}, ok: true},
-		{query: `{ span.http.status_code = 500 }`, want: []string{"SpanAttributes", "toFloat64OrNull", "span_attr_number"}, ok: true},
-		{query: `{ span.foo = nil }`, want: []string{"mapContains", "span_attr_present"}, ok: true},
-		{query: `{ span.foo != nil }`, want: []string{"mapContains", "span_attr_present"}, ok: true},
-		{query: `{ span.foo =~ "x" }`, ok: false},
-		{query: `{ span.foo > "x" }`, ok: false},
-	}
-	for _, test := range tests {
-		t.Run(test.query, func(t *testing.T) {
-			predicate, ok := FilterPredicate(mustFilter(t, test.query))
-			if ok != test.ok {
-				t.Fatalf("ok = %v, want %v (%#v)", ok, test.ok, predicate)
-			}
-			if !ok {
-				return
-			}
-			text := fmt.Sprintf("%#v", predicate)
-			for _, want := range test.want {
-				if !strings.Contains(text, want) {
-					t.Errorf("predicate %s missing %q", text, want)
-				}
-			}
-		})
-	}
-}
-
-func TestAttributePredicateHandlesQuotedAndUnicodeKeys(t *testing.T) {
-	predicate, ok := conditionPredicate(condition{
-		scope: "span", key: "a.b\"c", op: "=", value: "值",
-	})
-	if !ok {
-		t.Fatal("attribute predicate did not push")
-	}
-	text := fmt.Sprintf("%#v", predicate)
-	for _, want := range []string{"a.b\\\"c", "值", "mapContains"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("predicate %s missing %q", text, want)
-		}
-	}
-}
-
-func TestFetchRangeFilteredAttributeSQL(t *testing.T) {
-	fetcher, fake := newTraceFetcher(t)
-	filter := mustFilter(t, `{ span.http.method = "GET" }`)
-	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
-	if _, err := fetcher.FetchRangeFiltered(context.Background(), start, start.Add(time.Hour), filter); err != nil {
-		t.Fatalf("FetchRangeFiltered: %v", err)
-	}
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if len(fake.bodies) != 2 {
-		t.Fatalf("queries = %d, want two", len(fake.bodies))
-	}
-	for _, want := range []string{"SpanAttributes", "mapContains", "{span_attr_key:String}", "{span_attr_value:String}"} {
-		if !strings.Contains(fake.bodies[0], want) {
-			t.Errorf("trace-id SQL missing %q:\n%s", want, fake.bodies[0])
-		}
-	}
-	if strings.Contains(fake.bodies[0], "GET") {
-		t.Fatalf("attribute value leaked into SQL:\n%s", fake.bodies[0])
 	}
 }
