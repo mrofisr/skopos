@@ -8,7 +8,7 @@
     "cmd/repoctl/internal/codescanning": 92.5,
     "cmd/repoctl/internal/command": 69.6,
     "cmd/repoctl/internal/ghapi": 78.1,
-    "cmd/repoctl/internal/grafanacheck": 87.7,
+    "cmd/repoctl/internal/grafanacheck": 87.9,
     "cmd/repoctl/internal/issueops": 85.4,
     "cmd/repoctl/internal/osvexceptions": 86.4,
     "cmd/repoctl/internal/prcheck": 100,

@@ -34,9 +34,13 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	password := fs.String("password", env.Getenv("GRAFANA_PASSWORD"), "Grafana basic auth password")
 	timeout := fs.Duration("timeout", 30*time.Second, "per-request timeout")
 	journey := fs.Bool("journey", false, "run the Prometheus journey through Grafana's query API")
+	lokiJourney := fs.Bool("loki-journey", false, "run the Loki journey through Grafana's query API")
 	skoposUID := fs.String("skopos-uid", "skopos-prometheus", "Skopos Prometheus datasource UID")
 	referenceUID := fs.String("reference-uid", "reference-prometheus", "reference Prometheus datasource UID")
 	journeyStep := fs.Duration("journey-step", 30*time.Second, "journey query step")
+	lokiUID := fs.String("loki-uid", "skopos-loki", "Skopos Loki datasource UID")
+	referenceLokiUID := fs.String("reference-loki-uid", "reference-loki", "reference Loki datasource UID")
+	lokiService := fs.String("loki-service", "skopos-e2e-server-0", "seeded log service")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -62,7 +66,7 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 		fmt.Fprintf(env.Stdout, "grafana-check: %s (%s) OK\n", datasource.Name, datasource.UID)
 	}
 	fmt.Fprintf(env.Stdout, "grafana-check: %d datasources healthy\n", len(checked))
-	if !*journey {
+	if !*journey && !*lokiJourney {
 		return nil
 	}
 	if *journeyStep <= 0 {
@@ -72,23 +76,45 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	if env.Now != nil {
 		now = env.Now()
 	}
-	runner := Journey{
-		Client: client,
-		Config: JourneyConfig{
-			SkoposUID:    *skoposUID,
-			ReferenceUID: *referenceUID,
-			Now:          now,
-			Step:         *journeyStep,
-		},
+	if *journey {
+		runner := Journey{
+			Client: client,
+			Config: JourneyConfig{
+				SkoposUID:    *skoposUID,
+				ReferenceUID: *referenceUID,
+				Now:          now,
+				Step:         *journeyStep,
+			},
+		}
+		steps, err := runner.Run(ctx)
+		if err != nil {
+			return fmt.Errorf("grafana journey: %w", err)
+		}
+		for _, step := range steps {
+			fmt.Fprintf(env.Stdout, "grafana-check: journey %s OK (%s)\n", step.Name, step.Detail)
+		}
+		fmt.Fprintf(env.Stdout, "grafana-check: %d journey steps passed\n", len(steps))
 	}
-	steps, err := runner.Run(ctx)
-	if err != nil {
-		return fmt.Errorf("grafana journey: %w", err)
+	if *lokiJourney {
+		runner := LokiJourney{
+			Client: client,
+			Config: LokiConfig{
+				SkoposUID:    *lokiUID,
+				ReferenceUID: *referenceLokiUID,
+				Now:          now,
+				Step:         *journeyStep,
+				Service:      *lokiService,
+			},
+		}
+		steps, err := runner.Run(ctx)
+		if err != nil {
+			return fmt.Errorf("grafana loki journey: %w", err)
+		}
+		for _, step := range steps {
+			fmt.Fprintf(env.Stdout, "grafana-check: loki journey %s OK (%s)\n", step.Name, step.Detail)
+		}
+		fmt.Fprintf(env.Stdout, "grafana-check: %d loki journey steps passed\n", len(steps))
 	}
-	for _, step := range steps {
-		fmt.Fprintf(env.Stdout, "grafana-check: journey %s OK (%s)\n", step.Name, step.Detail)
-	}
-	fmt.Fprintf(env.Stdout, "grafana-check: %d journey steps passed\n", len(steps))
 	return nil
 }
 

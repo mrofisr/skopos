@@ -1,7 +1,7 @@
 #!/bin/sh
-# Seed the Grafana harness tables with one OBI-shaped log and trace. The
-# Grafana journey samples come from the generated GRAFANA_SEED_SQL file, so
-# ClickHouse and the reference Prometheus share exactly the same metrics.
+# Seed the Grafana harness tables with one OBI-shaped trace. The journey
+# samples come from the generated GRAFANA_SEED_SQL file, so ClickHouse and the
+# reference Prometheus/Loki share exactly the same data.
 set -eu
 
 host=${CLICKHOUSE_HOST:-clickhouse}
@@ -17,14 +17,6 @@ query() {
     --user "$user" \
     --query "$1"
 }
-
-query "INSERT INTO otel_logs
-  (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body,
-   LogAttributes, ResourceAttributes)
-  VALUES
-  (now64(9), '$trace_id', '$span_id', 'INFO', 9, 'skopos-e2e-server',
-   'grafana harness seed', {'log.level':'INFO'},
-   {'service.name':'skopos-e2e-server'})"
 
 query "INSERT INTO otel_traces
   (Timestamp, TraceId, SpanId, SpanName, ServiceName, Duration, SpanKind,
@@ -43,4 +35,4 @@ if [ -n "${GRAFANA_SEED_SQL:-}" ]; then
   echo "seed: inserted the Grafana journey samples from $GRAFANA_SEED_SQL"
 fi
 
-echo "seed: inserted one log and trace"
+echo "seed: inserted one trace"

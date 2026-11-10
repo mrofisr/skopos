@@ -13,3 +13,12 @@ datasources:
     jsonData:
       httpMethod: POST
       timeInterval: 30s
+
+  - name: Reference Loki
+    type: loki
+    uid: reference-loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    jsonData:
+      maxLines: 1000
