@@ -135,10 +135,14 @@ histograms.
 
 ## Metadata cache
 
-Metric-to-table discovery, per-table emptiness, and metric metadata are cached
-for `SKOPOS_METADATA_TTL` (default 30s). A failed refresh returns an error
-rather than a stale empty result; a table that gains data becomes visible
-after the TTL. See [install.md](install.md#admission-limits).
+Metric-to-table discovery, per-table emptiness, metric metadata, and label
+names are cached for `SKOPOS_METADATA_TTL` (default 30s). A failed refresh
+returns an error rather than a stale empty result; a table that gains data
+becomes visible after the TTL. `/api/v1/label/.../values` and `/api/v1/labels`
+push the safe name-only selectors into ClickHouse with distinct queries; any
+other matcher falls back to the Go path. The label-names cache key includes the
+selector and the time-range bucket, and a second call inside the TTL issues no
+statements. See [install.md](install.md#admission-limits).
 
 ## Known limitations
 

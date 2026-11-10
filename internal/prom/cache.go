@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jawaracloud/skopos/internal/chclient"
@@ -20,9 +21,28 @@ const (
 // metricCache caches the answers that do not change per query: which tables
 // hold a metric, whether a table has any rows, and metadata.
 type metricCache struct {
-	discovery *ttlcache.Cache[string, []tableKind]
-	nonEmpty  *ttlcache.Cache[string, bool]
-	metadata  *ttlcache.Cache[string, map[string]Metadata]
+	fetcher    *ClickHouseFetcher
+	discovery  *ttlcache.Cache[string, []tableKind]
+	nonEmpty   *ttlcache.Cache[string, bool]
+	metadata   *ttlcache.Cache[string, map[string]Metadata]
+	labelNames *ttlcache.Cache[labelNamesKey, []string]
+
+	labelMu       sync.Mutex
+	labelRequests map[labelNamesKey]labelNamesRequest
+}
+
+type labelNamesKey struct {
+	Selector string
+	Start    int64
+	End      int64
+	Limit    int
+}
+
+type labelNamesRequest struct {
+	selector Selector
+	start    time.Time
+	end      time.Time
+	limit    int
 }
 
 func (f *ClickHouseFetcher) cacheFor() *metricCache {
@@ -48,7 +68,15 @@ func (f *ClickHouseFetcher) cacheFor() *metricCache {
 	metadata, _ := ttlcache.New(ttlcache.Options[string, map[string]Metadata]{
 		TTL: ttl, MaxEntries: metadataCacheSize, Clock: clock, Load: f.loadMetadata,
 	})
-	f.cache = &metricCache{discovery: discovery, nonEmpty: nonEmpty, metadata: metadata}
+	cache := &metricCache{
+		fetcher: f, discovery: discovery, nonEmpty: nonEmpty, metadata: metadata,
+		labelRequests: make(map[labelNamesKey]labelNamesRequest),
+	}
+	labelNames, _ := ttlcache.New(ttlcache.Options[labelNamesKey, []string]{
+		TTL: ttl, MaxEntries: metadataCacheSize, Clock: clock, Load: cache.loadLabelNames,
+	})
+	cache.labelNames = labelNames
+	f.cache = cache
 	return f.cache
 }
 
@@ -77,4 +105,11 @@ func cloneMetadata(source map[string]Metadata) map[string]Metadata {
 		out[name] = metadata
 	}
 	return out
+}
+
+func (c *metricCache) loadLabelNames(ctx context.Context, key labelNamesKey) ([]string, error) {
+	c.labelMu.Lock()
+	request := c.labelRequests[key]
+	c.labelMu.Unlock()
+	return c.fetcher.loadLabelNames(ctx, request.selector, request.start, request.end, request.limit)
 }
