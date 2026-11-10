@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint mutation test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mcp checkpoint mutation mutation-gate test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -116,8 +116,14 @@ PKG ?= ./internal/auth
 mutation:
 	mkdir -p bin
 	cd internal/tools && $(GO) build -o ../../bin/gremlins github.com/go-gremlins/gremlins/cmd/gremlins
-	./bin/gremlins unleash --workers 2 --output mutation.json $(PKG)
+	./bin/gremlins unleash --workers 4 --timeout-coefficient 10 --output mutation.json $(PKG)
 	$(GO) run ./cmd/repoctl mutation report --input mutation.json
+
+mutation-gate:
+	mkdir -p bin
+	cd internal/tools && $(GO) build -o ../../bin/gremlins github.com/go-gremlins/gremlins/cmd/gremlins
+	./bin/gremlins unleash --workers 4 --timeout-coefficient 10 --output mutation.json $(PKG)
+	$(GO) run ./cmd/repoctl mutation gate --input mutation.json --floor 70 --allowlist test/quality/mutation-allowlist.json
 
 release:
 	VERSION=$(VERSION) ./scripts/release.sh
