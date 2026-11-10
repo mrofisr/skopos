@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jawaracloud/skopos/internal/metrics"
@@ -35,7 +36,26 @@ type API struct {
 	Now      func() time.Time
 	// Timeout is the per-request query deadline. Zero disables the deadline.
 	Timeout time.Duration
+
+	tagMu          sync.Mutex
+	tagNamesCache  map[string]tagNamesEntry
+	tagValuesCache map[string]tagValuesEntry
 }
+
+type tagNamesEntry struct {
+	value   map[string][]string
+	expires time.Time
+}
+
+type tagValuesEntry struct {
+	value   []string
+	expires time.Time
+}
+
+const (
+	tagCacheTTL   = 30 * time.Second
+	tagCacheLimit = 256
+)
 
 // NewAPI returns a Tempo-compatible API.
 func NewAPI(fetcher TraceFetcher, version string) *API {
@@ -338,6 +358,19 @@ func (a *API) tags(r *http.Request) (map[string][]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	limit := parseLimit(r.FormValue("limit"), 1000, 10000)
+	if fetcher, ok := a.Fetcher.(TagFetcher); ok {
+		key := tagCacheKey("names", "", filter, start, end, limit)
+		names, err := a.cachedTagNames(key, func() (map[string][]string, error) {
+			return fetcher.TagNames(r.Context(), start, end, filter, limit)
+		})
+		if err == nil {
+			return names, nil
+		}
+		if !errors.Is(err, ErrTagFallback) {
+			return nil, err
+		}
+	}
 	spans, err := a.Fetcher.FetchRange(r.Context(), start, end)
 	if err != nil {
 		return nil, err
@@ -352,7 +385,6 @@ func (a *API) tags(r *http.Request) (map[string][]string, error) {
 	}
 	names := TagNames(filtered)
 	out := make(map[string][]string, len(names))
-	limit := parseLimit(r.FormValue("limit"), 1000, 10000)
 	for scope, set := range names {
 		values := make([]string, 0, len(set))
 		for value := range set {
@@ -445,6 +477,19 @@ func (a *API) tagValues(r *http.Request) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	limit := parseLimit(r.FormValue("limit"), 1000, 10000)
+	if fetcher, ok := a.Fetcher.(TagFetcher); ok {
+		key := tagCacheKey("values", tag, filter, start, end, limit)
+		values, err := a.cachedTagValues(key, func() ([]string, error) {
+			return fetcher.TagValues(r.Context(), tag, start, end, filter, limit)
+		})
+		if err == nil {
+			return values, nil
+		}
+		if !errors.Is(err, ErrTagFallback) {
+			return nil, err
+		}
+	}
 	spans, err := a.Fetcher.FetchRange(r.Context(), start, end)
 	if err != nil {
 		return nil, err
@@ -466,7 +511,6 @@ func (a *API) tagValues(r *http.Request) ([]string, error) {
 		out = append(out, value)
 	}
 	sort.Strings(out)
-	limit := parseLimit(r.FormValue("limit"), 1000, 10000)
 	if len(out) > limit {
 		out = out[:limit]
 	}
@@ -962,4 +1006,65 @@ func hasLimitedFetcher(fetcher TraceFetcher) bool {
 		FetchRangeFilteredLimited(context.Context, time.Time, time.Time, Filter, int) ([]Span, error)
 	})
 	return ok
+}
+
+func tagCacheKey(kind, tag string, filter Filter, start, end time.Time, limit int) string {
+	return fmt.Sprintf("%s|%s|%#v|%d|%d|%d", kind, tag, filter,
+		start.Truncate(tagCacheTTL).Unix(), end.Truncate(tagCacheTTL).Unix(), limit)
+}
+
+func (a *API) cachedTagNames(key string, load func() (map[string][]string, error)) (map[string][]string, error) {
+	a.tagMu.Lock()
+	if entry, ok := a.tagNamesCache[key]; ok && a.now().Before(entry.expires) {
+		value := cloneTagNames(entry.value)
+		a.tagMu.Unlock()
+		return value, nil
+	}
+	a.tagMu.Unlock()
+	value, err := load()
+	if err != nil {
+		return nil, err
+	}
+	a.tagMu.Lock()
+	if a.tagNamesCache == nil {
+		a.tagNamesCache = make(map[string]tagNamesEntry)
+	}
+	if len(a.tagNamesCache) >= tagCacheLimit {
+		a.tagNamesCache = make(map[string]tagNamesEntry)
+	}
+	a.tagNamesCache[key] = tagNamesEntry{value: cloneTagNames(value), expires: a.now().Add(tagCacheTTL)}
+	a.tagMu.Unlock()
+	return cloneTagNames(value), nil
+}
+
+func (a *API) cachedTagValues(key string, load func() ([]string, error)) ([]string, error) {
+	a.tagMu.Lock()
+	if entry, ok := a.tagValuesCache[key]; ok && a.now().Before(entry.expires) {
+		value := append([]string(nil), entry.value...)
+		a.tagMu.Unlock()
+		return value, nil
+	}
+	a.tagMu.Unlock()
+	value, err := load()
+	if err != nil {
+		return nil, err
+	}
+	a.tagMu.Lock()
+	if a.tagValuesCache == nil {
+		a.tagValuesCache = make(map[string]tagValuesEntry)
+	}
+	if len(a.tagValuesCache) >= tagCacheLimit {
+		a.tagValuesCache = make(map[string]tagValuesEntry)
+	}
+	a.tagValuesCache[key] = tagValuesEntry{value: append([]string(nil), value...), expires: a.now().Add(tagCacheTTL)}
+	a.tagMu.Unlock()
+	return append([]string(nil), value...), nil
+}
+
+func cloneTagNames(source map[string][]string) map[string][]string {
+	out := make(map[string][]string, len(source))
+	for scope, values := range source {
+		out[scope] = append([]string(nil), values...)
+	}
+	return out
 }

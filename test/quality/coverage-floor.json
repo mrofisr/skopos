@@ -33,7 +33,7 @@
     "internal/prom": 80.3,
     "internal/semctx": 85.4,
     "internal/sqlgen": 66.5,
-    "internal/tempo": 77.3,
+    "internal/tempo": 77.8,
     "internal/ttlcache": 98.1
   }
 }

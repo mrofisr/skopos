@@ -32,6 +32,14 @@ func (f *fakeTraceClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	from := strings.Index(string(body), "FROM")
 	spanName := strings.Index(string(body), "SpanName")
+	if strings.Contains(string(body), "AS `tag`") {
+		value := tagValueForQuery(string(body))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"meta": []map[string]string{{"name": "tag", "type": "String"}},
+			"data": []map[string]any{{"tag": value}},
+		})
+		return
+	}
 	if strings.Contains(string(body), "TraceId") && (spanName == -1 || spanName > from) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"meta": []map[string]string{{"name": "TraceId", "type": "String"}},
@@ -273,5 +281,34 @@ func TestFetchRangeFilteredLimitedFallsBackForUnsafeFilter(t *testing.T) {
 	}
 	if strings.Contains(fake.bodies[0], "ORDER BY") {
 		t.Fatalf("unsafe filter was ordered/pushed:\n%s", fake.bodies[0])
+	}
+}
+
+func tagValueForQuery(query string) string {
+	switch {
+	case strings.Contains(query, "Events.Name"):
+		return "exception"
+	case strings.Contains(query, "Links.TraceId"):
+		return "trace-3"
+	case strings.Contains(query, "Events.Attributes"):
+		return "BadGateway"
+	case strings.Contains(query, "Links.Attributes"):
+		return "retry"
+	case strings.Contains(query, "StatusCode"):
+		return "error"
+	case strings.Contains(query, "SpanKind"):
+		return "server"
+	case strings.Contains(query, "ServiceName"):
+		return "checkout"
+	case strings.Contains(query, "ResourceAttributes"):
+		return "prod"
+	case strings.Contains(query, "SpanAttributes"):
+		return "GET"
+	case strings.Contains(query, "SpanName"):
+		return "GET /cart"
+	case strings.Contains(query, "Duration"):
+		return "1000"
+	default:
+		return "tag"
 	}
 }
