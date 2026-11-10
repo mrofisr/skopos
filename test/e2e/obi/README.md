@@ -110,6 +110,14 @@ Trace summaries, span fields, and tag sets are compared with the reference
 Tempo datasource. The harness pushes the TraceQL corpus to Tempo over OTLP and
 loads the same spans into ClickHouse.
 
+`repoctl grafana-check --dashboard
+deploy/examples/grafana/dashboards/obi-red.json` runs every panel target
+through Grafana and requires a non-empty series for each. The dashboard is the
+OBI RED acceptance list: request rate, error rate, and p95 duration from the
+server and client `http_*_request_duration_seconds_*` histograms. A panel whose
+query fails, or returns no series, fails the harness and names the panel and
+expression; an unsupported function is reported by name.
+
 The harness has two negative self-checks:
 
 ```sh
@@ -126,9 +134,9 @@ success, like the OBI harness.
 The seed job inserts one OBI-shaped trace and the generated metric and log
 samples, so the stack is ready for the journeys; the datasource health checks
 themselves do not depend on the seed. `seedgen` writes the same log lines as
-SQL for ClickHouse and as a Loki push body, and writes the TraceQL corpus as
-ClickHouse rows and an OTLP body. The harness posts the push bodies to the
-reference Loki and Tempo.
+SQL for ClickHouse and as a Loki push body, the TraceQL corpus as ClickHouse
+rows and an OTLP body, and OBI-shaped server/client histograms for the
+dashboard. The harness posts the push bodies to the reference Loki and Tempo.
 
 ## Requirements
 
