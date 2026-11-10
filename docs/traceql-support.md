@@ -278,6 +278,11 @@ Attribute keys and values with dots, quotes, or unicode are parameters, not SQL
 text. Numeric versus string comparison follows the parsed literal; quoted
 `>`/`<` comparisons stay in Go.
 
+When no duration filter applies, the search limit and newest-first ordering are
+pushed into the trace-ID query (`min(Timestamp) DESC`, tie-broken by trace ID).
+The second query still loads every span of the selected traces, so roots and
+summaries stay correct. `spss` remains a response-side cap.
+
 ## Known limitations
 
 - Structural operators (`>>`, `<<`, `>`, `<`, `~`, `!>>`, `!<<`, `!>`, `!<`),
