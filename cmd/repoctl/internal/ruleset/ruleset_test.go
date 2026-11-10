@@ -524,7 +524,7 @@ func TestLoadRealRuleset(t *testing.T) {
 		"Helm lint and render",
 		"Workflow policy",
 		"CI gate",
-		"Dependency review",
+		"dependency-review",
 	}
 	if got := cfg.RequiredChecks(); !slices.Equal(got, want) {
 		t.Fatalf("RequiredChecks = %v, want %v", got, want)
