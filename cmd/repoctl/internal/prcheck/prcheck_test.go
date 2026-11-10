@@ -200,6 +200,7 @@ func TestEvaluatePromotionPR(t *testing.T) {
 		Body:    "no reference",
 		BaseRef: "main",
 		HeadRef: "development",
+		Files:   []string{"internal/semctx/api.go", "deploy/systemd/skopos-gateway.service"},
 	}, source)
 	if len(result.Errors) != 0 {
 		t.Fatalf("errors = %s, want none", joined(result.Errors))

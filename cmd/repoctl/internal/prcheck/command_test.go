@@ -519,7 +519,7 @@ func TestPrcheckPromotionSkipsTraceability(t *testing.T) {
 		Number: 12, Title: "release: promote development", Body: "no reference",
 		BaseRef: "main", HeadRef: "development",
 	})
-	files := writeFiles(t, "docs/guide.md")
+	files := writeFiles(t, "internal/checkpoint/checkpoint.go")
 	env, stdout, stderr := githubEnv(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 	}))
