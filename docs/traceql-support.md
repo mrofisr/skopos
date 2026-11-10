@@ -283,6 +283,13 @@ pushed into the trace-ID query (`min(Timestamp) DESC`, tie-broken by trace ID).
 The second query still loads every span of the selected traces, so roots and
 summaries stay correct. `spss` remains a response-side cap.
 
+Tag names and values are computed in ClickHouse for the safe scopes: resource
+and span attribute keys, event and link attribute keys, intrinsic names, and
+the corpus tag-value cases. The result is cached for 30 seconds by filter and
+time bucket, so a second call inside the TTL issues no statements; limits cap
+high-cardinality results. A filter or tag outside the safe subset falls back to
+the Go evaluator.
+
 ## Known limitations
 
 - Structural operators (`>>`, `<<`, `>`, `<`, `~`, `!>>`, `!<<`, `!>`, `!<`),
