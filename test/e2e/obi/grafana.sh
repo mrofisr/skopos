@@ -42,6 +42,8 @@ gateway_url=http://127.0.0.1:${SKOPOS_E2E_GATEWAY_PORT}
 grafana_url=http://127.0.0.1:${SKOPOS_E2E_GRAFANA_PORT}
 prometheus_url=http://127.0.0.1:${SKOPOS_E2E_PROMETHEUS_PORT:-18093}
 loki_url=http://127.0.0.1:${SKOPOS_E2E_LOKI_PORT:-18094}
+tempo_url=http://127.0.0.1:${SKOPOS_E2E_TEMPO_PORT:-18095}
+tempo_otlp_url=http://127.0.0.1:${SKOPOS_E2E_TEMPO_OTLP_PORT:-18096}
 provisioning_out="$here/.render/grafana/provisioning/datasources"
 render_out="$here/.render"
 check_log="$here/.render/grafana-check.log"
@@ -63,7 +65,7 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     echo "grafana: harness failed (exit $status); keeping containers for inspection" >&2
     compose ps >&2
-    for svc in clickhouse gateway grafana loki prometheus seed; do
+    for svc in clickhouse gateway grafana loki prometheus seed tempo; do
       echo "----- $svc logs (tail) -----" >&2
       compose logs --no-color --tail=40 "$svc" >&2
     done
@@ -131,13 +133,15 @@ go run ./test/e2e/obi/seedgen \
   --sql "$render_out/grafana-seed.sql" \
   --openmetrics "$render_out/prometheus/grafana-seed.om" \
   --loki-push "$render_out/loki-push.json" \
+  --traces-json "$render_out/grafana-traces.json" \
+  --tempo-otlp "$render_out/grafana-traces.otlp.json" \
   --now "$now"
 
 echo "grafana: starting a clean stack"
 compose down -v --remove-orphans >/dev/null 2>&1 || true
 compose run --rm --no-deps --entrypoint promtool prometheus \
   tsdb create-blocks-from openmetrics /seed/grafana-seed.om /prometheus
-compose up -d --build clickhouse clickhouse-init seed gateway grafana prometheus loki
+compose up -d --build clickhouse clickhouse-init seed gateway grafana prometheus loki tempo
 
 wait_for() {
   url=$1
@@ -159,6 +163,12 @@ wait_for "$gateway_url/readyz" gateway 90
 wait_for "$grafana_url/api/health" grafana 90
 wait_for "$prometheus_url/-/ready" prometheus 90
 wait_for "$loki_url/ready" loki 90
+wait_for "$tempo_url/ready" tempo 90
+
+echo "grafana: pushing the shared trace seed to Tempo"
+curl -fsS -X POST -H 'Content-Type: application/json' \
+  --data-binary "@$render_out/grafana-traces.otlp.json" \
+  "$tempo_otlp_url/v1/traces" >/dev/null
 
 echo "grafana: pushing the shared log seed to Loki"
 curl -fsS -X POST -H 'Content-Type: application/json' \
@@ -193,7 +203,7 @@ expect_failure() {
 
 case "$mode" in
   verify)
-    run_check --journey --loki-journey
+    run_check --journey --loki-journey --tempo-journey
     ;;
   stopped)
     echo "grafana: stopping the gateway to prove the health check fails"

@@ -22,3 +22,12 @@ datasources:
     isDefault: false
     jsonData:
       maxLines: 1000
+
+  - name: Reference Tempo
+    type: tempo
+    uid: reference-tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    jsonData:
+      httpMethod: GET
