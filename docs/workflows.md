@@ -8,7 +8,7 @@ The source of truth is `.github/workflows/` and `docs/security/ruleset.json`.
 | Workflow | Triggers | Jobs | Required |
 | --- | --- | --- | --- |
 | `ci.yml` | `pull_request`, `workflow_dispatch`, `schedule` | `Changed paths`, `Go build, vet, test`, `Coverage ratchet`, `ClickHouse integration`, `Tempo and Loki differentials`, `cerberus three-way differential`, `S3 tiered storage and backup (RustFS)`, `Helm lint and render`, `Docker image build`, `Workflow policy`, `CI gate` | `Go build, vet, test`, `Coverage ratchet`, `ClickHouse integration`, `Tempo and Loki differentials`, `cerberus three-way differential`, `S3 tiered storage and backup (RustFS)`, `Helm lint and render`, `Workflow policy`, `CI gate` |
-| `dependency-review.yml` | `pull_request` | `Dependency review` | `Dependency review` |
+| `dependency-review.yml` | `pull_request` | `dependency-review` | `dependency-review` |
 | `issues.yml` | `schedule`, `workflow_dispatch` | `Alpha-exit issue lint` | — |
 | `mutation.yml` | `schedule`, `workflow_dispatch` | `Mutation (${{ matrix.package }})` | — |
 | `pr-guard.yml` | `pull_request` | `PR traceability and freeze guard` | — |
@@ -29,4 +29,4 @@ The source of truth is `.github/workflows/` and `docs/security/ruleset.json`.
 | `Helm lint and render` | `ci.yml` | `helm` |
 | `Workflow policy` | `ci.yml` | `policy` |
 | `CI gate` | `ci.yml` | `ci-gate` |
-| `Dependency review` | `dependency-review.yml` | `dependency-review` |
+| `dependency-review` | `dependency-review.yml` | `dependency-review` |

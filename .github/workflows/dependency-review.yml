@@ -15,7 +15,6 @@ permissions:
 
 jobs:
   dependency-review:
-    name: Dependency review
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

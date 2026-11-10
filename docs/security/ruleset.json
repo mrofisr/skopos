@@ -93,7 +93,7 @@
               "integration_id": 15368
             },
             {
-              "context": "Dependency review",
+              "context": "dependency-review",
               "integration_id": 15368
             }
           ]
