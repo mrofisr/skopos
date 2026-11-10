@@ -70,6 +70,7 @@ These tools are not linked into the gateway binary:
 | go-licenses | v1.6.0 | License allowlist check in the required `policy` job |
 | OpenSSF Scorecard CLI | v5.6.0 | Scorecard scan via `scripts/scorecard.sh`; checksum-verified, not linked into the gateway |
 | gitleaks | v8.30.1 | Local secret scan during the OpenSSF pass; not a CI dependency |
+| gremlins | v0.6.0 | Mutation testing via `make mutation`; pinned in the separate `internal/tools` module |
 
 Dependabot runs weekly with a five-day cooldown for Go modules, GitHub Actions,
 and Dockerfiles/Compose files. Chart image tags in `values.yaml` are upgraded by

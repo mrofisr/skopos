@@ -7,6 +7,7 @@ import (
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/command"
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/grafanacheck"
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/issueops"
+	"github.com/jawaracloud/skopos/cmd/repoctl/internal/mutation"
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/osvexceptions"
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/prcheck"
 	"github.com/jawaracloud/skopos/cmd/repoctl/internal/quality"
@@ -26,6 +27,7 @@ func newRegistry() (*command.Registry, error) {
 		codescanning.Command{},
 		grafanacheck.Command{},
 		issueops.Command{},
+		mutation.Command{},
 		osvexceptions.Command{},
 		prcheck.Command{},
 		quality.Command{},

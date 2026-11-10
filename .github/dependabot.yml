@@ -49,6 +49,26 @@ updates:
           - patch
 
   - package-ecosystem: gomod
+    directory: "/internal/tools"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:15"
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      dev-tools-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: gomod
     directory: "/test/e2e/obi/app"
     schedule:
       interval: weekly

@@ -46,6 +46,32 @@ The `Coverage ratchet` job runs `make coverage` on every pull request and on
 `development`. It uses a full checkout so the previous floor can be read from
 `origin/development`.
 
+## Mutation testing
+
+Mutation testing is advisory for alpha (STG-6 / AX-02); it does not block a
+pull request. The tool is pinned in the separate `internal/tools` module so the
+root module and its `vendor/` tree stay clean.
+
+Two candidates were evaluated on `internal/auth`:
+
+| Tool | Version | Result |
+| --- | --- | --- |
+| gremlins | `v0.6.0` | Builds with Go 1.27; 2 killed, 3 timed out, 0 lived; efficacy 100%, about 1.2 s |
+| avito-tech/go-mutesting | `v0.0.0-20261002081621-9ce5f731e321` | Does not build on Go 1.27/linux-arm64: `zimmski/osutil v1.6.1` uses the removed `syscall.Dup2` |
+
+Gremlins was chosen for the working build, the machine-readable report, and
+the built-in efficacy and mutant-coverage thresholds.
+
+```sh
+make mutation                 # defaults to PKG=./internal/auth
+make mutation PKG=./internal/sqlgen
+```
+
+The target builds the pinned binary into `bin/`, runs `gremlins unleash` with a
+JSON report, and prints the summary through `repoctl mutation report`. The
+report is written to `mutation.json`, which is ignored. The nightly gate and
+the 70% floor are AX-03.
+
 ## PR traceability and freeze guard
 
 Every pull request must link an open issue labelled `phase:alpha-exit` using

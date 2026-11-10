@@ -87,5 +87,6 @@ separate modules because they pin reference implementations:
 - `test/compat/prometheus` (Prometheus parser and reference binary)
 - `test/e2e/obi/app` (OBI demo application)
 
-`internal/tools` is a third module if RS-39 is adopted. It is not vendored
-because nothing in it is shipped.
+`internal/tools` is a third module. It pins developer tools such as the
+mutation tester (gremlins) and is not vendored because nothing in it is
+shipped.
