@@ -197,10 +197,9 @@ func TestIntegrationLokiAPI(t *testing.T) {
 		series := raw.(map[string]any)
 		metric := series["metric"].(map[string]any)
 		values := series["values"].([]any)
+		// The range selector is left-open, so the entry at 00:00:00 is
+		// counted at 00:00 through 00:04, not at 00:05.
 		wantSamples := 5
-		if metric["severity_text"] == "ERROR" {
-			wantSamples = 6
-		}
 		if len(values) != wantSamples {
 			t.Fatalf("metric %#v values = %#v", metric, values)
 		}
@@ -210,7 +209,8 @@ func TestIntegrationLokiAPI(t *testing.T) {
 	}
 
 	query = url.QueryEscape(`rate({service_name="checkout", severity_text="ERROR"}[5m])`)
-	status, body = get(`/loki/api/v1/query?query=` + query + `&time=1793491500`)
+	// 00:01 is inside the (start, end] window that contains the 00:00 error.
+	status, body = get(`/loki/api/v1/query?query=` + query + `&time=1793491260`)
 	if status != http.StatusOK {
 		t.Fatalf("metric instant = %d %s", status, body)
 	}
