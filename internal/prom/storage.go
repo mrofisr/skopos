@@ -719,9 +719,10 @@ func (f *ClickHouseFetcher) LabelValues(ctx context.Context, name string, sel Se
 			Signal: plan.SignalMetrics,
 			Table:  tableName,
 			Select: []plan.SelectItem{{
-				Expr:  plan.Aggregate{Name: "any", Args: []plan.Expr{valueExpr}, Distinct: true},
+				Expr:  valueExpr,
 				Alias: "value",
 			}},
+			GroupBy:    []string{"value"},
 			Where:      metricNameFilter(sel),
 			TimeColumn: "TimeUnix",
 			TimeRange: &plan.TimeRange{

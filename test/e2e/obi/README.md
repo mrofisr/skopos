@@ -62,13 +62,30 @@ make e2e-grafana
 ./test/e2e/obi/grafana.sh
 ```
 
-The harness starts ClickHouse, the seed job, the gateway, and a
-digest-pinned `grafana/grafana` container. It renders the example provisioning
-from `deploy/examples/grafana/provisioning/datasources/skopos.yaml`, rewrites
-the Kubernetes service URL to the Compose gateway, and asks Grafana for the
-datasource list and each datasource's health. The default host ports are
-gateway `18082`, ClickHouse HTTP `18124`, ClickHouse native `19001`, and
-Grafana `13000`; override them with the usual `SKOPOS_E2E_*_PORT` variables.
+The harness starts ClickHouse, the seed job, the gateway, a digest-pinned
+`grafana/grafana` container, and a digest-pinned reference Prometheus. It
+renders the example provisioning from
+`deploy/examples/grafana/provisioning/datasources/skopos.yaml`, rewrites the
+Kubernetes service URL to the Compose gateway, adds a test-only
+`reference-prometheus` datasource, and asks Grafana for the datasource list and
+each datasource's health. The default host ports are gateway `18082`,
+ClickHouse HTTP `18124`, ClickHouse native `19001`, Grafana `13000`, and
+reference Prometheus `18093`; override them with the usual
+`SKOPOS_E2E_*_PORT` variables.
+
+`test/e2e/obi/seedgen` writes the same deterministic counter samples as SQL
+for ClickHouse and as OpenMetrics for `promtool tsdb create-blocks-from
+openmetrics`, so both backends hold identical data. `repoctl grafana-check
+--journey` then sends Grafana's own query requests for:
+
+- an instant `sum()` query and a range `sum(rate())` query with
+  `$__rate_interval` resolved;
+- a `label_values()` variable query and the metric browser's label and series
+  calls;
+- a six-series `sum by (service_name)` panel;
+- a subquery, which Skopos must reject with an explicit error.
+
+Every frame is compared with the reference Prometheus datasource.
 
 The harness has two negative self-checks:
 
@@ -83,9 +100,9 @@ a wrong password, and requires the checker to fail with an authentication
 error. Both keep the stack's containers and logs on failure and remove them on
 success, like the OBI harness.
 
-The seed job inserts one OBI-shaped metric, log, and trace so the stack is
-ready for the journey tickets; the datasource health checks themselves do not
-depend on the seed.
+The seed job inserts one OBI-shaped log and trace and the generated metric
+samples, so the stack is ready for the Prometheus journey; the datasource
+health checks themselves do not depend on the seed.
 
 ## Requirements
 

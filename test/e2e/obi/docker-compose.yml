@@ -49,8 +49,10 @@ services:
       CLICKHOUSE_DATABASE: otel
       CLICKHOUSE_ADMIN_USER: default
       CLICKHOUSE_ADMIN_PASSWORD: ""
+      GRAFANA_SEED_SQL: /seed/grafana-seed.sql
     volumes:
       - ./seed.sh:/seed/seed.sh:ro
+      - ./.render/grafana-seed.sql:/seed/grafana-seed.sql:ro
     restart: "no"
 
   collector:
@@ -118,6 +120,20 @@ services:
     ports:
       - "${SKOPOS_E2E_GATEWAY_PORT:-18081}:18081"
 
+  prometheus:
+    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    user: "0"
+    command:
+      - "--storage.tsdb.path=/prometheus"
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=20000d"
+    ports:
+      - "127.0.0.1:${SKOPOS_E2E_PROMETHEUS_PORT:-18093}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./.render/prometheus:/seed:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
   grafana:
     image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
     depends_on:
@@ -137,3 +153,4 @@ services:
 
 volumes:
   clickhouse-data:
+  prometheus-data:

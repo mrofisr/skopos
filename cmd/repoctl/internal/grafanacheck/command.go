@@ -33,6 +33,10 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	username := fs.String("username", env.Getenv("GRAFANA_USERNAME"), "Grafana basic auth user")
 	password := fs.String("password", env.Getenv("GRAFANA_PASSWORD"), "Grafana basic auth password")
 	timeout := fs.Duration("timeout", 30*time.Second, "per-request timeout")
+	journey := fs.Bool("journey", false, "run the Prometheus journey through Grafana's query API")
+	skoposUID := fs.String("skopos-uid", "skopos-prometheus", "Skopos Prometheus datasource UID")
+	referenceUID := fs.String("reference-uid", "reference-prometheus", "reference Prometheus datasource UID")
+	journeyStep := fs.Duration("journey-step", 30*time.Second, "journey query step")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -58,6 +62,33 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 		fmt.Fprintf(env.Stdout, "grafana-check: %s (%s) OK\n", datasource.Name, datasource.UID)
 	}
 	fmt.Fprintf(env.Stdout, "grafana-check: %d datasources healthy\n", len(checked))
+	if !*journey {
+		return nil
+	}
+	if *journeyStep <= 0 {
+		return fmt.Errorf("journey-step must be positive, got %s", *journeyStep)
+	}
+	now := time.Now()
+	if env.Now != nil {
+		now = env.Now()
+	}
+	runner := Journey{
+		Client: client,
+		Config: JourneyConfig{
+			SkoposUID:    *skoposUID,
+			ReferenceUID: *referenceUID,
+			Now:          now,
+			Step:         *journeyStep,
+		},
+	}
+	steps, err := runner.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("grafana journey: %w", err)
+	}
+	for _, step := range steps {
+		fmt.Fprintf(env.Stdout, "grafana-check: journey %s OK (%s)\n", step.Name, step.Detail)
+	}
+	fmt.Fprintf(env.Stdout, "grafana-check: %d journey steps passed\n", len(steps))
 	return nil
 }
 

@@ -200,3 +200,36 @@ func TestLabelValuesNonNameMatcherFallsBack(t *testing.T) {
 		t.Fatal("LabelValues pushdown ran for a non-name matcher")
 	}
 }
+
+// A label-values query must return every distinct value in the table, not one
+// arbitrary value. The old pushdown selected any(DISTINCT value) and so
+// returned a single row.
+func TestLabelValuesPushdownUsesGroupBy(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newValuesFetcher(t,
+		map[string][]map[string]any{names.MetricsSum: {gaugeRow("skopos_e2e_requests_total")}},
+		map[string][]string{names.MetricsSum: {"server-0", "server-1", "server-2"}})
+	values, err := fetcher.LabelValues(context.Background(), "service_name",
+		Selector{Matchers: []*promlabels.Matcher{
+			promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "skopos_e2e_requests_total"),
+		}},
+		time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC), 0)
+	if err != nil {
+		t.Fatalf("LabelValues: %v", err)
+	}
+	if len(values) != 3 {
+		t.Fatalf("values = %v, want three values", values)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.valueBodies) == 0 {
+		t.Fatal("no label-values query was issued")
+	}
+	body := fake.valueBodies[0]
+	if strings.Contains(body, "any(") {
+		t.Errorf("label-values query still uses any(): %s", body)
+	}
+	if !strings.Contains(body, "GROUP BY") {
+		t.Errorf("label-values query has no GROUP BY: %s", body)
+	}
+}

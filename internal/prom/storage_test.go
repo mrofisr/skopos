@@ -27,6 +27,7 @@ type fakeClickHouse struct {
 	labelNames    map[string][]string
 	seen          []string
 	bodies        []string
+	valueBodies   []string
 	failDiscovery bool
 	failValuesAt  int
 	valueCalls    int
@@ -77,11 +78,12 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if strings.Contains(query, "DISTINCT") {
+	if strings.Contains(query, "DISTINCT") || strings.Contains(query, "AS `value`") {
 		f.mu.Lock()
 		f.valueCalls++
 		call := f.valueCalls
 		values := f.labelValues[table]
+		f.valueBodies = append(f.valueBodies, query)
 		f.mu.Unlock()
 		if f.failValuesAt > 0 && call == f.failValuesAt {
 			w.WriteHeader(http.StatusInternalServerError)

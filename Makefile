@@ -23,7 +23,7 @@ help:
 		'helm-lint         lint the Helm chart' \
 		'helm-template     render the Helm chart' \
 		'e2e-obi           run the real OBI end-to-end harness (Docker, Linux)' \
-		'e2e-grafana       verify Grafana datasource provisioning and health (Docker)' \
+		'e2e-grafana       verify Grafana datasources and run the Prometheus journey (Docker)' \
 		'compat-cerberus   run the cerberus three-way differential' \
 		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
