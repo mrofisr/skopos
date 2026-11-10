@@ -7,6 +7,7 @@
     "cmd/repoctl/internal/cigate": 98.2,
     "cmd/repoctl/internal/codescanning": 92.5,
     "cmd/repoctl/internal/command": 69.6,
+    "cmd/repoctl/internal/exitcheck": 92.8,
     "cmd/repoctl/internal/ghapi": 78.1,
     "cmd/repoctl/internal/grafanacheck": 88.5,
     "cmd/repoctl/internal/issueops": 85.4,
