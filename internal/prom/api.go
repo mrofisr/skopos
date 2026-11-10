@@ -30,6 +30,12 @@ type SeriesFetcher interface {
 	Metadata(ctx context.Context, metric string) (map[string]Metadata, error)
 }
 
+// LabelValueFetcher is the optional pushdown surface for label values. A
+// backend that does not implement it keeps the Go evaluation path.
+type LabelValueFetcher interface {
+	LabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error)
+}
+
 // API serves the Prometheus HTTP API endpoints used by Grafana.
 type API struct {
 	Engine   QueryEngine
@@ -274,16 +280,39 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 	if len(selectors) == 0 {
 		selectors = []Selector{{}}
 	}
-	values := make(map[string]struct{})
-	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
-		if err != nil {
-			a.writeEngineError(w, r, err)
+	limit := 0
+	if raw := r.FormValue("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "bad_data", "limit must be a non-negative integer")
 			return
 		}
-		for _, s := range series {
-			if v, ok := s.Labels[name]; ok && v != "" {
-				values[v] = struct{}{}
+		limit = parsed
+	}
+
+	values := make(map[string]struct{})
+	if fetcher, ok := a.Fetcher.(LabelValueFetcher); ok && allLabelValuesPushdown(selectors) {
+		for _, sel := range selectors {
+			found, err := fetcher.LabelValues(ctx, name, sel, start, end, limit)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, value := range found {
+				values[value] = struct{}{}
+			}
+		}
+	} else {
+		for _, sel := range selectors {
+			series, err := a.Fetcher.Fetch(ctx, sel, start, end)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, s := range series {
+				if v, ok := s.Labels[name]; ok && v != "" {
+					values[v] = struct{}{}
+				}
 			}
 		}
 	}
@@ -292,7 +321,19 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 		out = append(out, v)
 	}
 	sort.Strings(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
 	writeSuccess(w, out)
+}
+
+func allLabelValuesPushdown(selectors []Selector) bool {
+	for _, sel := range selectors {
+		if !LabelValuesPushdown(sel) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *API) handleMetadata(w http.ResponseWriter, r *http.Request) {

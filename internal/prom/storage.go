@@ -682,3 +682,110 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 	}
 	return out, nil
 }
+
+// LabelValues computes distinct label values in ClickHouse for selectors that
+// only constrain __name__. Callers must fall back to Fetch for any other
+// matcher so the result stays correct.
+func (f *ClickHouseFetcher) LabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	tables, err := f.candidateTables(ctx, sel)
+	if err != nil {
+		return nil, err
+	}
+	valueExpr, err := labelValueExpr(name)
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]struct{})
+	for _, table := range tables {
+		tableName := ""
+		switch table {
+		case tableGauge:
+			tableName = f.Names.MetricsGauge
+		case tableSum:
+			tableName = f.Names.MetricsSum
+		case tableHistogram:
+			tableName = f.Names.MetricsHistogram
+		case tableSummary:
+			tableName = f.Names.MetricsSummary
+		}
+		nonEmpty, err := f.cacheFor().nonEmpty.Get(ctx, tableName)
+		if err != nil {
+			return nil, err
+		}
+		if !nonEmpty {
+			continue
+		}
+		query := plan.Query{
+			Signal: plan.SignalMetrics,
+			Table:  tableName,
+			Select: []plan.SelectItem{{
+				Expr:  plan.Aggregate{Name: "any", Args: []plan.Expr{valueExpr}, Distinct: true},
+				Alias: "value",
+			}},
+			Where:      metricNameFilter(sel),
+			TimeColumn: "TimeUnix",
+			TimeRange: &plan.TimeRange{
+				Start:        start,
+				End:          end,
+				EndInclusive: true,
+			},
+		}
+		if limit > 0 {
+			query.Limit = limit
+		}
+		emitted, err := f.Emitter.Emit(query)
+		if err != nil {
+			return nil, fmt.Errorf("prom: build label values query: %w", err)
+		}
+		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		if err != nil {
+			return nil, fmt.Errorf("prom: label values query %s: %w", tableName, err)
+		}
+		for i := 0; i < result.Len(); i++ {
+			value, ok := result.String(i, "value")
+			if !ok || value == "" {
+				continue
+			}
+			if name == promlabels.MetricName {
+				value = NormalizeLabelName(value)
+			}
+			values[value] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func labelValueExpr(name string) (plan.Expr, error) {
+	switch name {
+	case promlabels.MetricName:
+		return plan.Col("MetricName"), nil
+	case "service_name":
+		return plan.Col("ServiceName"), nil
+	default:
+		if strings.ContainsAny(name, "`{}[]") || name == "" {
+			return nil, fmt.Errorf("prom: invalid label name %q", name)
+		}
+		return plan.Map(plan.Col("Attributes"), plan.String("label_key", name)), nil
+	}
+}
+
+// LabelValuesPushdown reports whether a selector is safe for the SQL path.
+func LabelValuesPushdown(sel Selector) bool {
+	for _, matcher := range sel.Matchers {
+		if matcher.Name != promlabels.MetricName {
+			return false
+		}
+		if matcher.Type != promlabels.MatchEqual && matcher.Type != promlabels.MatchRegexp {
+			return false
+		}
+	}
+	return true
+}
