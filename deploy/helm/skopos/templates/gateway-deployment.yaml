@@ -115,6 +115,8 @@ spec:
               value: {{ .Values.gateway.config.maxRequestBytes | int64 | quote }}
             - name: SKOPOS_METADATA_TTL
               value: {{ .Values.gateway.config.metadataTTL | quote }}
+            - name: SKOPOS_PROFILE
+              value: {{ .Values.gateway.config.profile | quote }}
             {{- if $goMemLimit }}
             - name: GOMEMLIMIT
               value: {{ $goMemLimit | quote }}

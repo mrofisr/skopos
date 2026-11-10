@@ -61,6 +61,7 @@ budgets, and MCP tools.
 | Document | Answers |
 | --- | --- |
 | [Benchmarks](benchmarks.md) | Compression, storage cost, and gateway query latency |
+| [Range-query findings](perf/range-query-findings.md) | Why the 6 h range query saturates the gateway, and how to reproduce the profile |
 | [Storage](storage.md) | Retention, cold tier, backup/restore, capacity behavior |
 | [Durability checkpoint](checkpoint.md) | Loss bounds, local WAL capacity, S3 uploads, replay |
 | [Installation](install.md) | Limits, NetworkPolicy, TTL, disk-full behavior, troubleshooting |

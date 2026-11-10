@@ -54,6 +54,7 @@ services:
       SKOPOS_CLICKHOUSE_USER: skopos_gateway
       SKOPOS_CLICKHOUSE_PASSWORD: ${SKOPOS_BENCH_GATEWAY_PASSWORD:-skopos-bench-password}
       SKOPOS_LOG_LEVEL: warn
+      SKOPOS_PROFILE: ${SKOPOS_BENCH_PROFILE:-false}
     ports:
       - "${SKOPOS_BENCH_GATEWAY_PORT:-28082}:8080"
 

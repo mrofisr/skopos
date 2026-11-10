@@ -28,6 +28,7 @@ help:
 		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
 		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
+		'profile-range     capture pprof and metrics for the 6h range query' \
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
 		'release-check     release preflight: vet, tests, Helm, vendor, script syntax' \
@@ -105,6 +106,9 @@ bench:
 
 bench-gate:
 	SKOPOS_BENCH_GATE=1 ./test/bench/run.sh
+
+profile-range:
+	./test/bench/profile-range.sh
 
 release:
 	VERSION=$(VERSION) ./scripts/release.sh

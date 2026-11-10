@@ -158,6 +158,7 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		Auth:             basicAuth,
 		Register:         register,
 		Metrics:          registry.Handler(),
+		Profile:          cfg.Profile,
 	})
 	if err != nil {
 		return fmt.Errorf("http api: %w", err)
