@@ -369,7 +369,15 @@ gateway:
     maxResponseBytes: 67108864
     readinessTimeout: 2s
     maxRequestBytes: 1048576
+    # Admission limits. Zero maxInflight disables admission. queueDepth and
+    # queueWaitSeconds must be set together and require maxInflight.
+    maxInflight: 0
+    queueDepth: 0
+    queueWaitSeconds: 0
     logLevel: info
+  # Optional Go memory limit. When empty, the chart uses 90% of
+  # resources.limits.memory. A Kubernetes quantity such as 200Mi or 1Gi.
+  goMemLimit: ""
   resources:
     requests:
       cpu: 50m
@@ -405,6 +413,16 @@ gateway:
   tolerations: []
   affinity: {}
   extraEnv: []
+
+# Metrics
+metrics:
+  serviceMonitor:
+    # Requires the Prometheus Operator CRDs. Disabled by default.
+    enabled: false
+    interval: 30s
+    additionalLabels: {}
+    # The selector must match the Service labels; empty is rejected.
+    selector: {}
 
 # Split the read path into a public frontend and an internal query tier. When
 # disabled, the single gateway Deployment/Service above is rendered unchanged.

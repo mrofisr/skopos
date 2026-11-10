@@ -1,0 +1,22 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+{{- if not .Values.metrics.serviceMonitor.selector }}
+{{- fail "metrics.serviceMonitor.selector must not be empty" }}
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "skopos.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml .Values.metrics.serviceMonitor.selector | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+{{- end }}

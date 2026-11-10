@@ -138,3 +138,34 @@ func sampleCall(fn *parser.Function) string {
 	}
 	return fn.Name + "(" + strings.Join(args, ", ") + ")"
 }
+
+func TestFunctionInventoryIsComplete(t *testing.T) {
+	inventory := FunctionInventory()
+	if len(inventory) != len(supportedFunctions)+len(explicitErrorFunctions)+len(parserDisabledFunctions) {
+		t.Fatalf("inventory length = %d, want %d", len(inventory),
+			len(supportedFunctions)+len(explicitErrorFunctions)+len(parserDisabledFunctions))
+	}
+	seen := make(map[string]bool, len(inventory))
+	for _, function := range inventory {
+		if seen[function.Name] {
+			t.Errorf("function %q appears twice", function.Name)
+		}
+		seen[function.Name] = true
+		switch function.Class {
+		case FunctionSupported:
+			if _, ok := supportedFunctions[function.Name]; !ok {
+				t.Errorf("%q is supported but not in supportedFunctions", function.Name)
+			}
+		case FunctionExplicitError:
+			if _, ok := explicitErrorFunctions[function.Name]; !ok {
+				t.Errorf("%q is an explicit error but not in explicitErrorFunctions", function.Name)
+			}
+		case FunctionParserDisabled:
+			if _, ok := parserDisabledFunctions[function.Name]; !ok {
+				t.Errorf("%q is parser-disabled but not in parserDisabledFunctions", function.Name)
+			}
+		default:
+			t.Errorf("%q has unknown class %q", function.Name, function.Class)
+		}
+	}
+}

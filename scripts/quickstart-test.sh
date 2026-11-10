@@ -55,7 +55,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "quickstart-test: extracting the README quickstart"
-go run ./cmd/skopos-quickstart \
+go run ./cmd/repoctl quickstart \
   --readme README.md \
   --script "$workdir/quickstart.sh" \
   --version-file "$workdir/version"

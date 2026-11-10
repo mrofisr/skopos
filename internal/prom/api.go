@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
+
+	"github.com/jawaracloud/skopos/internal/metrics"
 )
 
 // QueryEngine is the subset of Engine used by the HTTP API.
@@ -35,6 +37,8 @@ type API struct {
 	Version  string
 	MaxRange time.Duration
 	Now      func() time.Time
+	// Timeout is the per-request query deadline. Zero disables the deadline.
+	Timeout time.Duration
 }
 
 // NewAPI returns a Prometheus-compatible API.
@@ -65,7 +69,18 @@ func (a *API) now() time.Time {
 	return time.Now()
 }
 
+// requestContext applies the configured query deadline. The returned cancel
+// function is always safe to defer.
+func (a *API) requestContext(r *http.Request) (context.Context, context.CancelFunc) {
+	if a.Timeout <= 0 {
+		return r.Context(), func() {}
+	}
+	return context.WithTimeout(r.Context(), a.Timeout)
+}
+
 func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", "invalid form: "+err.Error())
 		return
@@ -80,9 +95,9 @@ func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_data", err.Error())
 		return
 	}
-	value, err := a.Engine.Query(r.Context(), query, at)
+	value, err := a.Engine.Query(ctx, query, at)
 	if err != nil {
-		writeEngineError(w, err)
+		a.writeEngineError(w, r, err)
 		return
 	}
 	data := map[string]any{"resultType": value.Type()}
@@ -92,13 +107,15 @@ func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
 	case Scalar:
 		data["result"] = []any{float64(at.UnixMilli()) / 1000, formatFloat(float64(v))}
 	default:
-		writeExecutionError(w, fmt.Errorf("unsupported result type %T", value))
+		a.writeEngineError(w, r, fmt.Errorf("unsupported result type %T", value))
 		return
 	}
 	writeSuccess(w, data)
 }
 
 func (a *API) handleQueryRange(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", "invalid form: "+err.Error())
 		return
@@ -131,9 +148,9 @@ func (a *API) handleQueryRange(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_data", err.Error())
 		return
 	}
-	matrix, err := a.Engine.QueryRange(r.Context(), query, start, end, step)
+	matrix, err := a.Engine.QueryRange(ctx, query, start, end, step)
 	if err != nil {
-		writeEngineError(w, err)
+		a.writeEngineError(w, r, err)
 		return
 	}
 	result := make([]any, 0, len(matrix))
@@ -148,6 +165,8 @@ func (a *API) handleQueryRange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", "invalid form: "+err.Error())
 		return
@@ -168,9 +187,9 @@ func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	seen := make(map[string]map[string]string)
 	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(r.Context(), sel, start, end)
+		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
 		if err != nil {
-			writeExecutionError(w, err)
+			a.writeEngineError(w, r, err)
 			return
 		}
 		for _, s := range series {
@@ -190,6 +209,8 @@ func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", "invalid form: "+err.Error())
 		return
@@ -209,9 +230,9 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 	}
 	names := make(map[string]struct{})
 	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(r.Context(), sel, start, end)
+		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
 		if err != nil {
-			writeExecutionError(w, err)
+			a.writeEngineError(w, r, err)
 			return
 		}
 		for _, s := range series {
@@ -229,6 +250,8 @@ func (a *API) handleLabels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", "invalid form: "+err.Error())
 		return
@@ -253,9 +276,9 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 	}
 	values := make(map[string]struct{})
 	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(r.Context(), sel, start, end)
+		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
 		if err != nil {
-			writeExecutionError(w, err)
+			a.writeEngineError(w, r, err)
 			return
 		}
 		for _, s := range series {
@@ -273,10 +296,12 @@ func (a *API) handleLabelValues(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleMetadata(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := a.requestContext(r)
+	defer cancel()
 	metric := r.FormValue("metric")
-	metadata, err := a.Fetcher.Metadata(r.Context(), metric)
+	metadata, err := a.Fetcher.Metadata(ctx, metric)
 	if err != nil {
-		writeExecutionError(w, err)
+		a.writeEngineError(w, r, err)
 		return
 	}
 	out := make(map[string][]map[string]string, len(metadata))
@@ -424,14 +449,44 @@ func writeError(w http.ResponseWriter, status int, errorType, message string) {
 	})
 }
 
-func writeEngineError(w http.ResponseWriter, err error) {
-	if errors.Is(err, ErrBadQuery) || strings.Contains(err.Error(), "unsupported") {
+// writeEngineError maps a query or storage failure to the response shape the
+// pinned Prometheus API uses: timeouts are 503 with errorType "timeout", and a
+// client cancellation is the non-standard 499 with errorType "canceled".
+func (a *API) writeEngineError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		message := "query timed out"
+		if a.Timeout > 0 {
+			message = "query timed out in " + a.Timeout.String()
+		}
+		writeError(w, http.StatusServiceUnavailable, "timeout", message)
+	case errors.Is(err, context.Canceled):
+		writeError(w, 499, "canceled", "query was canceled")
+	case errors.Is(err, ErrBadQuery) || strings.Contains(err.Error(), "unsupported") || strings.Contains(err.Error(), "not supported"):
+		if feature := unsupportedFeature(err); feature != "" {
+			metrics.RecordUnsupported(r.Context(), feature)
+		}
 		writeError(w, http.StatusBadRequest, "bad_data", err.Error())
-		return
+	default:
+		writeError(w, http.StatusInternalServerError, "execution", err.Error())
 	}
-	writeExecutionError(w, err)
 }
 
-func writeExecutionError(w http.ResponseWriter, err error) {
-	writeError(w, http.StatusInternalServerError, "execution", err.Error())
+// unsupportedFeature is the closed set of unsupported-query labels.
+func unsupportedFeature(err error) string {
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "subquer"):
+		return "subquery"
+	case strings.Contains(message, "unsupported function"):
+		return "function"
+	case strings.Contains(message, "unsupported aggregation"):
+		return "aggregation"
+	case strings.Contains(message, "unsupported result type"):
+		return ""
+	case strings.Contains(message, "unsupported"):
+		return "unsupported"
+	default:
+		return ""
+	}
 }

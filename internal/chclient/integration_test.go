@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -71,6 +72,7 @@ func TestIntegrationQueryParameters(t *testing.T) {
 	}, "\n")
 	adminExec("INSERT INTO `" + database + "`.`" + table + "` FORMAT JSONEachRow\n" + rows)
 
+	observer := &recordingObserver{}
 	client, err := New(Config{
 		BaseURL:          baseURL,
 		Database:         database,
@@ -81,6 +83,7 @@ func TestIntegrationQueryParameters(t *testing.T) {
 		MaxMemoryUsage:   256 << 20,
 		MaxRowsToRead:    1_000_000,
 		MaxResultRows:    1000,
+		Observer:         observer,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -125,6 +128,35 @@ func TestIntegrationQueryParameters(t *testing.T) {
 
 	if err := client.Ping(context.Background()); err != nil {
 		t.Fatalf("Ping: %v", err)
+	}
+
+	before := len(observer.calls)
+	if _, err := client.Query(WithHead(context.Background(), "prom"), "SELECT number FROM numbers(5)", nil); err != nil {
+		t.Fatalf("summary query: %v", err)
+	}
+	if len(observer.calls) != before+1 {
+		t.Fatalf("observer calls = %d, want %d", len(observer.calls), before+1)
+	}
+	last := observer.calls[len(observer.calls)-1]
+	if last.head != "prom" || last.result != "ok" || last.readRows == 0 {
+		t.Fatalf("observer call = %#v, want prom/ok with rows read", last)
+	}
+	summaryReq, err := http.NewRequest(http.MethodPost, baseURL, strings.NewReader("SELECT number FROM numbers(5) FORMAT JSON\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	summaryReq.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	summaryResp, err := admin.Do(summaryReq)
+	if err != nil {
+		t.Fatalf("summary request: %v", err)
+	}
+	defer summaryResp.Body.Close()
+	summaryRows, _ := parseSummary(summaryResp.Header.Get("X-ClickHouse-Summary"), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if summaryRows == 0 {
+		t.Fatal("ClickHouse summary header has no read_rows")
+	}
+	if last.readRows != summaryRows {
+		t.Fatalf("observer rows = %d, ClickHouse reported %d", last.readRows, summaryRows)
 	}
 
 	// Exercise the Array(String) encoder with quotes, backslashes, and control

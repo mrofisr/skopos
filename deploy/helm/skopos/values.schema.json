@@ -1191,6 +1191,18 @@
               "type": "integer",
               "minimum": 1
             },
+            "maxInflight": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "queueDepth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "queueWaitSeconds": {
+              "type": "integer",
+              "minimum": 0
+            },
             "logLevel": {
               "type": "string",
               "enum": [
@@ -1201,6 +1213,10 @@
               ]
             }
           }
+        },
+        "goMemLimit": {
+          "type": "string",
+          "pattern": "^(|[0-9]+(B|K|Ki|M|Mi|G|Gi))$"
         },
         "resources": {
           "type": "object",
@@ -1258,6 +1274,46 @@
           "items": {
             "type": "object",
             "additionalProperties": true
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serviceMonitor"
+      ],
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "interval",
+            "additionalLabels",
+            "selector"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "string",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "selector": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         }
       }

@@ -144,7 +144,7 @@ wait_for "$gateway_url/readyz" gateway 90
 wait_for "$grafana_url/api/health" grafana 90
 
 run_check() {
-  go run ./cmd/skopos-grafana-check \
+  go run ./cmd/repoctl grafana-check \
     --grafana-url "$grafana_url" \
     --provisioning "$root/deploy/examples/grafana/provisioning/datasources/skopos.yaml"
 }

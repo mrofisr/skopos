@@ -6,6 +6,9 @@ name: PR guard
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+    branches:
+      - development
+      - main
 
 permissions:
   contents: read
@@ -39,14 +42,7 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: false
-      - name: Collect changed files
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
-            --jq '.[].filename' > /tmp/pr-files.txt
       - name: Check traceability and frozen paths
         env:
           GH_TOKEN: ${{ github.token }}
-        run: go run ./cmd/skopos-prcheck --event "$GITHUB_EVENT_PATH" --files /tmp/pr-files.txt
+        run: go run ./cmd/repoctl prcheck --event "$GITHUB_EVENT_PATH"

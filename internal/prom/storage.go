@@ -56,18 +56,30 @@ func NewClickHouseFetcher(client *chclient.Client, schema *plan.Schema, names pl
 // Fetch implements Fetcher.
 func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end time.Time) ([]Series, error) {
 	gaugeFilter, sumFilter, histFilter, summaryFilter := nameFilters(sel)
+	tables, err := f.candidateTables(ctx, sel)
+	if err != nil {
+		return nil, err
+	}
 	series := make(map[string]*Series)
-	if err := f.fetchTable(ctx, f.Names.MetricsGauge, tableGauge, gaugeFilter, start, end, series); err != nil {
-		return nil, err
-	}
-	if err := f.fetchTable(ctx, f.Names.MetricsSum, tableSum, sumFilter, start, end, series); err != nil {
-		return nil, err
-	}
-	if err := f.fetchTable(ctx, f.Names.MetricsHistogram, tableHistogram, histFilter, start, end, series); err != nil {
-		return nil, err
-	}
-	if err := f.fetchTable(ctx, f.Names.MetricsSummary, tableSummary, summaryFilter, start, end, series); err != nil {
-		return nil, err
+	for _, table := range tables {
+		var (
+			name   string
+			kind   tableKind
+			filter plan.Expr
+		)
+		switch table {
+		case tableGauge:
+			name, kind, filter = f.Names.MetricsGauge, tableGauge, gaugeFilter
+		case tableSum:
+			name, kind, filter = f.Names.MetricsSum, tableSum, sumFilter
+		case tableHistogram:
+			name, kind, filter = f.Names.MetricsHistogram, tableHistogram, histFilter
+		case tableSummary:
+			name, kind, filter = f.Names.MetricsSummary, tableSummary, summaryFilter
+		}
+		if err := f.fetchTable(ctx, name, kind, filter, start, end, series); err != nil {
+			return nil, err
+		}
 	}
 	out := make([]Series, 0, len(series))
 	for key, s := range series {
@@ -85,6 +97,76 @@ func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end 
 		}
 	}
 	return out, nil
+}
+
+// candidateTables narrows an exact metric name to the tables that can hold it.
+// A regex, an absent name, or a negative name matcher falls back to all tables.
+func (f *ClickHouseFetcher) candidateTables(ctx context.Context, sel Selector) ([]tableKind, error) {
+	all := []tableKind{tableGauge, tableSum, tableHistogram, tableSummary}
+	exact, regex := metricNameMatchers(sel)
+	if regex != "" || exact == "" {
+		return all, nil
+	}
+	name := NormalizeLabelName(exact)
+	switch {
+	case strings.HasSuffix(name, "_bucket"):
+		return []tableKind{tableHistogram}, nil
+	case strings.HasSuffix(name, "_sum"), strings.HasSuffix(name, "_count"):
+		return []tableKind{tableHistogram, tableSummary}, nil
+	}
+	if hasNegativeMetricMatcher(sel) {
+		return all, nil
+	}
+	return f.discoverTables(ctx, name)
+}
+
+func hasNegativeMetricMatcher(sel Selector) bool {
+	for _, matcher := range sel.Matchers {
+		if matcher.Name != promlabels.MetricName {
+			continue
+		}
+		if matcher.Type == promlabels.MatchNotEqual || matcher.Type == promlabels.MatchNotRegexp {
+			return true
+		}
+	}
+	return false
+}
+
+// discoverTables asks each table whether it holds the exact normalized name.
+// The queries select only MetricName and LIMIT 1, so they are metadata probes,
+// not data scans. AX-32 caches this.
+func (f *ClickHouseFetcher) discoverTables(ctx context.Context, name string) ([]tableKind, error) {
+	tables := []struct {
+		kind tableKind
+		name string
+	}{
+		{tableGauge, f.Names.MetricsGauge},
+		{tableSum, f.Names.MetricsSum},
+		{tableHistogram, f.Names.MetricsHistogram},
+		{tableSummary, f.Names.MetricsSummary},
+	}
+	found := make([]tableKind, 0, len(tables))
+	for _, table := range tables {
+		query := plan.Query{
+			Signal: plan.SignalMetrics,
+			Table:  table.name,
+			Select: []plan.SelectItem{{Expr: plan.Col("MetricName")}},
+			Where:  plan.Bin("=", normalizedMetricName(), plan.String("metric_filter", name)),
+			Limit:  1,
+		}
+		emitted, err := f.Emitter.Emit(query)
+		if err != nil {
+			return nil, fmt.Errorf("prom: build metric discovery query: %w", err)
+		}
+		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		if err != nil {
+			return nil, fmt.Errorf("prom: discover metric in %s: %w", table.name, err)
+		}
+		if result.Len() > 0 {
+			found = append(found, table.kind)
+		}
+	}
+	return found, nil
 }
 
 func hasMetricNameMatcher(sel Selector) bool {
@@ -143,7 +225,7 @@ func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind t
 	if err != nil {
 		return fmt.Errorf("prom: build %s query: %w", table, err)
 	}
-	result, err := f.Client.Query(ctx, emitted.SQL, emitted.Params)
+	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return fmt.Errorf("prom: query %s: %w", table, err)
 	}
@@ -299,7 +381,7 @@ func (f *ClickHouseFetcher) probeExponentialHistogram(ctx context.Context, sel S
 	if err != nil {
 		return fmt.Errorf("prom: build exponential histogram probe: %w", err)
 	}
-	result, err := f.Client.Query(ctx, emitted.SQL, emitted.Params)
+	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return fmt.Errorf("prom: exponential histogram probe: %w", err)
 	}
@@ -555,7 +637,7 @@ func (f *ClickHouseFetcher) Metadata(ctx context.Context, metric string) (map[st
 		if err != nil {
 			return nil, fmt.Errorf("prom: build metadata query: %w", err)
 		}
-		result, err := f.Client.Query(ctx, emitted.SQL, emitted.Params)
+		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 		if err != nil {
 			return nil, fmt.Errorf("prom: metadata query %s: %w", table.name, err)
 		}

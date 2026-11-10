@@ -69,7 +69,7 @@ func (f *ClickHouseFetcher) fetch(ctx context.Context, where plan.Expr, start, e
 	if err != nil {
 		return nil, fmt.Errorf("loki: build log query: %w", err)
 	}
-	result, err := f.Client.Query(ctx, emitted.SQL, emitted.Params)
+	result, err := f.Client.Query(chclient.WithHead(ctx, "loki"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return nil, fmt.Errorf("loki: query logs: %w", err)
 	}

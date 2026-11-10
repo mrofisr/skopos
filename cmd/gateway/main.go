@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/jawaracloud/skopos/internal/frontend"
 	"github.com/jawaracloud/skopos/internal/httpapi"
 	"github.com/jawaracloud/skopos/internal/loki"
+	"github.com/jawaracloud/skopos/internal/metrics"
 	"github.com/jawaracloud/skopos/internal/plan"
 	"github.com/jawaracloud/skopos/internal/prom"
 	"github.com/jawaracloud/skopos/internal/semctx"
@@ -57,6 +59,8 @@ func run() error {
 }
 
 func runFrontend(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) error {
+	registry := newMetricsRegistry(version, nil)
+	httpMetrics := metrics.NewHTTP(registry)
 	fe, err := frontend.New(frontend.Config{
 		Logger:           logger,
 		Backends:         cfg.QueryURLs,
@@ -65,6 +69,7 @@ func runFrontend(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) 
 		ProxyTimeout:     cfg.QueryTimeout,
 		MaxRequestBytes:  cfg.MaxRequestBytes,
 		Auth:             basicAuth,
+		Metrics:          registry.Handler(),
 	})
 	if err != nil {
 		return fmt.Errorf("frontend: %w", err)
@@ -85,7 +90,7 @@ func runFrontend(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) 
 		"auth_enabled", cfg.AuthEnabled,
 	)
 
-	return serve(cfg.ListenAddr, fe.Handler(), logger, cfg.QueryTimeout)
+	return serve(cfg.ListenAddr, httpMetrics.Wrap(fe.Handler()), logger, cfg.QueryTimeout)
 }
 
 func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) error {
@@ -94,19 +99,10 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		return fmt.Errorf("semantic context: %w", err)
 	}
 	contextAPI := semctx.NewAPI(contextCatalog)
+	registry := newMetricsRegistry(version, contextAPI)
+	clickHouseMetrics := metrics.NewClickHouse(registry)
 
-	client, err := chclient.New(chclient.Config{
-		BaseURL:          cfg.ClickHouseURL,
-		Database:         cfg.ClickHouseDatabase,
-		User:             cfg.ClickHouseUser,
-		Password:         cfg.ClickHousePassword,
-		Timeout:          cfg.MaxExecutionTime,
-		MaxExecutionTime: cfg.MaxExecutionTime,
-		MaxMemoryUsage:   cfg.MaxMemoryUsage,
-		MaxRowsToRead:    cfg.MaxRowsToRead,
-		MaxResultRows:    cfg.MaxResultRows,
-		MaxResponseBytes: cfg.MaxResponseBytes,
-	})
+	client, err := newClickHouseClient(cfg, clickHouseMetrics, logger)
 	if err != nil {
 		return fmt.Errorf("clickhouse client: %w", err)
 	}
@@ -121,24 +117,30 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		contextAPI.WithObserver(newContextObserver(fetcher, logger))
 		contextAPI.WithSignalObserver(newObservedSignals(client, cfg.ClickHouseDatabase, cfg.Tables, logger))
 	}
+	httpMetrics := metrics.NewHTTP(registry)
+	admission, err := newAdmissionMiddleware(cfg, httpMetrics)
+	if err != nil {
+		return fmt.Errorf("admission: %w", err)
+	}
+	if warning := worstCaseBufferingWarning(cfg, debug.SetMemoryLimit(-1)); warning != "" {
+		logger.Warn(warning)
+	}
 	promEngine := prom.NewEngine(fetcher)
 	promEngine.MaxSamples = cfg.MaxScanRows
 	promAPI := prom.NewAPI(promEngine, fetcher, version)
-	promAPI.MaxRange = cfg.MaxQueryRange
 
 	tempoFetcher, err := tempo.NewClickHouseFetcher(client, schema, cfg.Tables, cfg.MaxScanRows)
 	if err != nil {
 		return fmt.Errorf("tempo storage: %w", err)
 	}
 	tempoAPI := tempo.NewAPI(tempoFetcher, version)
-	tempoAPI.MaxRange = cfg.MaxQueryRange
 
 	lokiFetcher, err := loki.NewClickHouseFetcher(client, schema, cfg.Tables, cfg.MaxScanRows)
 	if err != nil {
 		return fmt.Errorf("loki storage: %w", err)
 	}
 	lokiAPI := loki.NewAPI(lokiFetcher, version)
-	lokiAPI.MaxRange = cfg.MaxQueryRange
+	configureQueryAPIs(cfg, promAPI, tempoAPI, lokiAPI)
 
 	register := func(mux *http.ServeMux) {
 		promAPI.Register(mux)
@@ -155,6 +157,7 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		MaxRequestBytes:  cfg.MaxRequestBytes,
 		Auth:             basicAuth,
 		Register:         register,
+		Metrics:          registry.Handler(),
 	})
 	if err != nil {
 		return fmt.Errorf("http api: %w", err)
@@ -188,7 +191,11 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 		logger.Info("starting gateway", attrs...)
 	}
 
-	return serve(cfg.ListenAddr, api.Handler(), logger, cfg.QueryTimeout)
+	handler := api.Handler()
+	if admission != nil {
+		handler = admission.Wrap(handler)
+	}
+	return serve(cfg.ListenAddr, httpMetrics.Wrap(handler), logger, cfg.QueryTimeout)
 }
 
 // newServer builds the HTTP server. WriteTimeout is derived from the query
@@ -241,4 +248,44 @@ func redactURL(raw string) string {
 	}
 	u.User = nil
 	return u.String()
+}
+
+// newMetricsRegistry builds the shared registry. A nil context API is the
+// frontend case: it has no catalog and exposes only build info.
+func newMetricsRegistry(version string, contextAPI *semctx.API) *metrics.Registry {
+	registry := metrics.NewRegistry(version)
+	if contextAPI != nil {
+		registry.MustRegister(metrics.NewContextCollector(contextAPI))
+	}
+	return registry
+}
+
+// configureQueryAPIs applies the shared range and per-request deadline to the
+// three query heads.
+func configureQueryAPIs(cfg config.Config, promAPI *prom.API, tempoAPI *tempo.API, lokiAPI *loki.API) {
+	promAPI.MaxRange = cfg.MaxQueryRange
+	promAPI.Timeout = cfg.QueryTimeout
+	tempoAPI.MaxRange = cfg.MaxQueryRange
+	tempoAPI.Timeout = cfg.QueryTimeout
+	lokiAPI.MaxRange = cfg.MaxQueryRange
+	lokiAPI.Timeout = cfg.QueryTimeout
+}
+
+// newClickHouseClient builds the read-only ClickHouse client from gateway
+// config.
+func newClickHouseClient(cfg config.Config, observer chclient.QueryObserver, logger *slog.Logger) (*chclient.Client, error) {
+	return chclient.New(chclient.Config{
+		BaseURL:          cfg.ClickHouseURL,
+		Database:         cfg.ClickHouseDatabase,
+		User:             cfg.ClickHouseUser,
+		Password:         cfg.ClickHousePassword,
+		Timeout:          cfg.MaxExecutionTime,
+		MaxExecutionTime: cfg.MaxExecutionTime,
+		MaxMemoryUsage:   cfg.MaxMemoryUsage,
+		MaxRowsToRead:    cfg.MaxRowsToRead,
+		MaxResultRows:    cfg.MaxResultRows,
+		MaxResponseBytes: cfg.MaxResponseBytes,
+		Observer:         observer,
+		Logger:           logger,
+	})
 }

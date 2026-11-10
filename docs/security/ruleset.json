@@ -89,6 +89,10 @@
               "integration_id": 15368
             },
             {
+              "context": "CI gate",
+              "integration_id": 15368
+            },
+            {
               "context": "Dependency review",
               "integration_id": 15368
             }
@@ -97,5 +101,6 @@
       }
     ],
     "bypass_actors": []
-  }
+  },
+  "allow_extra_jobs": true
 }

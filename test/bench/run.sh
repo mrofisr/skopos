@@ -1,7 +1,7 @@
 #!/bin/sh
 # Generate the synthetic dataset, measure ClickHouse compression, and run the
 # sequential plus concurrent gateway latency benchmarks. Requires Docker with
-# the Compose plugin, curl, and Python 3.10+.
+# the Compose plugin, curl, and a Go toolchain for the harness.
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -41,7 +41,6 @@ need() {
 }
 need docker
 need curl
-need python3
 docker compose version >/dev/null 2>&1 || {
   echo "bench: docker compose plugin is required" >&2
   exit 1
@@ -87,27 +86,41 @@ echo "bench: compression results"
 
 echo
 echo "bench: gateway latency (iterations=$iterations)"
-set -- "$here/bench.py" --base-url "$gateway_url" --iterations "$iterations"
+set -- "$here" --base-url "$gateway_url" --iterations "$iterations"
 if [ -n "$out" ]; then
   set -- "$@" --json-out "$out"
 fi
-python3 "$@"
+go run "$@"
 
 if [ "$concurrency" -gt 0 ] && [ "$concurrency_seconds" -gt 0 ]; then
   echo
   echo "bench: concurrent mixed workload (clients=$concurrency duration=${concurrency_seconds}s)"
-  set -- "$here/bench.py" --base-url "$gateway_url" \
+  set -- "$here" --base-url "$gateway_url" \
     --concurrency "$concurrency" --duration "$concurrency_seconds" --warmup 1
+  if [ "${SKOPOS_BENCH_GATE:-0}" = "1" ]; then
+    set -- "$@" --gate
+  fi
   containers=$(compose ps -q clickhouse gateway)
   if [ -n "$containers" ]; then
     # Container IDs are whitespace-separated by design.
     # shellcheck disable=SC2086
     set -- "$@" --docker-stats --docker-containers $containers
+    if [ "${SKOPOS_BENCH_GATE:-0}" = "1" ]; then
+      for container in $containers; do
+        if [ "$(docker inspect -f '{{.State.OOMKilled}}' "$container" 2>/dev/null)" = "true" ]; then
+          set -- "$@" --oom-killed
+          break
+        fi
+      done
+    fi
   fi
   if [ -n "$out" ]; then
     set -- "$@" --json-out "${out%.json}-concurrent.json"
   fi
-  python3 "$@"
+  if [ -n "${SKOPOS_BENCH_MEMORY_LIMIT_BYTES:-}" ]; then
+    set -- "$@" --memory-limit-bytes "$SKOPOS_BENCH_MEMORY_LIMIT_BYTES"
+  fi
+  go run "$@"
 else
   echo
   echo "bench: concurrent workload skipped (SKOPOS_BENCH_CONCURRENCY=$concurrency SKOPOS_BENCH_CONCURRENCY_SECONDS=$concurrency_seconds)"

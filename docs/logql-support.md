@@ -262,6 +262,10 @@ endpoints with an explicit error.
 
 ## Known limitations
 
+The classification below is executable: `TestEveryLogQLConstructClassified` in
+`internal/loki/inventory_test.go` fails when a construct is neither supported
+nor rejected with an explicit `loki:` error.
+
 Explicitly rejected:
 
 - Parser stages `| pattern`, `| regexp`, `| unpack`, `| ip`, and `| pack`.

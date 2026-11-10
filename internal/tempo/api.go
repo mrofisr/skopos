@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jawaracloud/skopos/internal/metrics"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -31,6 +33,8 @@ type API struct {
 	Version  string
 	MaxRange time.Duration
 	Now      func() time.Time
+	// Timeout is the per-request query deadline. Zero disables the deadline.
+	Timeout time.Duration
 }
 
 // NewAPI returns a Tempo-compatible API.
@@ -58,6 +62,15 @@ func (a *API) now() time.Time {
 	return time.Now()
 }
 
+// withTimeout applies the configured query deadline to the request context.
+func (a *API) withTimeout(r *http.Request) (*http.Request, context.CancelFunc) {
+	if a.Timeout <= 0 {
+		return r, func() {}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), a.Timeout)
+	return r.WithContext(ctx), cancel
+}
+
 func (a *API) handleEcho(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -76,6 +89,8 @@ func (a *API) handleBuildInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleSearch(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	start, end, err := a.timeRange(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -83,6 +98,9 @@ func (a *API) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	filter, err := a.searchFilter(r)
 	if err != nil {
+		if feature := traceQLUnsupportedFeature(err); feature != "" {
+			metrics.RecordUnsupported(r.Context(), feature)
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -100,7 +118,7 @@ func (a *API) handleSearch(w http.ResponseWriter, r *http.Request) {
 	spss := parseLimit(r.FormValue("spss"), 3, 1000)
 	spans, err := a.Fetcher.FetchRange(r.Context(), start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	summaries := Search(spans, filter, minDuration, maxDuration, limit)
@@ -175,6 +193,8 @@ func serviceStats(spans []Span) map[string]serviceStat {
 }
 
 func (a *API) handleTrace(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	traceID := strings.ToLower(r.PathValue("traceID"))
 	if len(traceID) != 32 {
 		writeError(w, http.StatusBadRequest, "invalid trace ID")
@@ -200,7 +220,7 @@ func (a *API) handleTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	spans, err := a.Fetcher.GetTrace(r.Context(), traceID, start, end)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	if len(spans) == 0 {
@@ -211,7 +231,7 @@ func (a *API) handleTrace(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Accept"), "application/protobuf") {
 		data, err := otlpProto(spans)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			a.writeRequestError(w, err)
 			return
 		}
 		if isV2 {
@@ -224,13 +244,13 @@ func (a *API) handleTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := otlpJSON(spans)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		a.writeRequestError(w, err)
 		return
 	}
 	if isV2 {
 		data, err = json.Marshal(map[string]json.RawMessage{"trace": data})
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			a.writeRequestError(w, err)
 			return
 		}
 	}
@@ -240,9 +260,11 @@ func (a *API) handleTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleTagsV1(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	tags, err := a.tags(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		a.writeQueryError(w, err)
 		return
 	}
 	scope := r.FormValue("scope")
@@ -272,9 +294,11 @@ func (a *API) handleTagsV1(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleTagsV2(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	tags, err := a.tags(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		a.writeQueryError(w, err)
 		return
 	}
 	scope := r.FormValue("scope")
@@ -332,18 +356,22 @@ func (a *API) tags(r *http.Request) (map[string][]string, error) {
 }
 
 func (a *API) handleTagValuesV1(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	values, err := a.tagValues(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		a.writeQueryError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tagValues": values, "metrics": map[string]any{}})
 }
 
 func (a *API) handleTagValuesV2(w http.ResponseWriter, r *http.Request) {
+	r, cancel := a.withTimeout(r)
+	defer cancel()
 	values, err := a.tagValues(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		a.writeQueryError(w, err)
 		return
 	}
 	valueType := tagValueType(r.PathValue("tag"))
@@ -514,6 +542,35 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func (a *API) writeQueryError(w http.ResponseWriter, err error) {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		a.writeRequestError(w, err)
+		return
+	}
+	writeError(w, http.StatusBadRequest, err.Error())
+}
+
+// writeRequestError maps deadlines and cancellations to the Tempo 2.7.2
+// frontend shape: 504 plain text "context deadline exceeded", or 499 plain
+// text "context canceled".
+func (a *API) writeRequestError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		writePlainError(w, http.StatusGatewayTimeout, "context deadline exceeded")
+	case errors.Is(err, context.Canceled):
+		writePlainError(w, 499, "context canceled")
+	default:
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+func writePlainError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(status)
+	_, _ = fmt.Fprint(w, message)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
@@ -857,5 +914,26 @@ func statusCode(value string) int32 {
 		return int32(tracev1.Status_STATUS_CODE_ERROR)
 	default:
 		return 0
+	}
+}
+
+// traceQLUnsupportedFeature is the closed set of TraceQL unsupported labels.
+func traceQLUnsupportedFeature(err error) string {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "structural operator"):
+		return "structural_operator"
+	case strings.Contains(message, "multiple spansets"):
+		return "multiple_spansets"
+	case strings.Contains(message, "nested spansets"):
+		return "nested_spansets"
+	case strings.Contains(message, "pipeline"):
+		return "pipeline"
+	case strings.Contains(message, "metrics query"):
+		return "metrics_query"
+	case strings.Contains(message, "grouping, functions, and aggregations"):
+		return "grouping"
+	default:
+		return ""
 	}
 }

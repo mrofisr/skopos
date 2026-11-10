@@ -356,3 +356,34 @@ func TestLocalEndpointsRejectNonGet(t *testing.T) {
 		t.Fatalf("POST /healthz status = %d", rec.Code)
 	}
 }
+
+func TestFrontendPassesWorkerRejection(t *testing.T) {
+	const body = `{"status":"error","errorType":"too_many_requests","error":"too many concurrent requests"}`
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "1")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, body)
+	}))
+	defer backend.Close()
+
+	s, err := New(Config{
+		Backends:         []string{backend.URL},
+		Version:          "test-version",
+		ReadinessTimeout: time.Second,
+		ProxyTimeout:     time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := doRequest(t, s.Handler(), http.MethodGet, "/loki/api/v1/query_range", nil)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429, not a 502", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "1" {
+		t.Fatalf("Retry-After = %q", got)
+	}
+	if rec.Body.String() != body {
+		t.Fatalf("body = %q, want the worker body unchanged", rec.Body.String())
+	}
+}

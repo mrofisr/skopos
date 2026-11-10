@@ -89,7 +89,7 @@ Optional environment variables:
 | `SKOPOS_BENCH_OUTPUT` | unset | Write JSON results here; the concurrent run uses a `-concurrent.json` suffix. |
 
 The run inserts the dataset, prints the compression tables, runs the sequential
-latency loop against [`test/bench/bench.py`](../test/bench/bench.py), and then
+latency loop with the Go harness in [`test/bench`](../test/bench), and then
 runs the concurrent mixed workload. The script starts from a clean volume by
 default.
 
@@ -126,7 +126,24 @@ Per-signal totals for the main signal tables:
 The trace lookup table adds about `982,367 / 200,000 = 4.91` bytes per span
 (one lookup row per trace, 40,000 rows for 200,000 spans).
 
-### Interpretation
+### Concurrency gate
+
+`make bench-gate` runs the same concurrent workload with the safety gate
+enabled. A run fails when any request has a transport error, any non-2xx
+response is not a deliberate 429 or 503, a rejection has no `Retry-After`, a
+benchmark container was OOM-killed, or a sampled peak exceeds
+`SKOPOS_BENCH_MEMORY_LIMIT_BYTES`. Latency is written to JSON but is not gated.
+The self-tests in `test/bench/bench_test.go` cover dropped connections, bare
+500s, correct shedding, missing `Retry-After`, OOM, and the memory limit; they
+run in the normal Go test job without Docker.
+
+<!-- BEGIN GENERATED BENCH GATE -->
+| Metric | Value |
+| --- | ---: |
+| Status | not run |
+<!-- END GENERATED BENCH GATE -->
+
+## Interpretation
 
 - Metrics cost about **24 bytes per sample on disk** at this cardinality. The
   replay-dedup schema adds the 16-byte `_skopos_row_hash` and a wider
@@ -163,7 +180,7 @@ milliseconds.
 
 `*` With 30 samples, p99 is effectively the maximum. Treat it as such.
 
-Exact query definitions are in [`test/bench/bench.py`](../test/bench/bench.py).
+Exact query definitions are in [`test/bench/queries.go`](../test/bench/queries.go).
 The main PromQL queries use a 5-minute rate window; the range query covers 6
 hours at a 60-second step; Tempo and Loki queries cover the last hour.
 
@@ -360,8 +377,8 @@ Do not over-read these numbers:
    full-text index cost is real and visible in the log result.
 5. **Loopback client.** The client, gateway, and ClickHouse share one host. TLS,
    ingress, Grafana, and network RTT are excluded.
-6. **New HTTP connection per iteration.** The Python client does not reuse a
-   keep-alive connection. The overhead is small relative to these query times,
+6. **New HTTP connection per iteration.** The benchmark client does not reuse
+   a keep-alive connection. The overhead is small relative to these query times,
    but it is included.
 7. **Alpha query coverage.** Only the listed queries are measured. Unsupported
    PromQL/LogQL/TraceQL functions are not benchmarked because they return

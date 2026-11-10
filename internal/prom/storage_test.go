@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -19,8 +20,9 @@ import (
 
 // fakeClickHouse answers the four metric table queries with canned JSON rows.
 type fakeClickHouse struct {
-	rows map[string][]map[string]any
-	seen []string
+	rows   map[string][]map[string]any
+	seen   []string
+	bodies []string
 }
 
 func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +42,7 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	f.seen = append(f.seen, table)
+	f.bodies = append(f.bodies, query)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"meta": []map[string]string{{"name": "MetricName", "type": "String"}},
@@ -172,5 +175,149 @@ func TestFetchEmptySelectorDoesNotProbeExponentialHistogram(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(fake.seen, ","), names.MetricsExponentialHistogram) {
 		t.Fatalf("empty selector probed the exponential histogram table: %v", fake.seen)
+	}
+}
+
+func dataTables(fake *fakeClickHouse) []string {
+	var tables []string
+	for index, body := range fake.bodies {
+		if strings.Contains(body, "MetricDescription") {
+			continue
+		}
+		if strings.Contains(body, "Value") || strings.Contains(body, "BucketCounts") || strings.Contains(body, "ValueAtQuantiles") {
+			tables = append(tables, fake.seen[index])
+		}
+	}
+	return tables
+}
+
+func TestGaugeSelectorDoesNotTouchHistogramOrSummary(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 1 {
+		t.Fatalf("series = %#v", series)
+	}
+	if got := dataTables(fake); len(got) != 1 || got[0] != names.MetricsGauge {
+		t.Fatalf("data tables = %v, want only the gauge table", got)
+	}
+}
+
+func TestUnknownMetricReadsZeroRows(t *testing.T) {
+	fetcher, fake := newFakeFetcher(t, nil)
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "missing"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 0 {
+		t.Fatalf("series = %#v, want none", series)
+	}
+	if got := dataTables(fake); len(got) != 0 {
+		t.Fatalf("data tables = %v, want no data scans", got)
+	}
+}
+
+func TestDerivedHistogramNameRoutesToHistogram(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "rpc_duration_bucket"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if got := dataTables(fake); len(got) != 1 || got[0] != names.MetricsHistogram {
+		t.Fatalf("data tables = %v, want only the histogram table", got)
+	}
+}
+
+func TestNamePresentInTwoTablesQueriesBoth(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "shared_metric",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{
+		names.MetricsGauge: {row},
+		names.MetricsSum:   {row},
+	})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "shared_metric"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	got := dataTables(fake)
+	if len(got) != 2 || got[0] != names.MetricsGauge || got[1] != names.MetricsSum {
+		t.Fatalf("data tables = %v, want gauge and sum", got)
+	}
+}
+
+func TestRegexAndNegativeMatchersFallBackToAllTables(t *testing.T) {
+	for _, matcher := range []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchRegexp, promlabels.MetricName, "foo|bar"),
+		promlabels.MustNewMatcher(promlabels.MatchNotEqual, promlabels.MetricName, "foo"),
+	} {
+		fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{})
+		at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+		if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{matcher}}, at.Add(-time.Minute), at); err != nil {
+			t.Fatalf("Fetch: %v", err)
+		}
+		if got := dataTables(fake); len(got) != 4 {
+			t.Fatalf("matcher %s data tables = %v, want all four", matcher, got)
+		}
+	}
+}
+
+func TestGaugeSelectorGoldenSQL(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	got := ""
+	for index, body := range fake.bodies {
+		if fake.seen[index] == names.MetricsGauge && strings.Contains(body, "Value") {
+			got = body
+		}
+	}
+	if got == "" {
+		t.Fatal("no gauge data query recorded")
+	}
+	want, err := os.ReadFile("testdata/gauge.sql")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if got != string(want) {
+		t.Fatalf("gauge SQL changed:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
