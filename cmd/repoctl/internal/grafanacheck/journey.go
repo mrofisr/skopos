@@ -118,7 +118,10 @@ func (j Journey) Run(ctx context.Context) ([]JourneyStep, error) {
 }
 
 func (j Journey) defaults() JourneyConfig {
-	cfg := j.Config
+	return j.Config.withDefaults()
+}
+
+func (cfg JourneyConfig) withDefaults() JourneyConfig {
 	if cfg.SkoposUID == "" {
 		cfg.SkoposUID = "skopos-prometheus"
 	}

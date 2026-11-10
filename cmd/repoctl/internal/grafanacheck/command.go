@@ -36,6 +36,7 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	journey := fs.Bool("journey", false, "run the Prometheus journey through Grafana's query API")
 	lokiJourney := fs.Bool("loki-journey", false, "run the Loki journey through Grafana's query API")
 	tempoJourney := fs.Bool("tempo-journey", false, "run the Tempo journey through Grafana's query API")
+	dashboardPath := fs.String("dashboard", "", "dashboard JSON to run through Grafana's query API")
 	skoposUID := fs.String("skopos-uid", "skopos-prometheus", "Skopos Prometheus datasource UID")
 	referenceUID := fs.String("reference-uid", "reference-prometheus", "reference Prometheus datasource UID")
 	journeyStep := fs.Duration("journey-step", 30*time.Second, "journey query step")
@@ -70,7 +71,7 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 		fmt.Fprintf(env.Stdout, "grafana-check: %s (%s) OK\n", datasource.Name, datasource.UID)
 	}
 	fmt.Fprintf(env.Stdout, "grafana-check: %d datasources healthy\n", len(checked))
-	if !*journey && !*lokiJourney && !*tempoJourney {
+	if !*journey && !*lokiJourney && !*tempoJourney && *dashboardPath == "" {
 		return nil
 	}
 	if *journeyStep <= 0 {
@@ -98,6 +99,28 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 			fmt.Fprintf(env.Stdout, "grafana-check: journey %s OK (%s)\n", step.Name, step.Detail)
 		}
 		fmt.Fprintf(env.Stdout, "grafana-check: %d journey steps passed\n", len(steps))
+	}
+	if *dashboardPath != "" {
+		dashboard, err := LoadDashboard(*dashboardPath)
+		if err != nil {
+			return err
+		}
+		runner := Journey{
+			Client: client,
+			Config: JourneyConfig{
+				SkoposUID: *skoposUID,
+				Now:       now,
+				Step:      *journeyStep,
+			},
+		}
+		steps, err := runner.CheckDashboard(ctx, dashboard, runner.Config)
+		if err != nil {
+			return fmt.Errorf("grafana dashboard: %w", err)
+		}
+		for _, step := range steps {
+			fmt.Fprintf(env.Stdout, "grafana-check: dashboard %s OK (%s)\n", step.Name, step.Detail)
+		}
+		fmt.Fprintf(env.Stdout, "grafana-check: %d dashboard panels passed\n", len(steps))
 	}
 	if *tempoJourney {
 		runner := TempoJourney{

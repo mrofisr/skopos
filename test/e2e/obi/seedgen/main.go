@@ -118,6 +118,60 @@ VALUES
 	return nil
 }
 
+// histogramBounds are the OTel default explicit bucket bounds in seconds.
+var histogramBounds = []string{"0.005", "0.01", "0.025", "0.05", "0.1", "0.25", "0.5", "1", "2.5", "5", "10"}
+
+func writeHistogramSQL(w io.Writer, now time.Time, services, samples int, step time.Duration) error {
+	if _, err := io.WriteString(w, `INSERT INTO otel_metrics_histogram
+  (ResourceAttributes, ResourceSchemaUrl, ScopeName, ScopeVersion,
+   ScopeAttributes, ScopeDroppedAttrCount, ScopeSchemaUrl, ServiceName,
+   MetricName, MetricDescription, MetricUnit, Attributes, StartTimeUnix,
+   TimeUnix, Count, Sum, BucketCounts, ExplicitBounds, Flags, Min, Max,
+   AggregationTemporality)
+VALUES
+`); err != nil {
+		return err
+	}
+	type row struct {
+		service, metric, status string
+		time                    time.Time
+		count                   int
+	}
+	rows := make([]row, 0, services*samples*2)
+	base := now.UTC().Truncate(time.Second).Add(-time.Duration(samples-1) * step)
+	for service := 0; service < services; service++ {
+		name := fmt.Sprintf("%s%d", serviceBase, service)
+		for sample := 0; sample < samples; sample++ {
+			status := "200"
+			if sample%2 == 1 {
+				status = "500"
+			}
+			at := base.Add(time.Duration(sample) * step)
+			rows = append(rows,
+				row{service: name, metric: "http_server_request_duration_seconds", status: status, time: at, count: sample + 1},
+				row{service: name, metric: "http_client_request_duration_seconds", status: status, time: at, count: sample + 1},
+			)
+		}
+	}
+	buckets := "[" + strings.Repeat("0,", 4) + "%d" + strings.Repeat(",0", 7) + "]"
+	for i, item := range rows {
+		comma := ","
+		if i == len(rows)-1 {
+			comma = ";"
+		}
+		counts := fmt.Sprintf(buckets, item.count)
+		if _, err := fmt.Fprintf(w,
+			"(map('service.name', '%s'), '', '%s', '%s', map(), 0, '', '%s', '%s', 'synthetic OBI histogram', 's', map('http.response.status_code', '%s', 'http.request.method', 'GET'), toDateTime('%s'), toDateTime('%s'), %d, %v, %s, [%s], 0, 0.05, 0.1, 2)%s\n",
+			item.service, scopeName, scopeVer, item.service, item.metric, item.status,
+			sqlTime(item.time.Add(-time.Hour)), sqlTime(item.time), item.count,
+			float64(item.count)*0.1, counts, strings.Join(histogramBounds, ","), comma,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func writeLogSQL(w io.Writer, entries []Log) error {
 	if _, err := io.WriteString(w, `INSERT INTO otel_logs
   (Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName,
@@ -230,6 +284,9 @@ func main() {
 	entries := logs(now, *services, *samples, *step)
 	if err := writeFile(*sqlPath, func(w io.Writer) error {
 		if err := writeSQL(w, rows); err != nil {
+			return err
+		}
+		if err := writeHistogramSQL(w, now, *services, *samples, *step); err != nil {
 			return err
 		}
 		return writeLogSQL(w, entries)
