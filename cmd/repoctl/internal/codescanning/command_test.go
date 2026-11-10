@@ -180,3 +180,39 @@ func TestCodescanAPIError(t *testing.T) {
 		t.Fatalf("error = %v, want an API error", err)
 	}
 }
+
+func TestCodescanIgnoresScorecardPostureAlerts(t *testing.T) {
+	path := fixture(t, []Alert{
+		{Number: 2, State: "open", Tool: Tool{Name: "Scorecard"}, Rule: Rule{ID: "VulnerabilitiesID", SecuritySeverityLevel: "high"}},
+		{Number: 3, State: "open", Tool: Tool{Name: "Scorecard"}, Rule: Rule{ID: "CodeReviewID", SecuritySeverityLevel: "high"}},
+	})
+	env, stdout, _ := testEnv()
+	if err := (Command{}).Run(context.Background(), env, []string{"--fixture", path}); err != nil {
+		t.Fatalf("codescan: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "2 ignored scanners") {
+		t.Fatalf("stdout = %q, want the ignored count", stdout.String())
+	}
+}
+
+func TestCodescanStillFailsOnCodeQLHigh(t *testing.T) {
+	path := fixture(t, []Alert{
+		{Number: 9, State: "open", Tool: Tool{Name: "CodeQL"}, Rule: Rule{ID: "go/sql-injection", SecuritySeverityLevel: "high"}},
+	})
+	env, _, _ := testEnv()
+	err := (Command{}).Run(context.Background(), env, []string{"--fixture", path})
+	if err == nil || !strings.Contains(err.Error(), "#9") {
+		t.Fatalf("error = %v, want the CodeQL alert", err)
+	}
+}
+
+func TestCodescanIgnoreToolCanBeDisabled(t *testing.T) {
+	path := fixture(t, []Alert{
+		{Number: 2, State: "open", Tool: Tool{Name: "Scorecard"}, Rule: Rule{ID: "VulnerabilitiesID", SecuritySeverityLevel: "high"}},
+	})
+	env, _, _ := testEnv()
+	err := (Command{}).Run(context.Background(), env, []string{"--fixture", path, "--ignore-tool", ""})
+	if err == nil || !strings.Contains(err.Error(), "#2") {
+		t.Fatalf("error = %v, want the Scorecard alert when the filter is off", err)
+	}
+}
