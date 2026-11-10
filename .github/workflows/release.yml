@@ -91,22 +91,10 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Refuse to overwrite an existing image tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -eu
-          version="$VERSION"
-          if tags="$(gh api \
-            "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/skopos-gateway/versions" \
-            --jq '.[].metadata.container.tags[]?' 2>/dev/null)"; then
-            if printf '%s\n' "$tags" | grep -qx "$version"; then
-              echo "image tag $version already exists" >&2
-              exit 1
-            fi
-          fi
-
+      # A failed attempt may have pushed image and chart tags before the
+      # GitHub release was created. The "release already exists" check above
+      # is the immutability boundary: retrying a version with no release is
+      # allowed.
       - name: Check open code-scanning alerts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -320,9 +308,10 @@ jobs:
           CHART_OCI_REPOSITORY: ${{ env.CHART_OCI_REPOSITORY }}
         run: |
           set -eu
+          # Helm writes the pushed/digest lines to stderr.
           push_output="$(helm push \
             "dist/release/skopos-${VERSION}.tgz" \
-            "oci://${CHART_OCI_REPOSITORY}")"
+            "oci://${CHART_OCI_REPOSITORY}" 2>&1)"
           printf '%s\n' "$push_output"
           digest="$(printf '%s\n' "$push_output" | awk '/^Digest:/{print $2; exit}')"
           test -n "$digest"
