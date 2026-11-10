@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	traceqlcorpus "github.com/jawaracloud/skopos/test/corpus/traceql"
 )
 
 const (
@@ -199,6 +201,8 @@ func main() {
 	sqlPath := flag.String("sql", "", "write the ClickHouse seed SQL here")
 	openMetricsPath := flag.String("openmetrics", "", "write the OpenMetrics seed here")
 	lokiPushPath := flag.String("loki-push", "", "write the Loki push body here")
+	tracesPath := flag.String("traces-json", "", "write ClickHouse JSONEachRow traces here")
+	tempoOTLPPath := flag.String("tempo-otlp", "", "write the OTLP/HTTP trace body here")
 	nowText := flag.String("now", "", "sample base time in RFC3339 (default: now)")
 	services := flag.Int("services", 6, "number of services")
 	samples := flag.Int("samples", 13, "samples per service")
@@ -236,6 +240,38 @@ func main() {
 	if err := writeFile(*lokiPushPath, func(w io.Writer) error { return writeLokiPush(w, entries) }); err != nil {
 		fmt.Fprintf(os.Stderr, "seedgen: %v\n", err)
 		os.Exit(1)
+	}
+	if *tracesPath != "" || *tempoOTLPPath != "" {
+		corpus, err := traceqlcorpus.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "seedgen: load TraceQL corpus: %v\n", err)
+			os.Exit(1)
+		}
+		base := now.Add(-30 * time.Second).Truncate(time.Second)
+		rows, err := corpus.ClickHouseRows(base)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "seedgen: render traces: %v\n", err)
+			os.Exit(1)
+		}
+		if *tracesPath != "" {
+			body := strings.Join(rows, "\n") + "\n"
+			if err := os.WriteFile(*tracesPath, []byte(body), 0o644); err != nil {
+				fmt.Fprintf(os.Stderr, "seedgen: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		if *tempoOTLPPath != "" {
+			otlp, err := corpus.OTLPJSON(base)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "seedgen: render OTLP: %v\n", err)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(*tempoOTLPPath, otlp, 0o644); err != nil {
+				fmt.Fprintf(os.Stderr, "seedgen: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Printf("seedgen: wrote %d trace rows and OTLP for %d traces\n", len(rows), len(corpus.Traces))
 	}
 	if err := writeFile(*openMetricsPath, func(w io.Writer) error { return writeOpenMetrics(w, rows) }); err != nil {
 		fmt.Fprintf(os.Stderr, "seedgen: %v\n", err)

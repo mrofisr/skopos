@@ -35,12 +35,16 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	timeout := fs.Duration("timeout", 30*time.Second, "per-request timeout")
 	journey := fs.Bool("journey", false, "run the Prometheus journey through Grafana's query API")
 	lokiJourney := fs.Bool("loki-journey", false, "run the Loki journey through Grafana's query API")
+	tempoJourney := fs.Bool("tempo-journey", false, "run the Tempo journey through Grafana's query API")
 	skoposUID := fs.String("skopos-uid", "skopos-prometheus", "Skopos Prometheus datasource UID")
 	referenceUID := fs.String("reference-uid", "reference-prometheus", "reference Prometheus datasource UID")
 	journeyStep := fs.Duration("journey-step", 30*time.Second, "journey query step")
 	lokiUID := fs.String("loki-uid", "skopos-loki", "Skopos Loki datasource UID")
 	referenceLokiUID := fs.String("reference-loki-uid", "reference-loki", "reference Loki datasource UID")
 	lokiService := fs.String("loki-service", "skopos-e2e-server-0", "seeded log service")
+	tempoUID := fs.String("tempo-uid", "skopos-tempo", "Skopos Tempo datasource UID")
+	referenceTempoUID := fs.String("reference-tempo-uid", "reference-tempo", "reference Tempo datasource UID")
+	tempoTraceID := fs.String("tempo-trace-id", "5bf92f3577b34da6a3ce929d0e0e4737", "seeded trace ID")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -66,7 +70,7 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 		fmt.Fprintf(env.Stdout, "grafana-check: %s (%s) OK\n", datasource.Name, datasource.UID)
 	}
 	fmt.Fprintf(env.Stdout, "grafana-check: %d datasources healthy\n", len(checked))
-	if !*journey && !*lokiJourney {
+	if !*journey && !*lokiJourney && !*tempoJourney {
 		return nil
 	}
 	if *journeyStep <= 0 {
@@ -94,6 +98,25 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 			fmt.Fprintf(env.Stdout, "grafana-check: journey %s OK (%s)\n", step.Name, step.Detail)
 		}
 		fmt.Fprintf(env.Stdout, "grafana-check: %d journey steps passed\n", len(steps))
+	}
+	if *tempoJourney {
+		runner := TempoJourney{
+			Client: client,
+			Config: TempoConfig{
+				SkoposUID:    *tempoUID,
+				ReferenceUID: *referenceTempoUID,
+				Now:          now,
+				TraceID:      *tempoTraceID,
+			},
+		}
+		steps, err := runner.Run(ctx)
+		if err != nil {
+			return fmt.Errorf("grafana tempo journey: %w", err)
+		}
+		for _, step := range steps {
+			fmt.Fprintf(env.Stdout, "grafana-check: tempo journey %s OK (%s)\n", step.Name, step.Detail)
+		}
+		fmt.Fprintf(env.Stdout, "grafana-check: %d tempo journey steps passed\n", len(steps))
 	}
 	if *lokiJourney {
 		runner := LokiJourney{

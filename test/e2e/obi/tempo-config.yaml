@@ -1,0 +1,27 @@
+# Reference Tempo for the Grafana journey. Local storage, OTLP receivers, and
+# a one-hour block/trace window so the corpus stays in live traces while the
+# journey runs.
+server:
+  http_listen_port: 3200
+  log_level: warn
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+        grpc:
+          endpoint: 0.0.0.0:4317
+compactor:
+  disabled: true
+ingester:
+  max_block_duration: 1h
+  trace_idle_period: 1h
+  complete_block_timeout: 1h
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

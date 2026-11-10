@@ -50,9 +50,11 @@ services:
       CLICKHOUSE_ADMIN_USER: default
       CLICKHOUSE_ADMIN_PASSWORD: ""
       GRAFANA_SEED_SQL: /seed/grafana-seed.sql
+      GRAFANA_TRACES_JSON: /seed/grafana-traces.json
     volumes:
       - ./seed.sh:/seed/seed.sh:ro
       - ./.render/grafana-seed.sql:/seed/grafana-seed.sql:ro
+      - ./.render/grafana-traces.json:/seed/grafana-traces.json:ro
     restart: "no"
 
   collector:
@@ -119,6 +121,15 @@ services:
       SKOPOS_LOG_LEVEL: info
     ports:
       - "${SKOPOS_E2E_GATEWAY_PORT:-18081}:18081"
+
+  tempo:
+    image: grafana/tempo:2.7.2@sha256:4b0277a9b572a4b1fa43b01468e58911ec214dd69d033f2cd476596d14de9fe3
+    command: -config.file=/etc/tempo.yaml
+    ports:
+      - "127.0.0.1:${SKOPOS_E2E_TEMPO_PORT:-18095}:3200"
+      - "127.0.0.1:${SKOPOS_E2E_TEMPO_OTLP_PORT:-18096}:4318"
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml:ro
 
   loki:
     image: grafana/loki:3.5.7@sha256:0eaee7bf39cc83aaef46914fb58f287d4f4c4be6ec96b86c2ed55719a75e49c8

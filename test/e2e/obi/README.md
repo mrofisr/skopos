@@ -63,8 +63,8 @@ make e2e-grafana
 ```
 
 The harness starts ClickHouse, the seed job, the gateway, a digest-pinned
-`grafana/grafana` container, a digest-pinned reference Prometheus, and a
-digest-pinned reference Loki. It
+`grafana/grafana` container, digest-pinned reference Prometheus, Loki, and
+Tempo containers. It
 renders the example provisioning from
 `deploy/examples/grafana/provisioning/datasources/skopos.yaml`, rewrites the
 Kubernetes service URL to the Compose gateway, adds a test-only
@@ -99,6 +99,17 @@ Every frame is compared with the reference Prometheus datasource.
 Log lines, timestamps, and the metric frames are compared with the reference
 Loki datasource.
 
+`repoctl grafana-check --tempo-journey` sends Grafana's Tempo requests for:
+
+- a tag search and a TraceQL search;
+- a trace-by-ID lookup as the trace view requests it;
+- tag and tag-value autocomplete;
+- a structural operator, which Skopos must reject with an explicit error.
+
+Trace summaries, span fields, and tag sets are compared with the reference
+Tempo datasource. The harness pushes the TraceQL corpus to Tempo over OTLP and
+loads the same spans into ClickHouse.
+
 The harness has two negative self-checks:
 
 ```sh
@@ -115,8 +126,9 @@ success, like the OBI harness.
 The seed job inserts one OBI-shaped trace and the generated metric and log
 samples, so the stack is ready for the journeys; the datasource health checks
 themselves do not depend on the seed. `seedgen` writes the same log lines as
-SQL for ClickHouse and as a Loki push body, which the harness posts to the
-reference Loki.
+SQL for ClickHouse and as a Loki push body, and writes the TraceQL corpus as
+ClickHouse rows and an OTLP body. The harness posts the push bodies to the
+reference Loki and Tempo.
 
 ## Requirements
 
