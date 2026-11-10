@@ -58,18 +58,10 @@ func combinePredicates(operator string, predicates []plan.Expr) (plan.Expr, bool
 }
 
 func conditionPredicate(condition condition) (plan.Expr, bool) {
-	if condition.regex != nil || condition.op == "contains" {
+	if condition.nilValue || condition.regex != nil || condition.op == "contains" {
 		return nil, false
 	}
-	if !condition.intrinsic {
-		switch condition.scope {
-		case "span", "resource":
-			return attributePredicate(condition)
-		default:
-			return nil, false
-		}
-	}
-	if condition.scope != "span" && condition.scope != "intrinsic" {
+	if !condition.intrinsic || (condition.scope != "span" && condition.scope != "intrinsic") {
 		return nil, false
 	}
 	switch condition.key {
@@ -95,43 +87,6 @@ func conditionPredicate(condition condition) (plan.Expr, bool) {
 			return nil, false
 		}
 		return plan.Bin(condition.op, plan.Col("SpanKind"), plan.String("span_kind", value)), true
-	default:
-		return nil, false
-	}
-}
-
-func attributePredicate(condition condition) (plan.Expr, bool) {
-	if condition.key == "" {
-		return nil, false
-	}
-	column := "SpanAttributes"
-	prefix := "span_attr"
-	if condition.scope == "resource" {
-		column = "ResourceAttributes"
-		prefix = "resource_attr"
-	}
-	value := plan.Map(plan.Col(column), plan.String(prefix+"_key", condition.key))
-	present := plan.F("mapContains", plan.Col(column), plan.String(prefix+"_present_key", condition.key))
-
-	if condition.nilValue {
-		return plan.Bin("=", present, plan.Bool(prefix+"_present", condition.op == "!=")), true
-	}
-	if condition.number != nil {
-		switch condition.op {
-		case "=", "!=", ">", "<", ">=", "<=":
-			number := plan.F("toFloat64OrNull", value)
-			comparison := plan.Bin(condition.op, number, plan.Float(prefix+"_number", *condition.number))
-			return plan.Bin("AND", present, comparison), true
-		}
-		return nil, false
-	}
-	if condition.duration != nil {
-		return nil, false
-	}
-	switch condition.op {
-	case "=", "!=":
-		comparison := plan.Bin(condition.op, value, plan.String(prefix+"_value", condition.value))
-		return plan.Bin("AND", present, comparison), true
 	default:
 		return nil, false
 	}
