@@ -91,6 +91,33 @@ default coefficient times out `internal/config` and makes it look empty):
 The nightly `Mutation` workflow runs the gate per package on that matrix. It is
 scheduled and manual only, is not a required check, and is advisory for alpha.
 
+## Alpha exit evidence
+
+`make alpha-exit-check` aggregates the seven criteria into one report:
+
+```sh
+make alpha-exit-check
+```
+
+Each criterion is a `test/quality/evidence/ec-N.json` file:
+
+```json
+{
+  "ec": 1,
+  "status": "pass",
+  "commit": "<sha>",
+  "timestamp": "2026-11-10T12:00:00Z",
+  "command": "make e2e-grafana"
+}
+```
+
+The check fails closed: a missing file, malformed JSON, a mismatched EC
+number, a status other than `pass`, an empty command, a timestamp older than
+`--max-age` (24h by default), or a commit other than `--commit` (`GITHUB_SHA`)
+all fail and name the criterion. A report is written to
+`docs/alpha-exit-report.md`. Until the per-criterion producers write these
+files, the check reports 0/7 instead of passing silently.
+
 ## PR traceability and freeze guard
 
 Every pull request must link an open issue labelled `phase:alpha-exit` using
