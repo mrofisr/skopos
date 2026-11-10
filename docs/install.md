@@ -140,7 +140,11 @@ The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
 sets `GOMEMLIMIT` to 90% of `gateway.resources.limits.memory`, or to
 `gateway.goMemLimit` when set; omit both to leave `GOMEMLIMIT` unset. At
 startup the gateway warns when `maxInflight x maxResponseBytes` exceeds the
-Go memory limit. A rejected
+Go memory limit.
+
+`gateway.config.metadataTTL` (default `30s`, environment
+`SKOPOS_METADATA_TTL`) caches metric-to-table discovery, per-table emptiness,
+and metric metadata. A table that gains data is picked up after the TTL. A rejected
 request gets the head's error shape, `Retry-After: 1`, and increments
 `skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
 are exempt, so probes and scrapes keep working under load.

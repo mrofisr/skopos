@@ -133,6 +133,13 @@ without a metric-name matcher (for example the `/labels` endpoint's empty
 selector, or `{service_name="x"}`) do not probe or fail on exponential
 histograms.
 
+## Metadata cache
+
+Metric-to-table discovery, per-table emptiness, and metric metadata are cached
+for `SKOPOS_METADATA_TTL` (default 30s). A failed refresh returns an error
+rather than a stale empty result; a table that gains data becomes visible
+after the TTL. See [install.md](install.md#admission-limits).
+
 ## Known limitations
 
 - Sample resolution is ClickHouse `DateTime` seconds for metric tables.

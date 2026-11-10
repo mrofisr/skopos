@@ -359,3 +359,19 @@ func TestAdmissionConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestMetadataTTL(t *testing.T) {
+	cfg, err := FromLookup(lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MetadataTTL != 30*time.Second {
+		t.Fatalf("MetadataTTL = %s, want 30s", cfg.MetadataTTL)
+	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_METADATA_TTL": "0s"})); err == nil {
+		t.Fatal("FromLookup accepted a zero metadata TTL")
+	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_METADATA_TTL": "soon"})); err == nil {
+		t.Fatal("FromLookup accepted an invalid metadata TTL")
+	}
+}

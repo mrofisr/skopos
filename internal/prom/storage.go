@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	promlabels "github.com/prometheus/prometheus/model/labels"
@@ -28,6 +29,15 @@ type ClickHouseFetcher struct {
 	Emitter *sqlgen.Emitter
 	Names   plan.TableNames
 	MaxRows int
+
+	// MetadataTTL caches metric discovery, non-empty flags, and metadata.
+	// Zero means the 30s default.
+	MetadataTTL time.Duration
+	// Now defaults to time.Now; tests inject a fake clock.
+	Now func() time.Time
+
+	cacheMu sync.Mutex
+	cache   *metricCache
 }
 
 // NewClickHouseFetcher builds a fetcher and validates its table names.
@@ -50,7 +60,7 @@ func NewClickHouseFetcher(client *chclient.Client, schema *plan.Schema, names pl
 	if err != nil {
 		return nil, err
 	}
-	return &ClickHouseFetcher{Client: client, Schema: schema, Emitter: emitter, Names: names, MaxRows: maxRows}, nil
+	return &ClickHouseFetcher{Client: client, Schema: schema, Emitter: emitter, Names: names, MaxRows: maxRows, MetadataTTL: 30 * time.Second, Now: time.Now}, nil
 }
 
 // Fetch implements Fetcher.
@@ -76,6 +86,13 @@ func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end 
 			name, kind, filter = f.Names.MetricsHistogram, tableHistogram, histFilter
 		case tableSummary:
 			name, kind, filter = f.Names.MetricsSummary, tableSummary, summaryFilter
+		}
+		nonEmpty, err := f.cacheFor().nonEmpty.Get(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		if !nonEmpty {
+			continue
 		}
 		if err := f.fetchTable(ctx, name, kind, filter, start, end, series); err != nil {
 			return nil, err
@@ -117,7 +134,7 @@ func (f *ClickHouseFetcher) candidateTables(ctx context.Context, sel Selector) (
 	if hasNegativeMetricMatcher(sel) {
 		return all, nil
 	}
-	return f.discoverTables(ctx, name)
+	return f.cacheFor().discovery.Get(ctx, name)
 }
 
 func hasNegativeMetricMatcher(sel Selector) bool {
@@ -135,7 +152,7 @@ func hasNegativeMetricMatcher(sel Selector) bool {
 // discoverTables asks each table whether it holds the exact normalized name.
 // The queries select only MetricName and LIMIT 1, so they are metadata probes,
 // not data scans. AX-32 caches this.
-func (f *ClickHouseFetcher) discoverTables(ctx context.Context, name string) ([]tableKind, error) {
+func (f *ClickHouseFetcher) probeTables(ctx context.Context, name string) ([]tableKind, error) {
 	tables := []struct {
 		kind tableKind
 		name string
@@ -597,7 +614,19 @@ type Metadata struct {
 }
 
 // Metadata returns metric metadata from the gauge, sum, and histogram tables.
+// Metadata returns metric metadata, cached when metric is non-empty.
 func (f *ClickHouseFetcher) Metadata(ctx context.Context, metric string) (map[string]Metadata, error) {
+	if metric == "" {
+		return f.loadMetadata(ctx, "")
+	}
+	metadata, err := f.cacheFor().metadata.Get(ctx, NormalizeLabelName(metric))
+	if err != nil {
+		return nil, err
+	}
+	return cloneMetadata(metadata), nil
+}
+
+func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (map[string]Metadata, error) {
 	out := make(map[string]Metadata)
 	tables := []struct {
 		name     string

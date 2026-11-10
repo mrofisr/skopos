@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,9 +21,11 @@ import (
 
 // fakeClickHouse answers the four metric table queries with canned JSON rows.
 type fakeClickHouse struct {
-	rows   map[string][]map[string]any
-	seen   []string
-	bodies []string
+	mu            sync.Mutex
+	rows          map[string][]map[string]any
+	seen          []string
+	bodies        []string
+	failDiscovery bool
 }
 
 func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +44,15 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	if f.failDiscovery && strings.Contains(query, "metric_filter") && strings.Contains(query, "LIMIT") {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"exception":"discovery down"}`)
+		return
+	}
+	f.mu.Lock()
 	f.seen = append(f.seen, table)
 	f.bodies = append(f.bodies, query)
+	f.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"meta": []map[string]string{{"name": "MetricName", "type": "String"}},
@@ -235,7 +245,17 @@ func TestUnknownMetricReadsZeroRows(t *testing.T) {
 
 func TestDerivedHistogramNameRoutesToHistogram(t *testing.T) {
 	names := plan.DefaultTableNames()
-	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{})
+	row := map[string]any{
+		"MetricName":     "rpc_duration",
+		"TimeUnix":       "2026-11-01 00:10:00",
+		"ServiceName":    "checkout",
+		"Attributes":     map[string]any{},
+		"Count":          json.Number("1"),
+		"Sum":            json.Number("1"),
+		"BucketCounts":   []any{json.Number("1")},
+		"ExplicitBounds": []any{},
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsHistogram: {row}})
 	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
 	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
 		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "rpc_duration_bucket"),
@@ -273,11 +293,31 @@ func TestNamePresentInTwoTablesQueriesBoth(t *testing.T) {
 }
 
 func TestRegexAndNegativeMatchersFallBackToAllTables(t *testing.T) {
+	names := plan.DefaultTableNames()
+	gauge := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Value": json.Number("1"),
+	}
+	histogram := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Count": json.Number("1"), "Sum": json.Number("1"),
+		"BucketCounts": []any{json.Number("1")}, "ExplicitBounds": []any{},
+	}
+	summary := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Count": json.Number("1"), "Sum": json.Number("1"),
+		"ValueAtQuantiles.Quantile": []any{json.Number("0.5")},
+		"ValueAtQuantiles.Value":    []any{json.Number("1")},
+	}
+	rows := map[string][]map[string]any{
+		names.MetricsGauge: {gauge}, names.MetricsSum: {gauge},
+		names.MetricsHistogram: {histogram}, names.MetricsSummary: {summary},
+	}
 	for _, matcher := range []*promlabels.Matcher{
 		promlabels.MustNewMatcher(promlabels.MatchRegexp, promlabels.MetricName, "foo|bar"),
 		promlabels.MustNewMatcher(promlabels.MatchNotEqual, promlabels.MetricName, "foo"),
 	} {
-		fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{})
+		fetcher, fake := newFakeFetcher(t, rows)
 		at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
 		if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{matcher}}, at.Add(-time.Minute), at); err != nil {
 			t.Fatalf("Fetch: %v", err)
