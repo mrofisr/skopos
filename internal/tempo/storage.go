@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,6 +116,77 @@ func (f *ClickHouseFetcher) FetchRange(ctx context.Context, start, end time.Time
 		TimeRange:  &plan.TimeRange{Start: start, End: end, EndInclusive: true},
 		Limit:      f.MaxRows,
 	})
+}
+
+// FetchRangeFiltered pushes the safe intrinsic subset of filter into SQL and
+// falls back to the unfiltered range when the filter is not pushable.
+//
+// The first query finds matching trace IDs. The second loads every span of
+// those traces, because Search computes the root service, root name, start,
+// and duration from all spans in a trace, not only the matching ones.
+func (f *ClickHouseFetcher) FetchRangeFiltered(ctx context.Context, start, end time.Time, filter Filter) ([]Span, error) {
+	predicate, ok := FilterPredicate(filter)
+	if !ok {
+		return f.FetchRange(ctx, start, end)
+	}
+	traceIDs, err := f.matchingTraceIDs(ctx, predicate, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(traceIDs) == 0 {
+		return nil, nil
+	}
+	return f.fetch(ctx, plan.Query{
+		Signal:     plan.SignalTraces,
+		Table:      f.Names.Traces,
+		Select:     spanSelects(),
+		Where:      plan.In{Expr: plan.Col("TraceId"), Values: traceIDParams(traceIDs)},
+		TimeColumn: "Timestamp",
+		TimeRange:  &plan.TimeRange{Start: start, End: end, EndInclusive: true},
+		Limit:      f.MaxRows,
+	})
+}
+
+func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan.Expr, start, end time.Time) ([]string, error) {
+	query := plan.Query{
+		Signal:     plan.SignalTraces,
+		Table:      f.Names.Traces,
+		Select:     []plan.SelectItem{{Expr: plan.Col("TraceId")}},
+		Where:      predicate,
+		TimeColumn: "Timestamp",
+		TimeRange:  &plan.TimeRange{Start: start, End: end, EndInclusive: true},
+		Limit:      f.MaxRows,
+	}
+	emitted, err := f.Emitter.Emit(query)
+	if err != nil {
+		return nil, fmt.Errorf("tempo: build trace-id query: %w", err)
+	}
+	result, err := f.Client.Query(chclient.WithHead(ctx, "tempo"), emitted.SQL, emitted.Params)
+	if err != nil {
+		return nil, fmt.Errorf("tempo: query matching trace ids: %w", err)
+	}
+	if result.Len() >= f.MaxRows {
+		return nil, fmt.Errorf("tempo: query reached the %d-row trace limit", f.MaxRows)
+	}
+	seen := make(map[string]bool, result.Len())
+	traceIDs := make([]string, 0, result.Len())
+	for i := 0; i < result.Len(); i++ {
+		traceID, ok := result.String(i, "TraceId")
+		if !ok || traceID == "" || seen[traceID] {
+			continue
+		}
+		seen[traceID] = true
+		traceIDs = append(traceIDs, traceID)
+	}
+	return traceIDs, nil
+}
+
+func traceIDParams(traceIDs []string) []plan.Expr {
+	params := make([]plan.Expr, 0, len(traceIDs))
+	for index, traceID := range traceIDs {
+		params = append(params, plan.String("trace_id_"+strconv.Itoa(index), traceID))
+	}
+	return params
 }
 
 func (f *ClickHouseFetcher) fetch(ctx context.Context, query plan.Query) ([]Span, error) {

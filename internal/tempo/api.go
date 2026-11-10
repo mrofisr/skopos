@@ -116,7 +116,14 @@ func (a *API) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := parseLimit(r.FormValue("limit"), 20, 1000)
 	spss := parseLimit(r.FormValue("spss"), 3, 1000)
-	spans, err := a.Fetcher.FetchRange(r.Context(), start, end)
+	var spans []Span
+	if filtered, ok := a.Fetcher.(interface {
+		FetchRangeFiltered(context.Context, time.Time, time.Time, Filter) ([]Span, error)
+	}); ok {
+		spans, err = filtered.FetchRangeFiltered(r.Context(), start, end, filter)
+	} else {
+		spans, err = a.Fetcher.FetchRange(r.Context(), start, end)
+	}
 	if err != nil {
 		a.writeRequestError(w, err)
 		return

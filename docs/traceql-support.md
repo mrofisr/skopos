@@ -261,6 +261,16 @@ unscoped aliases.
 Tempo's fixed enum value sets. Event and link attributes are read from the
 exporter's `Events.Attributes` and `Links.Attributes` nested columns.
 
+## Pushdown
+
+For search queries, the safe intrinsic subset compiles to ClickHouse `WHERE`:
+`span:name` equality/inequality, `duration` comparisons with units, and
+`span:status`/`span:kind` equality/inequality with the OTel enum mapping. `&&`
+pushes every supported child; `||` pushes only when every child is supported.
+Regex operators, attribute filters, and trace-level intrinsics stay in Go, so
+the result is never narrowed incorrectly. Values are always parameters, never
+concatenated into SQL.
+
 ## Known limitations
 
 - Structural operators (`>>`, `<<`, `>`, `<`, `~`, `!>>`, `!<<`, `!>`, `!<`),
