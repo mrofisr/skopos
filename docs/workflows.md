@@ -10,6 +10,7 @@ The source of truth is `.github/workflows/` and `docs/security/ruleset.json`.
 | `ci.yml` | `pull_request`, `workflow_dispatch`, `schedule` | `Changed paths`, `Go build, vet, test`, `Coverage ratchet`, `ClickHouse integration`, `Tempo and Loki differentials`, `cerberus three-way differential`, `S3 tiered storage and backup (RustFS)`, `Helm lint and render`, `Docker image build`, `Workflow policy`, `CI gate` | `Go build, vet, test`, `Coverage ratchet`, `ClickHouse integration`, `Tempo and Loki differentials`, `cerberus three-way differential`, `S3 tiered storage and backup (RustFS)`, `Helm lint and render`, `Workflow policy`, `CI gate` |
 | `dependency-review.yml` | `pull_request` | `Dependency review` | `Dependency review` |
 | `issues.yml` | `schedule`, `workflow_dispatch` | `Alpha-exit issue lint` | — |
+| `mutation.yml` | `schedule`, `workflow_dispatch` | `Mutation (${{ matrix.package }})` | — |
 | `pr-guard.yml` | `pull_request` | `PR traceability and freeze guard` | — |
 | `promql-compliance.yml` | `workflow_dispatch`, `schedule` | `Official Prometheus PromQL suite` | — |
 | `release.yml` | `push` | `Preflight release`, `Build release artifacts`, `Publish and attest image`, `Publish and attest chart`, `Publish immutable GitHub release` | — |

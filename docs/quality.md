@@ -65,12 +65,31 @@ the built-in efficacy and mutant-coverage thresholds.
 ```sh
 make mutation                 # defaults to PKG=./internal/auth
 make mutation PKG=./internal/sqlgen
+make mutation-gate PKG=./internal/httpapi
 ```
 
-The target builds the pinned binary into `bin/`, runs `gremlins unleash` with a
-JSON report, and prints the summary through `repoctl mutation report`. The
-report is written to `mutation.json`, which is ignored. The nightly gate and
-the 70% floor are AX-03.
+The targets build the pinned binary into `bin/`, run `gremlins unleash` with a
+JSON report, and print the summary through `repoctl mutation report`. The
+report is written to `mutation.json`, which is ignored.
+
+The gate uses a 70% efficacy floor. Survivors may be accepted in
+`test/quality/mutation-allowlist.json` only with a stated reason; an entry
+without a reason fails. Packages with zero killed and lived mutants fail
+explicitly instead of passing.
+
+Baselines measured on 10 November 2026 (`--timeout-coefficient 10`; the
+default coefficient times out `internal/config` and makes it look empty):
+
+| Package | Efficacy | Mutant coverage |
+| --- | ---: | ---: |
+| `internal/auth` | 100.0% | 100.0% |
+| `internal/config` | 98.9% | 100.0% |
+| `internal/httpapi` | 100.0% | 100.0% |
+| `internal/plan` | 100.0% | 33.3% |
+| `internal/sqlgen` | 91.7% | 59.0% |
+
+The nightly `Mutation` workflow runs the gate per package on that matrix. It is
+scheduled and manual only, is not a required check, and is advisory for alpha.
 
 ## PR traceability and freeze guard
 

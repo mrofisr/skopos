@@ -1,0 +1,42 @@
+name: Mutation
+
+# Nightly advisory mutation run. AX-03 keeps this out of the required PR
+# checks while the baselines stabilise; a red run is a signal to add tests,
+# not a merge blocker.
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    name: Mutation (${{ matrix.package }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - ./internal/auth
+          - ./internal/config
+          - ./internal/httpapi
+          - ./internal/plan
+          - ./internal/sqlgen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run mutation gate
+        run: make mutation-gate PKG=${{ matrix.package }}

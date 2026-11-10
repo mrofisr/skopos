@@ -116,3 +116,98 @@ func TestCommandIdentity(t *testing.T) {
 		t.Fatal("Summary is empty")
 	}
 }
+
+const gateFixture = `{"files":[{"file_name":"basic.go","mutations":[
+  {"type":"ARITHMETIC_BASE","status":"KILLED","line":10,"column":1},
+  {"type":"ARITHMETIC_BASE","status":"KILLED","line":11,"column":1},
+  {"type":"ARITHMETIC_BASE","status":"KILLED","line":12,"column":1},
+  {"type":"CONDITIONALS_NEGATION","status":"LIVED","line":20,"column":1},
+  {"type":"CONDITIONALS_NEGATION","status":"LIVED","line":21,"column":1}
+]}]}`
+
+func TestGateFailsBelowFloor(t *testing.T) {
+	parsed, err := ParseReport([]byte(gateFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = Gate(parsed, 70, Allowlist{})
+	if err == nil || !strings.Contains(err.Error(), "basic.go:20") {
+		t.Fatalf("error = %v, want an unallowlisted survivor", err)
+	}
+	if !strings.Contains(err.Error(), "60.0%") {
+		t.Fatalf("error = %v, want the efficacy", err)
+	}
+}
+
+func TestGateAllowlistedSurvivorsPass(t *testing.T) {
+	parsed, err := ParseReport([]byte(gateFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowlist := Allowlist{Survivors: []AllowlistEntry{
+		{File: "basic.go", Line: 20, Type: "CONDITIONALS_NEGATION", Reason: "clock skew guard"},
+		{File: "basic.go", Line: 21, Type: "CONDITIONALS_NEGATION", Reason: "clock skew guard"},
+	}}
+	if err := Gate(parsed, 70, allowlist); err != nil {
+		t.Fatalf("Gate: %v", err)
+	}
+}
+
+func TestGateRejectsAllowlistWithoutReason(t *testing.T) {
+	parsed, err := ParseReport([]byte(gateFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowlist := Allowlist{Survivors: []AllowlistEntry{
+		{File: "basic.go", Line: 20, Type: "CONDITIONALS_NEGATION"},
+	}}
+	err = Gate(parsed, 70, allowlist)
+	if err == nil || !strings.Contains(err.Error(), "no reason") {
+		t.Fatalf("error = %v, want a missing reason", err)
+	}
+}
+
+func TestGateRejectsZeroMutants(t *testing.T) {
+	parsed, err := ParseReport([]byte(`{"files":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Gate(parsed, 70, Allowlist{}); err == nil {
+		t.Fatal("Gate accepted a report with no killed or lived mutants")
+	}
+}
+
+func TestCommandGate(t *testing.T) {
+	path := writeReport(t, gateFixture)
+	env, stdout := testEnv()
+	if err := (Command{}).Run(context.Background(), env, []string{"gate", "--input", path, "--floor", "70"}); err == nil {
+		t.Fatal("gate passed at 60% efficacy")
+	}
+	allow := filepath.Join(t.TempDir(), "allow.json")
+	body := `{"survivors":[
+	  {"file":"basic.go","line":20,"type":"CONDITIONALS_NEGATION","reason":"clock skew"},
+	  {"file":"basic.go","line":21,"type":"CONDITIONALS_NEGATION","reason":"clock skew"}
+	]}`
+	if err := os.WriteFile(allow, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := (Command{}).Run(context.Background(), env, []string{"gate", "--input", path, "--floor", "70", "--allowlist", allow}); err != nil {
+		t.Fatalf("gate with allowlist: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "efficacy=60.0%") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if err := (Command{}).Run(context.Background(), env, []string{"nope"}); err == nil {
+		t.Fatal("unknown subcommand was accepted")
+	}
+}
+
+func TestLoadAllowlistErrors(t *testing.T) {
+	if _, err := LoadAllowlist(filepath.Join(t.TempDir(), "missing.json")); err == nil {
+		t.Fatal("LoadAllowlist accepted a missing file")
+	}
+	path := writeReport(t, `{`)
+	if _, err := LoadAllowlist(path); err == nil {
+		t.Fatal("LoadAllowlist accepted invalid JSON")
+	}
+}
