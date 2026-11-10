@@ -3,7 +3,7 @@ FROM golang:1.27.3@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e
 WORKDIR /src
 COPY . .
 
-ARG VERSION=0.1.0-alpha.1
+ARG VERSION=0.1.0-alpha.2
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -mod=vendor \
     -trimpath \

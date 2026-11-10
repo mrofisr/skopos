@@ -3,7 +3,7 @@ SHELL := /bin/sh
 GO ?= go
 HELM ?= helm
 GOVULNCHECK ?= govulncheck
-VERSION ?= 0.1.0-alpha.1
+VERSION ?= 0.1.0-alpha.2
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 

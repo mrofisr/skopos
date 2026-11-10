@@ -8,8 +8,8 @@
 # Publishing, signing, and attestation happen in .github/workflows/release.yml.
 #
 # Usage:
-#   VERSION=0.1.0-alpha.1 ./scripts/release.sh
-#   VERSION=0.1.0-alpha.1 OUTPUT_DIR=dist/release ./scripts/release.sh
+#   VERSION=0.1.0-alpha.2 ./scripts/release.sh
+#   VERSION=0.1.0-alpha.2 OUTPUT_DIR=dist/release ./scripts/release.sh
 #
 # This script never pushes to a registry and never reads signing keys.
 set -eu
