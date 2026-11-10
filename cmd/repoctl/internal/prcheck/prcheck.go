@@ -87,13 +87,16 @@ func Evaluate(ctx context.Context, in Input, source Source) Result {
 	var result Result
 	switch {
 	case isPromotion(in):
-		result.Notices = append(result.Notices, "promotion PR: traceability lookup skipped")
+		result.Notices = append(result.Notices,
+			"promotion PR: traceability and frozen-path checks skipped")
 	case !exemptTypeRE.MatchString(strings.TrimSpace(in.Title)):
 		errs, notices := checkTraceability(ctx, in, source)
 		result.Errors = append(result.Errors, errs...)
 		result.Notices = append(result.Notices, notices...)
+		result.Errors = append(result.Errors, checkFrozen(in)...)
+	default:
+		result.Errors = append(result.Errors, checkFrozen(in)...)
 	}
-	result.Errors = append(result.Errors, checkFrozen(in)...)
 	result.Errors = append(result.Errors, checkRedFirst(in.Labels, in.Commits)...)
 	return result
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -184,5 +186,15 @@ func TestMalformedMarkers(t *testing.T) {
 	}
 	if _, err := extractBlock("no markers"); err == nil {
 		t.Fatal("extractBlock accepted a document without markers")
+	}
+}
+
+func TestFormatBytesUint(t *testing.T) {
+	if got, want := formatBytesUint(1024), formatBytes(1024); got != want {
+		t.Fatalf("formatBytesUint(1024) = %q, want %q", got, want)
+	}
+	large := uint64(math.MaxInt64) + 1
+	if got, want := formatBytesUint(large), fmt.Sprintf("%d bytes", large); got != want {
+		t.Fatalf("formatBytesUint(large) = %q, want %q", got, want)
 	}
 }

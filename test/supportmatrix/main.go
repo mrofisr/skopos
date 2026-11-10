@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -132,7 +133,7 @@ func Generate() ([]byte, error) {
 	builder.WriteString("| Maximum request bytes | " + formatBytes(cfg.MaxRequestBytes) + " | `internal/config` |\n")
 	builder.WriteString("| Query timeout | " + cfg.QueryTimeout.String() + " | `internal/config` |\n")
 	builder.WriteString("| Maximum execution time | " + cfg.MaxExecutionTime.String() + " | `internal/config` |\n")
-	builder.WriteString("| Maximum memory usage | " + formatBytes(int64(cfg.MaxMemoryUsage)) + " | `internal/config` |\n")
+	builder.WriteString("| Maximum memory usage | " + formatBytesUint(cfg.MaxMemoryUsage) + " | `internal/config` |\n")
 	builder.WriteString("| In-flight cap | unset | admission limiter; wired by AX-23 |\n")
 	builder.WriteString("<!-- END GENERATED SUPPORT MATRIX -->\n")
 	return []byte(builder.String()), nil
@@ -243,6 +244,13 @@ func validateRows(rows []row) error {
 func escape(value string) string {
 	value = strings.ReplaceAll(value, "|", `\|`)
 	return strings.ReplaceAll(value, "\n", " ")
+}
+
+func formatBytesUint(value uint64) string {
+	if value > math.MaxInt64 {
+		return fmt.Sprintf("%d bytes", value)
+	}
+	return formatBytes(int64(value))
 }
 
 func formatBytes(value int64) string {
