@@ -18,9 +18,10 @@ import (
 )
 
 type fakeTraceClickHouse struct {
-	mu      sync.Mutex
-	bodies  []string
-	queries []url.Values
+	mu       sync.Mutex
+	bodies   []string
+	queries  []url.Values
+	traceIDs []string
 }
 
 func (f *fakeTraceClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -41,9 +42,17 @@ func (f *fakeTraceClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if strings.Contains(string(body), "TraceId") && (spanName == -1 || spanName > from) {
+		ids := f.traceIDs
+		if len(ids) == 0 {
+			ids = []string{"trace-1"}
+		}
+		data := make([]map[string]any, 0, len(ids))
+		for _, id := range ids {
+			data = append(data, map[string]any{"TraceId": id})
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"meta": []map[string]string{{"name": "TraceId", "type": "String"}},
-			"data": []map[string]any{{"TraceId": "trace-1"}},
+			"data": data,
 		})
 		return
 	}
@@ -310,5 +319,17 @@ func tagValueForQuery(query string) string {
 		return "1000"
 	default:
 		return "tag"
+	}
+}
+
+// A search limit is a page size, not a scan guard: exactly `limit` matching
+// traces must not be reported as an error.
+func TestFetchRangeFilteredLimitedAcceptsExactlyLimitRows(t *testing.T) {
+	fetcher, fake := newTraceFetcher(t)
+	fake.traceIDs = []string{"trace-1", "trace-2", "trace-3", "trace-4", "trace-5"}
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	filter := mustFilter(t, `{ span:name = "GET /cart" }`)
+	if _, err := fetcher.FetchRangeFilteredLimited(context.Background(), start, start.Add(time.Hour), filter, 5); err != nil {
+		t.Fatalf("FetchRangeFilteredLimited with a full page: %v", err)
 	}
 }

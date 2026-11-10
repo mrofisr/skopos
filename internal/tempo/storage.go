@@ -180,7 +180,9 @@ func (f *ClickHouseFetcher) matchingTraceIDs(ctx context.Context, predicate plan
 	if err != nil {
 		return nil, fmt.Errorf("tempo: query matching trace ids: %w", err)
 	}
-	if result.Len() >= scanLimit {
+	// A caller-supplied limit is a page size: returning exactly that many
+	// traces is the normal case. Only the unbounded scan enforces the cap.
+	if limit == 0 && result.Len() >= scanLimit {
 		return nil, fmt.Errorf("tempo: query reached the %d-row trace limit", scanLimit)
 	}
 	seen := make(map[string]bool, result.Len())
