@@ -374,6 +374,8 @@ gateway:
     maxInflight: 0
     queueDepth: 0
     queueWaitSeconds: 0
+    # Cache metric discovery, table emptiness, and metadata.
+    metadataTTL: 30s
     logLevel: info
   # Optional Go memory limit. When empty, the chart uses 90% of
   # resources.limits.memory. A Kubernetes quantity such as 200Mi or 1Gi.

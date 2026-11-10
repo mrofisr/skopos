@@ -113,6 +113,8 @@ spec:
               value: {{ .Values.gateway.config.readinessTimeout | quote }}
             - name: SKOPOS_MAX_REQUEST_BYTES
               value: {{ .Values.gateway.config.maxRequestBytes | int64 | quote }}
+            - name: SKOPOS_METADATA_TTL
+              value: {{ .Values.gateway.config.metadataTTL | quote }}
             {{- if $goMemLimit }}
             - name: GOMEMLIMIT
               value: {{ $goMemLimit | quote }}

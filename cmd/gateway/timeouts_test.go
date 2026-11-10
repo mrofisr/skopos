@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jawaracloud/skopos/internal/chclient"
 	"github.com/jawaracloud/skopos/internal/config"
 	"github.com/jawaracloud/skopos/internal/loki"
+	"github.com/jawaracloud/skopos/internal/plan"
 	"github.com/jawaracloud/skopos/internal/prom"
 	"github.com/jawaracloud/skopos/internal/semctx"
 	"github.com/jawaracloud/skopos/internal/tempo"
@@ -121,5 +123,21 @@ func TestNewClickHouseClient(t *testing.T) {
 		MaxResponseBytes: -1,
 	}, nil, logger); err == nil {
 		t.Fatal("newClickHouseClient accepted a negative response limit")
+	}
+}
+
+func TestNewPromFetcher(t *testing.T) {
+	client, err := chclient.New(chclient.Config{BaseURL: "http://127.0.0.1:8123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	tables := plan.DefaultTableNames()
+	fetcher, err := newPromFetcher(client, plan.DefaultSchema("otel", tables), tables, 1000, time.Minute)
+	if err != nil {
+		t.Fatalf("newPromFetcher: %v", err)
+	}
+	if fetcher.MetadataTTL != time.Minute {
+		t.Fatalf("MetadataTTL = %s, want 1m", fetcher.MetadataTTL)
 	}
 }

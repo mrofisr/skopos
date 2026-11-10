@@ -56,6 +56,7 @@ type Config struct {
 	MaxInflight        int
 	QueueDepth         int
 	QueueWait          time.Duration
+	MetadataTTL        time.Duration
 	QueryURLs          []string
 	QueryTimeout       time.Duration
 	AuthEnabled        bool
@@ -93,6 +94,7 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		MaxInflight:        0,
 		QueueDepth:         0,
 		QueueWait:          0,
+		MetadataTTL:        30 * time.Second,
 		QueryTimeout:       30 * time.Second,
 		LogLevel:           slog.LevelInfo,
 	}
@@ -180,6 +182,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.QueueWait, err = durationEnv(lookup, "SKOPOS_QUEUE_WAIT", cfg.QueueWait); err != nil {
 		return Config{}, err
 	}
+	if cfg.MetadataTTL, err = durationEnv(lookup, "SKOPOS_METADATA_TTL", cfg.MetadataTTL); err != nil {
+		return Config{}, err
+	}
 	if cfg.AuthEnabled, err = boolEnv(lookup, "SKOPOS_AUTH_ENABLED", false); err != nil {
 		return Config{}, err
 	}
@@ -263,6 +268,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	}
 	if (cfg.QueueDepth > 0) != (cfg.QueueWait > 0) {
 		return Config{}, fmt.Errorf("SKOPOS_QUEUE_DEPTH and SKOPOS_QUEUE_WAIT must be set together")
+	}
+	if cfg.MetadataTTL <= 0 {
+		return Config{}, fmt.Errorf("SKOPOS_METADATA_TTL: must be positive")
 	}
 	return cfg, nil
 }

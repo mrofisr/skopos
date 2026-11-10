@@ -109,7 +109,7 @@ func runQueries(cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic) e
 	defer client.Close()
 
 	schema := plan.DefaultSchema(cfg.ClickHouseDatabase, cfg.Tables)
-	fetcher, err := prom.NewClickHouseFetcher(client, schema, cfg.Tables, cfg.MaxScanRows)
+	fetcher, err := newPromFetcher(client, schema, cfg.Tables, cfg.MaxScanRows, cfg.MetadataTTL)
 	if err != nil {
 		return fmt.Errorf("prometheus storage: %w", err)
 	}
@@ -288,4 +288,15 @@ func newClickHouseClient(cfg config.Config, observer chclient.QueryObserver, log
 		Observer:         observer,
 		Logger:           logger,
 	})
+}
+
+// newPromFetcher builds the Prometheus storage fetcher and applies the metadata
+// cache TTL.
+func newPromFetcher(client *chclient.Client, schema *plan.Schema, tables plan.TableNames, maxScanRows int, metadataTTL time.Duration) (*prom.ClickHouseFetcher, error) {
+	fetcher, err := prom.NewClickHouseFetcher(client, schema, tables, maxScanRows)
+	if err != nil {
+		return nil, err
+	}
+	fetcher.MetadataTTL = metadataTTL
+	return fetcher, nil
 }
