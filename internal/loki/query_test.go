@@ -295,3 +295,17 @@ func TestRejectsUnsupportedLogQL(t *testing.T) {
 		}
 	}
 }
+
+// Loki's range selector is left-open: an entry exactly at the start of
+// [start, end] is excluded, which matters for count_over_time and rate.
+func TestCountInRangeIsLeftOpen(t *testing.T) {
+	base := time.Unix(1793491200, 0).UTC()
+	entries := []LogEntry{
+		{Timestamp: base},
+		{Timestamp: base.Add(30 * time.Second)},
+		{Timestamp: base.Add(time.Minute)},
+	}
+	if got := countInRange(entries, base, base.Add(time.Minute)); got != 2 {
+		t.Fatalf("countInRange = %d, want 2 (start is exclusive)", got)
+	}
+}

@@ -136,9 +136,9 @@ func metricGroupKey(query Query, labels map[string]string) (string, map[string]s
 }
 
 func countInRange(entries []LogEntry, start, end time.Time) int {
-	// Loki includes entries at both boundaries of [start, end].
+	// Loki's range selector is left-open: (start, end].
 	low := sort.Search(len(entries), func(i int) bool {
-		return !entries[i].Timestamp.Before(start)
+		return entries[i].Timestamp.After(start)
 	})
 	high := sort.Search(len(entries), func(i int) bool {
 		return entries[i].Timestamp.After(end)
