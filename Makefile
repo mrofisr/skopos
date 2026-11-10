@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mcp checkpoint mutation test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -28,6 +28,7 @@ help:
 		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
 		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
+		'mutation          run mutation testing (PKG=./internal/auth by default)' \
 		'profile-range     capture pprof and metrics for the 6h range query' \
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
@@ -109,6 +110,14 @@ bench-gate:
 
 profile-range:
 	./test/bench/profile-range.sh
+
+PKG ?= ./internal/auth
+
+mutation:
+	mkdir -p bin
+	cd internal/tools && $(GO) build -o ../../bin/gremlins github.com/go-gremlins/gremlins/cmd/gremlins
+	./bin/gremlins unleash --workers 2 --output mutation.json $(PKG)
+	$(GO) run ./cmd/repoctl mutation report --input mutation.json
 
 release:
 	VERSION=$(VERSION) ./scripts/release.sh

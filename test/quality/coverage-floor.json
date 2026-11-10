@@ -10,6 +10,7 @@
     "cmd/repoctl/internal/ghapi": 78.1,
     "cmd/repoctl/internal/grafanacheck": 88.5,
     "cmd/repoctl/internal/issueops": 85.4,
+    "cmd/repoctl/internal/mutation": 88.5,
     "cmd/repoctl/internal/osvexceptions": 86.4,
     "cmd/repoctl/internal/prcheck": 100,
     "cmd/repoctl/internal/quality": 82.9,
