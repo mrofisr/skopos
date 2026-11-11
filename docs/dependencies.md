@@ -61,7 +61,7 @@ These tools are not linked into the gateway binary:
 
 | Tool | Version | Purpose |
 | --- | --- | --- |
-| Go | `go.mod` (`1.27.3`) | Build and test; CI reads the version from `go.mod` |
+| Go | `go.mod` (`1.27.4`) | Build and test; CI reads the version from `go.mod` |
 | Helm | 3.19+ or 4.x | Chart lint and render |
 | govulncheck | v1.9.0 | Vulnerability scan |
 | Docker / Compose | any current release | ClickHouse integration tests, Loki/Tempo/cerberus harnesses, S3 + RustFS test, OBI e2e |

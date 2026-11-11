@@ -1,6 +1,6 @@
 module github.com/jawaracloud/skopos/test/compat/prometheus
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/jawaracloud/skopos v0.0.0
