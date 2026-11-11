@@ -622,7 +622,7 @@ AX-48.
 - Red tests: it fails today, which is the point; a malformed version string
   fails with a clear message.
 
-**AX-55 Cut alpha.2 (parent #36).** Blocked by: AX-50, AX-51, AX-53, AX-54.
+**AX-55 Cut alpha.2 (parent #36) (owner:human).** Blocked by: AX-50, AX-51, AX-53, AX-54.
 
 - Preconditions: `development` is promoted to `main`, the release workflow is
   re-enabled by the maintainer, and the maintainer approves publication.
@@ -652,6 +652,25 @@ command.
   review (B-08). The maintainer signs off.
 - Done when: AX-60 prints 7/7 on a clean checkout of the exit commit, linked in
   #37.
+
+**AX-62 Tickets in the to-tickets format (parent #37).** Blocked by: none.
+
+- Bodies follow the to-tickets template: a Parent section when a ticket has one,
+  What to build, Acceptance criteria as checkboxes, and Blocked by. Labels carry
+  the phase, EC, type, and owner.
+- Red tests: `TestRenderBodyUsesToTicketsSections`,
+  `TestAcceptanceItemsBecomeCheckboxes`, `TestOwnerMarkerSetsOwnerLabel`,
+  `TestLintLiveReadsOnlyTheBlockedBySection`, `TestSyncIgnoresCheckboxState`,
+  `TestSyncSkipsBodiesOfClosedIssues`, `TestSyncAddsAndRemovesNativeBlockedBy`,
+  `TestClientAddBlockedBy`.
+- Edge and negative: a ticket with no description says what it builds by its
+  title; blocker text that names no AX ticket is kept as written; a stale native
+  edge to a managed ticket is removed while a human-made edge stays; a tick made
+  on GitHub survives a sync whose plan text is unchanged; an edge to a ticket
+  created in the same run waits for the next sync.
+- Done when: `make issues-manifest-check` and `make issues-lint` pass, the dry
+  run of `make issues-sync` changes nothing on #25 to #37, and the open AX
+  tickets carry the new bodies and native edges.
 
 ## 7. Post-alpha tickets
 
@@ -758,8 +777,21 @@ The issue manifest is generated from this document. `make issues-manifest`
 writes `issues/alpha-exit.json`; CI fails when the checked-in manifest is stale.
 `make issues-sync` has a dry-run mode and is idempotent; `make issues-lint`
 validates the manifest, and its live mode runs on a schedule and inside
-`alpha-exit-check`, not on every fork PR. Every AX ticket body uses the template
-in section 4 and links back to this document.
+`alpha-exit-check`, not on every fork PR.
+
+Every AX ticket body uses the to-tickets issue template in
+[docs/agents/issue-tracker.md](agents/issue-tracker.md): a `Parent` section when
+the ticket has one, `What to build` from its description bullets, `Acceptance
+criteria` with one checkbox per Red tests, Edge and negative, or Done when item,
+and `Blocked by`. Blocking is recorded as native blocked-by edges and in that
+section. The sync rewrites the bodies of open tickets only. It ignores checkbox
+ticks made on GitHub, so a tick survives until the plan text changes. Closed
+tickets keep the body they had when they closed.
+
+The `owner:human` label comes from the `(owner:human)` marker on a ticket
+heading, so the manifest declares it and the sync keeps it. Triage roles map onto
+these labels as [docs/agents/triage-labels.md](agents/triage-labels.md) describes.
+No open ticket carries `ready-for-agent` today.
 
 Existing labels `ready-for-agent` stay only on tickets that an agent can
 actually complete. They are removed from every ticket in #38 to #47, which are

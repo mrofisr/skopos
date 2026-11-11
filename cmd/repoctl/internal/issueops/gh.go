@@ -63,6 +63,7 @@ func trimColor(color string) string {
 // remoteIssue is the subset of the GitHub issue payload this tool reads. The
 // pull_request field is present only on issues that are really pull requests.
 type remoteIssue struct {
+	ID          int64  `json:"id"`
 	Number      int    `json:"number"`
 	Title       string `json:"title"`
 	State       string `json:"state"`
@@ -81,6 +82,7 @@ func (r remoteIssue) toRemote() RemoteIssue {
 		labels = append(labels, label.Name)
 	}
 	return RemoteIssue{
+		ID:     r.ID,
 		Number: r.Number,
 		Title:  r.Title,
 		State:  r.State,
@@ -167,6 +169,39 @@ func (c *Client) RemoveLabels(ctx context.Context, number int, labels []string) 
 		if err := c.api.Do(ctx, http.MethodDelete, c.api.RepoPath("issues/%d/labels/%s", number, label), nil, nil, nil); err != nil {
 			return fmt.Errorf("remove label %q from issue #%d: %w", label, number, err)
 		}
+	}
+	return nil
+}
+
+// ListBlockedBy returns the issues that block one issue.
+func (c *Client) ListBlockedBy(ctx context.Context, number int) ([]RemoteIssue, error) {
+	raw, err := ghapi.GetAll[remoteIssue](ctx, c.api, c.api.RepoPath("issues/%d/dependencies/blocked_by", number), url.Values{"per_page": {"100"}})
+	if err != nil {
+		return nil, fmt.Errorf("list blockers of issue #%d: %w", number, err)
+	}
+	blockers := make([]RemoteIssue, 0, len(raw))
+	for _, blocker := range raw {
+		blockers = append(blockers, blocker.toRemote())
+	}
+	return blockers, nil
+}
+
+// AddBlockedBy records that blockerID blocks one issue. The id is the
+// blocker's database id, not its number.
+func (c *Client) AddBlockedBy(ctx context.Context, number int, blockerID int64) error {
+	payload := struct {
+		IssueID int64 `json:"issue_id"`
+	}{IssueID: blockerID}
+	if err := c.api.Do(ctx, http.MethodPost, c.api.RepoPath("issues/%d/dependencies/blocked_by", number), nil, payload, nil); err != nil {
+		return fmt.Errorf("block issue #%d by %d: %w", number, blockerID, err)
+	}
+	return nil
+}
+
+// RemoveBlockedBy removes the blocker with the given database id from one issue.
+func (c *Client) RemoveBlockedBy(ctx context.Context, number int, blockerID int64) error {
+	if err := c.api.Do(ctx, http.MethodDelete, c.api.RepoPath("issues/%d/dependencies/blocked_by/%d", number, blockerID), nil, nil, nil); err != nil {
+		return fmt.Errorf("unblock issue #%d from %d: %w", number, blockerID, err)
 	}
 	return nil
 }

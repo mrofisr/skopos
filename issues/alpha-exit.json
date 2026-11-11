@@ -85,7 +85,7 @@
       "ec": "ec:6",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-01 -->\nParent: none\nEC: 6\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Red tests: `TestCoverageGate_FailsBelowFloor` (script test with a fixture\n  profile under the floor).\n- Edge and negative: a package missing from the floor file fails; lowering a\n  floor fails the check.\n- Done when: `make coverage` prints per-package coverage,\n  `test/quality/coverage-floor.json` holds the measured baseline rounded down,\n  the `coverage` CI job is required, and one follow-up ticket exists per\n  critical package below 80%.\n"
+      "body": "<!-- skopos-issue: AX-01 -->\n\n## What to build\n\n- Coverage ratchet.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestCoverageGate_FailsBelowFloor` (script test with a fixture profile under the floor).\n- [ ] Edge and negative: a package missing from the floor file fails; lowering a floor fails the check.\n- [ ] Done when: `make coverage` prints per-package coverage, `test/quality/coverage-floor.json` holds the measured baseline rounded down, the `coverage` CI job is required, and one follow-up ticket exists per critical package below 80%.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-02",
@@ -94,7 +94,7 @@
       "ec": "ec:6",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-02 -->\nParent: none\nEC: 6\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Red tests: `TestMutationReport_ParsesEfficacy` (fixture tool output gives the\n  expected score); malformed output exits non-zero.\n- Edge and negative: a tool missing from PATH gives a clear error, never a\n  pass.\n- Done when: two candidate Go mutation tools (for example gremlins and\n  go-mutesting) are run on `internal/auth`, one is chosen by killed mutants and\n  run time, its exact version is pinned the way CI pins govulncheck and zizmor,\n  `make mutation PKG=./internal/auth` works, and the choice is recorded in\n  `docs/quality.md`.\n"
+      "body": "<!-- skopos-issue: AX-02 -->\n\n## What to build\n\n- Mutation harness (includes the tool choice).\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestMutationReport_ParsesEfficacy` (fixture tool output gives the expected score); malformed output exits non-zero.\n- [ ] Edge and negative: a tool missing from PATH gives a clear error, never a pass.\n- [ ] Done when: two candidate Go mutation tools (for example gremlins and go-mutesting) are run on `internal/auth`, one is chosen by killed mutants and run time, its exact version is pinned the way CI pins govulncheck and zizmor, `make mutation PKG=./internal/auth` works, and the choice is recorded in `docs/quality.md`.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-03",
@@ -105,7 +105,7 @@
       "blocked_by": [
         "AX-02"
       ],
-      "body": "<!-- skopos-issue: AX-03 -->\nParent: none\nEC: 6\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-02.\n\n- Red tests: `TestMutationGate_FailsBelowFloor` (60% against a 70% floor fails);\n  an allowlisted survivor passes; an allowlist entry with no reason fails.\n- Edge and negative: a package with zero mutants is reported, not silently\n  passed.\n- Done when: a scheduled workflow runs on sqlgen, auth, config, httpapi and\n  plan, baselines are recorded, and every package under 70% has a follow-up\n  test ticket. The nightly result is reported but does not block the alpha exit\n  unless the package is `internal/auth` or `internal/sqlgen`.\n"
+      "body": "<!-- skopos-issue: AX-03 -->\n\n## What to build\n\n- Mutation gate (nightly, advisory for alpha).\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestMutationGate_FailsBelowFloor` (60% against a 70% floor fails); an allowlisted survivor passes; an allowlist entry with no reason fails.\n- [ ] Edge and negative: a package with zero mutants is reported, not silently passed.\n- [ ] Done when: a scheduled workflow runs on sqlgen, auth, config, httpapi and plan, baselines are recorded, and every package under 70% has a follow-up test ticket. The nightly result is reported but does not block the alpha exit unless the package is `internal/auth` or `internal/sqlgen`.\n\n## Blocked by\n\n- AX-02\n"
     },
     {
       "id": "AX-04",
@@ -114,7 +114,7 @@
       "ec": "ec:6",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-04 -->\nParent: none\nEC: 6\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none (bootstrap is exempt).\n\n- Rule: a PR body must contain `Closes #N` or `Refs #N` for an issue labelled\n  `phase:alpha-exit`, unless the commit type is fix, deps, docs, security or\n  ci. A PR touching a frozen path (`internal/semctx`, `cmd/skopos-mcp`,\n  `internal/checkpoint`, `cmd/skopos-checkpoint`, `deploy/systemd`) needs the\n  label `frozen-exception` and a one-line reason.\n- Red tests: a table test with eight fixtures (valid, missing reference, closed\n  issue, non-alpha issue, exempt type, frozen path without label, frozen path\n  with label, malformed body).\n- Edge and negative: the API being unreachable fails closed for maintainers;\n  fork PRs skip the issue lookup with a visible comment and still run the\n  freeze-file check. The workflow needs `issues: read` and\n  `pull-requests: read`, reviewed under the existing zizmor policy.\n"
+      "body": "<!-- skopos-issue: AX-04 -->\n\n## What to build\n\n- Rule: a PR body must contain `Closes #N` or `Refs #N` for an issue labelled `phase:alpha-exit`, unless the commit type is fix, deps, docs, security or ci. A PR touching a frozen path (`internal/semctx`, `cmd/skopos-mcp`, `internal/checkpoint`, `cmd/skopos-checkpoint`, `deploy/systemd`) needs the label `frozen-exception` and a one-line reason.\n\n## Acceptance criteria\n\n- [ ] Red tests: a table test with eight fixtures (valid, missing reference, closed issue, non-alpha issue, exempt type, frozen path without label, frozen path with label, malformed body).\n- [ ] Edge and negative: the API being unreachable fails closed for maintainers; fork PRs skip the issue lookup with a visible comment and still run the freeze-file check. The workflow needs `issues: read` and `pull-requests: read`, reviewed under the existing zizmor policy.\n\n## Blocked by\n\n- None (bootstrap is exempt).\n"
     },
     {
       "id": "AX-05",
@@ -123,7 +123,7 @@
       "ec": "ec:7",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-05 -->\nParent: none\nEC: 7\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none (bootstrap is exempt).\n\n- Create `phase:alpha-exit`, `phase:beta`, `phase:prod`, `ec:1` to `ec:7`,\n  `frozen`, `backlog:post-alpha`, `type:micro`, `type:spike`, and\n  `owner:human`. Relabel #24 to #47; drop `ready-for-agent` from every ticket\n  in #38 to #47 and add `owner:human`.\n- Red tests: an alpha-exit issue with no `ec:*` label fails; with two fails; a\n  missing “Blocked by” section fails; a blocked-by cycle fails.\n- Done when: `make issues-lint` passes against the live repo (read-only) and\n  runs inside `alpha-exit-check`. It runs on a schedule and on demand, not on\n  every fork PR.\n"
+      "body": "<!-- skopos-issue: AX-05 -->\n\n## What to build\n\n- Create `phase:alpha-exit`, `phase:beta`, `phase:prod`, `ec:1` to `ec:7`, `frozen`, `backlog:post-alpha`, `type:micro`, `type:spike`, and `owner:human`. Relabel #24 to #47; drop `ready-for-agent` from every ticket in #38 to #47 and add `owner:human`.\n\n## Acceptance criteria\n\n- [ ] Red tests: an alpha-exit issue with no `ec:*` label fails; with two fails; a missing “Blocked by” section fails; a blocked-by cycle fails.\n- [ ] Done when: `make issues-lint` passes against the live repo (read-only) and runs inside `alpha-exit-check`. It runs on a schedule and on demand, not on every fork PR.\n\n## Blocked by\n\n- None (bootstrap is exempt).\n"
     },
     {
       "id": "AX-06",
@@ -134,7 +134,7 @@
       "blocked_by": [
         "AX-04"
       ],
-      "body": "<!-- skopos-issue: AX-06 -->\nParent: none\nEC: 6\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-04.\n\n- For PRs labelled `type:micro`, the first commit may only touch `*_test.go`,\n  `testdata/` or fixtures (read from the PR's commit list so it survives squash\n  merges).\n- Red tests: a test-only first commit passes; implementation in the first\n  commit fails; a single-commit PR fails.\n- Edge and negative: docs and ci changes are exempt with the label\n  `red-first-exempt`.\n"
+      "body": "<!-- skopos-issue: AX-06 -->\n\n## What to build\n\n- For PRs labelled `type:micro`, the first commit may only touch `*_test.go`, `testdata/` or fixtures (read from the PR's commit list so it survives squash merges).\n\n## Acceptance criteria\n\n- [ ] Red tests: a test-only first commit passes; implementation in the first commit fails; a single-commit PR fails.\n- [ ] Edge and negative: docs and ci changes are exempt with the label `red-first-exempt`.\n\n## Blocked by\n\n- AX-04\n"
     },
     {
       "id": "AX-10",
@@ -143,7 +143,7 @@
       "ec": "ec:4",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-10 -->\nParent: none\nEC: 4\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Today `GET /metrics` is registered by `internal/semctx` and exposes only\n  AI-context coverage gauges. Move the route to the gateway and register those\n  gauges in the same registry, unchanged.\n- Dependency decision: use `prometheus/client_golang`, already in go.sum as an\n  indirect dependency, and update `docs/dependencies.md`. If vetoed, use stdlib\n  text exposition.\n- Red tests: `TestMetrics_ExposesBuildInfo`,\n  `TestMetrics_ContextGaugesUnchanged` (golden of the old output),\n  `TestMetrics_RequiresAuthWhenEnabled`,\n  `TestFrontendMetrics_NotProxiedToWorkers`.\n- Edge and negative: output passes promlint; concurrent scrapes are clean under\n  `-race`.\n"
+      "body": "<!-- skopos-issue: AX-10 -->\n\n## What to build\n\n- Today `GET /metrics` is registered by `internal/semctx` and exposes only AI-context coverage gauges. Move the route to the gateway and register those gauges in the same registry, unchanged.\n- Dependency decision: use `prometheus/client_golang`, already in go.sum as an indirect dependency, and update `docs/dependencies.md`. If vetoed, use stdlib text exposition.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestMetrics_ExposesBuildInfo`, `TestMetrics_ContextGaugesUnchanged` (golden of the old output), `TestMetrics_RequiresAuthWhenEnabled`, `TestFrontendMetrics_NotProxiedToWorkers`.\n- [ ] Edge and negative: output passes promlint; concurrent scrapes are clean under `-race`.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-11",
@@ -154,7 +154,7 @@
       "blocked_by": [
         "AX-10"
       ],
-      "body": "<!-- skopos-issue: AX-11 -->\nParent: none\nEC: 4\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-10.\n\n- Metrics: `skopos_http_requests_total{head,route,code}`,\n  `skopos_http_request_duration_seconds`, `skopos_http_in_flight`,\n  `skopos_unsupported_queries_total{head,feature}`.\n- Red tests: `TestRouteLabelUsesPattern`,\n  `TestUnknownPathsDoNotGrowSeries` (1,000 random paths add at most one series),\n  `TestUnsupportedFeatureCounted` (a PromQL subquery and a TraceQL structural\n  operator each add one with a stable label).\n- Edge and negative: label values come from a closed set; a recovered panic\n  counts as a 500.\n- Why: the unsupported counter is the demand signal that decides what to build\n  after alpha.\n"
+      "body": "<!-- skopos-issue: AX-11 -->\n\n## What to build\n\n- Metrics: `skopos_http_requests_total{head,route,code}`, `skopos_http_request_duration_seconds`, `skopos_http_in_flight`, `skopos_unsupported_queries_total{head,feature}`.\n- Why: the unsupported counter is the demand signal that decides what to build after alpha.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestRouteLabelUsesPattern`, `TestUnknownPathsDoNotGrowSeries` (1,000 random paths add at most one series), `TestUnsupportedFeatureCounted` (a PromQL subquery and a TraceQL structural operator each add one with a stable label).\n- [ ] Edge and negative: label values come from a closed set; a recovered panic counts as a 500.\n\n## Blocked by\n\n- AX-10\n"
     },
     {
       "id": "AX-12",
@@ -165,7 +165,7 @@
       "blocked_by": [
         "AX-10"
       ],
-      "body": "<!-- skopos-issue: AX-12 -->\nParent: none\nEC: 4\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-10.\n\n- Capture the ClickHouse HTTP summary header (rows and bytes read; confirm its\n  name against the pinned server in the test) and export\n  `skopos_clickhouse_queries_total{head,result}`, a duration histogram,\n  `read_rows_total` and `read_bytes_total`.\n- Red tests (integration, real ClickHouse): a known fixture query increases\n  rows read by exactly the value ClickHouse reports; a ClickHouse error counts\n  as result=error without a panic.\n- Edge and negative: a missing header counts zero rows and logs at debug.\n"
+      "body": "<!-- skopos-issue: AX-12 -->\n\n## What to build\n\n- Capture the ClickHouse HTTP summary header (rows and bytes read; confirm its name against the pinned server in the test) and export `skopos_clickhouse_queries_total{head,result}`, a duration histogram, `read_rows_total` and `read_bytes_total`.\n\n## Acceptance criteria\n\n- [ ] Red tests (integration, real ClickHouse): a known fixture query increases rows read by exactly the value ClickHouse reports; a ClickHouse error counts as result=error without a panic.\n- [ ] Edge and negative: a missing header counts zero rows and logs at debug.\n\n## Blocked by\n\n- AX-10\n"
     },
     {
       "id": "AX-13",
@@ -176,7 +176,7 @@
       "blocked_by": [
         "AX-12"
       ],
-      "body": "<!-- skopos-issue: AX-13 -->\nParent: none\nEC: 4\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-12.\n\n- A recorder in the ClickHouse client records statements, tables touched and\n  rows read for one request via context; available to tests only.\n- Red tests: records N statements against a fake server; 200 parallel requests\n  never see each other's records under `-race`; a nil recorder is a no-op.\n- Why: this is what makes STG-4 possible for AX-31 to AX-38.\n"
+      "body": "<!-- skopos-issue: AX-13 -->\n\n## What to build\n\n- A recorder in the ClickHouse client records statements, tables touched and rows read for one request via context; available to tests only.\n- Why: this is what makes STG-4 possible for AX-31 to AX-38.\n\n## Acceptance criteria\n\n- [ ] Red tests: records N statements against a fake server; 200 parallel requests never see each other's records under `-race`; a nil recorder is a no-op.\n\n## Blocked by\n\n- AX-12\n"
     },
     {
       "id": "AX-14",
@@ -187,7 +187,7 @@
       "blocked_by": [
         "AX-10"
       ],
-      "body": "<!-- skopos-issue: AX-14 -->\nParent: none\nEC: 4\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-10.\n\n- Helm value `metrics.serviceMonitor.enabled`, false by default.\n- Red tests (Helm render): the default renders no ServiceMonitor; enabled\n  renders the right kind, port and path.\n- Edge and negative: enabled with an empty selector fails `helm template` with\n  a clear message.\n"
+      "body": "<!-- skopos-issue: AX-14 -->\n\n## What to build\n\n- Helm value `metrics.serviceMonitor.enabled`, false by default.\n\n## Acceptance criteria\n\n- [ ] Red tests (Helm render): the default renders no ServiceMonitor; enabled renders the right kind, port and path.\n- [ ] Edge and negative: enabled with an empty selector fails `helm template` with a clear message.\n\n## Blocked by\n\n- AX-10\n"
     },
     {
       "id": "AX-20",
@@ -196,7 +196,7 @@
       "ec": "ec:3",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-20 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Today `WriteTimeout` is a hard-coded 30 s in `cmd/gateway/main.go`, while the\n  query timeout and the ClickHouse max execution time are configurable; the\n  benchmark shows heavy requests dropped as connection resets at 30 s.\n- Derive `WriteTimeout = QueryTimeout + 5 s` and refuse to start when\n  `MaxExecutionTime > QueryTimeout`.\n- Red tests: `TestServerTimeouts_DerivedFromQueryTimeout`,\n  `TestConfig_RejectsExecutionTimeAboveQueryTimeout`.\n- Edge and negative: equal values are accepted; zero and negative are rejected.\n"
+      "body": "<!-- skopos-issue: AX-20 -->\n\n## What to build\n\n- Today `WriteTimeout` is a hard-coded 30 s in `cmd/gateway/main.go`, while the query timeout and the ClickHouse max execution time are configurable; the benchmark shows heavy requests dropped as connection resets at 30 s.\n- Derive `WriteTimeout = QueryTimeout + 5 s` and refuse to start when `MaxExecutionTime > QueryTimeout`.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestServerTimeouts_DerivedFromQueryTimeout`, `TestConfig_RejectsExecutionTimeAboveQueryTimeout`.\n- [ ] Edge and negative: equal values are accepted; zero and negative are rejected.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-21",
@@ -207,7 +207,7 @@
       "blocked_by": [
         "AX-20"
       ],
-      "body": "<!-- skopos-issue: AX-21 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-20.\n\n- The per-request deadline equals the query timeout. On expiry each head\n  answers in its own error shape as the pinned reference engine does\n  (Prometheus JSON with `errorType: timeout`; Loki and Tempo as the references\n  return, verified by the differential harness rather than guessed).\n- Red tests: a slow fake ClickHouse (1 s) with a 200 ms timeout, one test per\n  head: the client gets an HTTP response, not a reset, within 200 ms plus\n  margin; the body parses in that head's format; the fake sees the query\n  cancelled.\n- Edge and negative: a client disconnect cancels the query; a deadline during\n  response writing never writes headers twice. Split per head if this exceeds\n  400 lines.\n"
+      "body": "<!-- skopos-issue: AX-21 -->\n\n## What to build\n\n- The per-request deadline equals the query timeout. On expiry each head answers in its own error shape as the pinned reference engine does (Prometheus JSON with `errorType: timeout`; Loki and Tempo as the references return, verified by the differential harness rather than guessed).\n\n## Acceptance criteria\n\n- [ ] Red tests: a slow fake ClickHouse (1 s) with a 200 ms timeout, one test per head: the client gets an HTTP response, not a reset, within 200 ms plus margin; the body parses in that head's format; the fake sees the query cancelled.\n- [ ] Edge and negative: a client disconnect cancels the query; a deadline during response writing never writes headers twice. Split per head if this exceeds 400 lines.\n\n## Blocked by\n\n- AX-20\n"
     },
     {
       "id": "AX-22",
@@ -216,7 +216,7 @@
       "ec": "ec:3",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-22 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Bounded in-flight slots per head plus a bounded wait queue with a maximum\n  wait.\n- Red tests: `TestLimiter_RejectsBeyondCapAndQueue`,\n  `TestLimiter_ReleasesOnPanicAndCancel`, `TestLimiter_NoGoroutineLeak`,\n  `TestLimiter_FIFONoStarvation`.\n- Edge and negative: cap 1 and a large cap; queue 0; zero wait; negative values\n  rejected. In mutation scope.\n"
+      "body": "<!-- skopos-issue: AX-22 -->\n\n## What to build\n\n- Bounded in-flight slots per head plus a bounded wait queue with a maximum wait.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestLimiter_RejectsBeyondCapAndQueue`, `TestLimiter_ReleasesOnPanicAndCancel`, `TestLimiter_NoGoroutineLeak`, `TestLimiter_FIFONoStarvation`.\n- [ ] Edge and negative: cap 1 and a large cap; queue 0; zero wait; negative values rejected. In mutation scope.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-23",
@@ -229,7 +229,7 @@
         "AX-21",
         "AX-22"
       ],
-      "body": "<!-- skopos-issue: AX-23 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-11, AX-21, AX-22.\n\n- Env `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, `SKOPOS_QUEUE_WAIT`.\n  `/healthz`, `/readyz` and `/metrics` are exempt. A rejection uses the head's\n  error shape plus `Retry-After` and increments\n  `skopos_admission_rejected_total{head}`.\n- Red tests: integration with a slow fake backend, cap 4 and queue 4, a burst\n  of 20 concurrent requests: at most 8 admitted, the rest rejected with\n  `Retry-After`, 0 connection errors, probes still answer; Helm render maps\n  values to env and rejects invalid combinations.\n- Edge and negative: in distributed mode the frontend passes a worker's\n  rejection through unchanged, not as a 502.\n"
+      "body": "<!-- skopos-issue: AX-23 -->\n\n## What to build\n\n- Env `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, `SKOPOS_QUEUE_WAIT`. `/healthz`, `/readyz` and `/metrics` are exempt. A rejection uses the head's error shape plus `Retry-After` and increments `skopos_admission_rejected_total{head}`.\n\n## Acceptance criteria\n\n- [ ] Red tests: integration with a slow fake backend, cap 4 and queue 4, a burst of 20 concurrent requests: at most 8 admitted, the rest rejected with `Retry-After`, 0 connection errors, probes still answer; Helm render maps values to env and rejects invalid combinations.\n- [ ] Edge and negative: in distributed mode the frontend passes a worker's rejection through unchanged, not as a 502.\n\n## Blocked by\n\n- AX-11\n- AX-21\n- AX-22\n"
     },
     {
       "id": "AX-24",
@@ -240,7 +240,7 @@
       "blocked_by": [
         "AX-23"
       ],
-      "body": "<!-- skopos-issue: AX-24 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-23.\n\n- The chart sets `GOMEMLIMIT` as a fraction of `resources.limits.memory`\n  (override with `gateway.goMemLimit`). Startup warns when worst-case buffering\n  (`MaxInFlight × MaxResponseBytes`) exceeds the configured memory limit.\n- Red tests: `TestWorstCaseBuffering_WarnsWhenOverLimit`; Helm render: limits\n  set gives a `GOMEMLIMIT` at or under the limit, no limits gives no variable,\n  an invalid unit fails with a clear message.\n- Edge and negative: Mi, Gi, M and G units.\n"
+      "body": "<!-- skopos-issue: AX-24 -->\n\n## What to build\n\n- The chart sets `GOMEMLIMIT` as a fraction of `resources.limits.memory` (override with `gateway.goMemLimit`). Startup warns when worst-case buffering (`MaxInFlight × MaxResponseBytes`) exceeds the configured memory limit.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestWorstCaseBuffering_WarnsWhenOverLimit`; Helm render: limits set gives a `GOMEMLIMIT` at or under the limit, no limits gives no variable, an invalid unit fails with a clear message.\n- [ ] Edge and negative: Mi, Gi, M and G units.\n\n## Blocked by\n\n- AX-23\n"
     },
     {
       "id": "AX-25",
@@ -253,7 +253,7 @@
         "AX-23",
         "AX-24"
       ],
-      "body": "<!-- skopos-issue: AX-25 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-11, AX-23, AX-24.\n\n- Extend the `test/bench` concurrent run with assertions (`make bench-gate`): 0\n  transport errors, every non-2xx is a 429 or 503 with Retry-After, no OOMKill,\n  gateway peak memory under its limit. Latency goes to JSON, not a gate. Add a\n  scaled-down deterministic CI job using the slow fake backend.\n- Red tests: harness self-tests against a stub that drops connections (must\n  fail), one that returns a bare 500 (must fail), and one that sheds correctly\n  (must pass).\n- Done when: the result is written to a generated section of\n  `docs/benchmarks.md`.\n"
+      "body": "<!-- skopos-issue: AX-25 -->\n\n## What to build\n\n- Extend the `test/bench` concurrent run with assertions (`make bench-gate`): 0 transport errors, every non-2xx is a 429 or 503 with Retry-After, no OOMKill, gateway peak memory under its limit. Latency goes to JSON, not a gate. Add a scaled-down deterministic CI job using the slow fake backend.\n\n## Acceptance criteria\n\n- [ ] Red tests: harness self-tests against a stub that drops connections (must fail), one that returns a bare 500 (must fail), and one that sheds correctly (must pass).\n- [ ] Done when: the result is written to a generated section of `docs/benchmarks.md`.\n\n## Blocked by\n\n- AX-11\n- AX-23\n- AX-24\n"
     },
     {
       "id": "AX-30",
@@ -262,7 +262,7 @@
       "ec": "ec:3",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-30 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- A generic bounded TTL cache with single-flight loading and an injectable\n  clock.\n- Red tests: 100 goroutines asking for one key cause one loader call; TTL\n  expiry with a fake clock; the maximum entry count evicts instead of growing;\n  a loader error is not cached.\n- Edge and negative: TTL 0 disables caching; clean under `-race`. In mutation\n  scope.\n"
+      "body": "<!-- skopos-issue: AX-30 -->\n\n## What to build\n\n- A generic bounded TTL cache with single-flight loading and an injectable clock.\n\n## Acceptance criteria\n\n- [ ] Red tests: 100 goroutines asking for one key cause one loader call; TTL expiry with a fake clock; the maximum entry count evicts instead of growing; a loader error is not cached.\n- [ ] Edge and negative: TTL 0 disables caching; clean under `-race`. In mutation scope.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-31",
@@ -273,7 +273,7 @@
       "blocked_by": [
         "AX-13"
       ],
-      "body": "<!-- skopos-issue: AX-31 -->\nParent: #25\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-13.\n\n- An exact `__name__` matcher queries only the tables that can hold that name.\n  A regex or absent `__name__` falls back to all tables. Derived histogram and\n  summary names (`_bucket`, `_sum`, `_count`, quantile) route to the right\n  table.\n- Red tests: `TestGaugeSelector_DoesNotTouchHistogramOrSummary` (the recorder\n  shows only the gauge table), golden SQL, `TestUnknownMetric_ReadsZeroRows`;\n  the 212-case PromQL oracle stays at 0 divergences.\n- Edge and negative: a name present in two tables queries both; `!=` and\n  alternation matchers fall back safely.\n"
+      "body": "<!-- skopos-issue: AX-31 -->\n\n## Parent\n\n#25\n\n## What to build\n\n- An exact `__name__` matcher queries only the tables that can hold that name. A regex or absent `__name__` falls back to all tables. Derived histogram and summary names (`_bucket`, `_sum`, `_count`, quantile) route to the right table.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestGaugeSelector_DoesNotTouchHistogramOrSummary` (the recorder shows only the gauge table), golden SQL, `TestUnknownMetric_ReadsZeroRows`; the 212-case PromQL oracle stays at 0 divergences.\n- [ ] Edge and negative: a name present in two tables queries both; `!=` and alternation matchers fall back safely.\n\n## Blocked by\n\n- AX-13\n"
     },
     {
       "id": "AX-32",
@@ -285,7 +285,7 @@
         "AX-30",
         "AX-31"
       ],
-      "body": "<!-- skopos-issue: AX-32 -->\nParent: #25\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-30, AX-31.\n\n- Cache metric type, unit and description plus a per-table non-empty flag, with\n  a documented TTL (`SKOPOS_METADATA_TTL`, proposed default 30 s).\n- Red tests: an empty table causes 0 data scans (recorder); a table that gains\n  data is picked up after the TTL (fake clock); a metadata error returns an\n  error, never a stale empty result.\n- Edge and negative: concurrent first requests cause one metadata query.\n"
+      "body": "<!-- skopos-issue: AX-32 -->\n\n## Parent\n\n#25\n\n## What to build\n\n- Cache metric type, unit and description plus a per-table non-empty flag, with a documented TTL (`SKOPOS_METADATA_TTL`, proposed default 30 s).\n\n## Acceptance criteria\n\n- [ ] Red tests: an empty table causes 0 data scans (recorder); a table that gains data is picked up after the TTL (fake clock); a metadata error returns an error, never a stale empty result.\n- [ ] Edge and negative: concurrent first requests cause one metadata query.\n\n## Blocked by\n\n- AX-30\n- AX-31\n"
     },
     {
       "id": "AX-33",
@@ -297,7 +297,7 @@
         "AX-13",
         "AX-30"
       ],
-      "body": "<!-- skopos-issue: AX-33 -->\nParent: #26\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-13, AX-30.\n\n- `/api/v1/label/<name>/values` (including `__name__`) is computed with\n  `SELECT DISTINCT` in ClickHouse across the relevant tables, honoring\n  `match[]` and the time range. Go no longer fetches series to compute it.\n- Red tests: a property test on a randomized dataset where the new path equals\n  the old Go path (kept until the old one is removed); no duplicates or drops\n  for gauge, sum and histogram labels; a failure on the second of three table\n  queries returns an API error, never a partial result; rows read is bounded\n  (recorder).\n- Edge and negative: empty result; the limit is respected at high cardinality.\n"
+      "body": "<!-- skopos-issue: AX-33 -->\n\n## Parent\n\n#26\n\n## What to build\n\n- `/api/v1/label/<name>/values` (including `__name__`) is computed with `SELECT DISTINCT` in ClickHouse across the relevant tables, honoring `match[]` and the time range. Go no longer fetches series to compute it.\n\n## Acceptance criteria\n\n- [ ] Red tests: a property test on a randomized dataset where the new path equals the old Go path (kept until the old one is removed); no duplicates or drops for gauge, sum and histogram labels; a failure on the second of three table queries returns an API error, never a partial result; rows read is bounded (recorder).\n- [ ] Edge and negative: empty result; the limit is respected at high cardinality.\n\n## Blocked by\n\n- AX-13\n- AX-30\n"
     },
     {
       "id": "AX-34",
@@ -308,7 +308,7 @@
       "blocked_by": [
         "AX-33"
       ],
-      "body": "<!-- skopos-issue: AX-34 -->\nParent: none\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-33.\n\n- `/api/v1/labels` gets the same treatment, with a cache whose TTL and\n  invalidation are documented and whose size is bounded.\n- Red tests: results equal the old path; a second call inside the TTL issues 0\n  statements; the TTL expires correctly.\n- Edge and negative: the cache key includes `match[]` and the time-range\n  bucket; an error clears the entry.\n"
+      "body": "<!-- skopos-issue: AX-34 -->\n\n## What to build\n\n- `/api/v1/labels` gets the same treatment, with a cache whose TTL and invalidation are documented and whose size is bounded.\n\n## Acceptance criteria\n\n- [ ] Red tests: results equal the old path; a second call inside the TTL issues 0 statements; the TTL expires correctly.\n- [ ] Edge and negative: the cache key includes `match[]` and the time-range bucket; an error clears the entry.\n\n## Blocked by\n\n- AX-33\n"
     },
     {
       "id": "AX-35",
@@ -319,7 +319,7 @@
       "blocked_by": [
         "AX-13"
       ],
-      "body": "<!-- skopos-issue: AX-35 -->\nParent: #28\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-13.\n\n- Span intrinsics (name, duration, status, kind) inside `{ ... }` compile to\n  SQL `WHERE`, so rows are filtered before they reach Go.\n- Red tests: golden SQL per operator; the 55-case Tempo corpus stays at 0\n  diffs; rows read is bounded by matching spans (recorder).\n- Edge and negative: regex operators whose semantics differ between RE2 and\n  ClickHouse fall back to an explicit documented limit; duration units; extend\n  the fuzz job to the new emitter paths (property: user-supplied text is never\n  concatenated into SQL).\n"
+      "body": "<!-- skopos-issue: AX-35 -->\n\n## Parent\n\n#28\n\n## What to build\n\n- Span intrinsics (name, duration, status, kind) inside `{ ... }` compile to SQL `WHERE`, so rows are filtered before they reach Go.\n\n## Acceptance criteria\n\n- [ ] Red tests: golden SQL per operator; the 55-case Tempo corpus stays at 0 diffs; rows read is bounded by matching spans (recorder).\n- [ ] Edge and negative: regex operators whose semantics differ between RE2 and ClickHouse fall back to an explicit documented limit; duration units; extend the fuzz job to the new emitter paths (property: user-supplied text is never concatenated into SQL).\n\n## Blocked by\n\n- AX-13\n"
     },
     {
       "id": "AX-36",
@@ -330,7 +330,7 @@
       "blocked_by": [
         "AX-35"
       ],
-      "body": "<!-- skopos-issue: AX-36 -->\nParent: #28\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-35.\n\n- `span.` and `resource.` attribute filters (map lookups) in SQL, with\n  type-coercion rules documented.\n- Red tests: as AX-35, plus the missing-versus-empty-versus-null cases from the\n  corpus; the fuzz property is extended to attribute keys.\n- Edge and negative: attribute keys with dots, quotes and unicode; numeric\n  versus string comparison.\n"
+      "body": "<!-- skopos-issue: AX-36 -->\n\n## Parent\n\n#28\n\n## What to build\n\n- `span.` and `resource.` attribute filters (map lookups) in SQL, with type-coercion rules documented.\n\n## Acceptance criteria\n\n- [ ] Red tests: as AX-35, plus the missing-versus-empty-versus-null cases from the corpus; the fuzz property is extended to attribute keys.\n- [ ] Edge and negative: attribute keys with dots, quotes and unicode; numeric versus string comparison.\n\n## Blocked by\n\n- AX-35\n"
     },
     {
       "id": "AX-37",
@@ -341,7 +341,7 @@
       "blocked_by": [
         "AX-35"
       ],
-      "body": "<!-- skopos-issue: AX-37 -->\nParent: #28\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-35.\n\n- `limit`, `spss` and newest-first ordering are resolved in ClickHouse before\n  rows reach Go.\n- Red tests: `TestSearchLimit_ReadsBoundedRows` (recorder); ordering matches the\n  reference on the corpus.\n- Edge and negative: limit 0, 1 and the maximum; ties in start time are ordered\n  by a stable secondary key.\n"
+      "body": "<!-- skopos-issue: AX-37 -->\n\n## Parent\n\n#28\n\n## What to build\n\n- `limit`, `spss` and newest-first ordering are resolved in ClickHouse before rows reach Go.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestSearchLimit_ReadsBoundedRows` (recorder); ordering matches the reference on the corpus.\n- [ ] Edge and negative: limit 0, 1 and the maximum; ties in start time are ordered by a stable secondary key.\n\n## Blocked by\n\n- AX-35\n"
     },
     {
       "id": "AX-38",
@@ -353,7 +353,7 @@
         "AX-30",
         "AX-35"
       ],
-      "body": "<!-- skopos-issue: AX-38 -->\nParent: #28\nEC: 3\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-30, AX-35.\n\n- Tags, scopes and tag values computed in ClickHouse with a limit and a short\n  cache.\n- Red tests: the 5 scope cases and 10 tag-value cases in the corpus are\n  unchanged; rows read is bounded; a second call inside the TTL issues 0\n  statements.\n- Edge and negative: empty dataset; a high-cardinality tag is capped.\n"
+      "body": "<!-- skopos-issue: AX-38 -->\n\n## Parent\n\n#28\n\n## What to build\n\n- Tags, scopes and tag values computed in ClickHouse with a limit and a short cache.\n\n## Acceptance criteria\n\n- [ ] Red tests: the 5 scope cases and 10 tag-value cases in the corpus are unchanged; rows read is bounded; a second call inside the TTL issues 0 statements.\n- [ ] Edge and negative: empty dataset; a high-cardinality tag is capped.\n\n## Blocked by\n\n- AX-30\n- AX-35\n"
     },
     {
       "id": "AX-39",
@@ -365,7 +365,7 @@
         "AX-11",
         "AX-12"
       ],
-      "body": "<!-- skopos-issue: AX-39 -->\nParent: none\nEC: 3\nType: spike\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-11, AX-12.\n\n- Time-boxed to one day: pprof plus the new metrics from the 30-client run.\n  Deliverable is `docs/perf/range-query-findings.md` with ranked causes, a\n  reproducible `make profile-range`, and at least one micro-ticket per cause.\n- Red tests: with the profiling flag off there is no pprof route; with it on,\n  the route requires auth.\n- Done when: another person can reproduce the findings from the document. No\n  other code merges.\n"
+      "body": "<!-- skopos-issue: AX-39 -->\n\n## What to build\n\n- Time-boxed to one day: pprof plus the new metrics from the 30-client run. Deliverable is `docs/perf/range-query-findings.md` with ranked causes, a reproducible `make profile-range`, and at least one micro-ticket per cause.\n\n## Acceptance criteria\n\n- [ ] Red tests: with the profiling flag off there is no pprof route; with it on, the route requires auth.\n- [ ] Done when: another person can reproduce the findings from the document. No other code merges.\n\n## Blocked by\n\n- AX-11\n- AX-12\n"
     },
     {
       "id": "AX-40",
@@ -374,7 +374,7 @@
       "ec": "ec:1",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-40 -->\nParent: none\nEC: 1\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- A compose stack with a Grafana image pinned by digest, the gateway,\n  ClickHouse and seed data. It provisions the three datasources from\n  `deploy/examples/grafana/provisioning` and asserts each datasource's health\n  check passes. Reuse the existing OBI e2e compose stack and schema renderer;\n  do not add a second stack. Grafana runs as a black-box container, the same\n  pattern as the pinned Loki and Tempo references; no code is linked.\n- Red tests: harness self-tests: a stopped gateway fails with a clear message;\n  wrong credentials with auth enabled fail.\n- Edge and negative: runs on a standard CI runner without privileged mode.\n"
+      "body": "<!-- skopos-issue: AX-40 -->\n\n## What to build\n\n- A compose stack with a Grafana image pinned by digest, the gateway, ClickHouse and seed data. It provisions the three datasources from `deploy/examples/grafana/provisioning` and asserts each datasource's health check passes. Reuse the existing OBI e2e compose stack and schema renderer; do not add a second stack. Grafana runs as a black-box container, the same pattern as the pinned Loki and Tempo references; no code is linked.\n\n## Acceptance criteria\n\n- [ ] Red tests: harness self-tests: a stopped gateway fails with a clear message; wrong credentials with auth enabled fail.\n- [ ] Edge and negative: runs on a standard CI runner without privileged mode.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-41",
@@ -385,7 +385,7 @@
       "blocked_by": [
         "AX-40"
       ],
-      "body": "<!-- skopos-issue: AX-41 -->\nParent: none\nEC: 1\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-40.\n\n- Through Grafana's own query API: an instant query, a range query with\n  `$__rate_interval` resolved, a `label_values()` variable query and the metric\n  browser's label calls, with frames compared to the reference Prometheus on\n  the same seed.\n- Red tests: each step asserts HTTP 200 and frame equality with the reference.\n- Edge and negative: a deliberately unsupported query (a subquery) produces an\n  error message Grafana can show, not an empty panel; a panel with six or more\n  series.\n"
+      "body": "<!-- skopos-issue: AX-41 -->\n\n## What to build\n\n- Through Grafana's own query API: an instant query, a range query with `$__rate_interval` resolved, a `label_values()` variable query and the metric browser's label calls, with frames compared to the reference Prometheus on the same seed.\n\n## Acceptance criteria\n\n- [ ] Red tests: each step asserts HTTP 200 and frame equality with the reference.\n- [ ] Edge and negative: a deliberately unsupported query (a subquery) produces an error message Grafana can show, not an empty panel; a panel with six or more series.\n\n## Blocked by\n\n- AX-40\n"
     },
     {
       "id": "AX-42",
@@ -397,7 +397,7 @@
         "AX-40",
         "AX-46"
       ],
-      "body": "<!-- skopos-issue: AX-42 -->\nParent: none\nEC: 1\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-40, AX-46.\n\n- Labels and label values, a stream selector with a line filter and `| json`,\n  and the log-volume `count_over_time` query that Explore sends, compared to\n  the reference Loki.\n- Red tests: as AX-41, one assertion per step.\n- Edge and negative: an unsupported stage returns an explicit error.\n"
+      "body": "<!-- skopos-issue: AX-42 -->\n\n## What to build\n\n- Labels and label values, a stream selector with a line filter and `| json`, and the log-volume `count_over_time` query that Explore sends, compared to the reference Loki.\n\n## Acceptance criteria\n\n- [ ] Red tests: as AX-41, one assertion per step.\n- [ ] Edge and negative: an unsupported stage returns an explicit error.\n\n## Blocked by\n\n- AX-40\n- AX-46\n"
     },
     {
       "id": "AX-43",
@@ -408,7 +408,7 @@
       "blocked_by": [
         "AX-40"
       ],
-      "body": "<!-- skopos-issue: AX-43 -->\nParent: none\nEC: 1\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-40.\n\n- Search by tags and by TraceQL, trace by ID as Grafana requests it, tag and\n  tag-value autocomplete, compared to the reference Tempo.\n- Red tests: as AX-41.\n- Edge and negative: a structural operator returns an explicit error.\n"
+      "body": "<!-- skopos-issue: AX-43 -->\n\n## What to build\n\n- Search by tags and by TraceQL, trace by ID as Grafana requests it, tag and tag-value autocomplete, compared to the reference Tempo.\n\n## Acceptance criteria\n\n- [ ] Red tests: as AX-41.\n- [ ] Edge and negative: a structural operator returns an explicit error.\n\n## Blocked by\n\n- AX-40\n"
     },
     {
       "id": "AX-44",
@@ -419,7 +419,7 @@
       "blocked_by": [
         "AX-40"
       ],
-      "body": "<!-- skopos-issue: AX-44 -->\nParent: none\nEC: 1\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-40.\n\n- Commit `deploy/examples/grafana/dashboards/obi-red.json`: request rate,\n  errors and duration percentiles from `http_server_request_duration_seconds_*`\n  and the client-side equivalents. This dashboard is the product promise\n  (no-code observability into Grafana), so it is the acceptance test.\n- Red tests: the harness extracts every panel target and runs it through\n  Grafana's query API on OBI-shaped seed data: 0 errors, at least one non-empty\n  series per panel. Adding a panel with an unsupported function fails CI and\n  names the function.\n- Edge and negative: dashboard variables (namespace, service) resolve through\n  `label_values`. The real OBI end-to-end run stays manual; the seed data uses\n  OBI's metric and label names.\n"
+      "body": "<!-- skopos-issue: AX-44 -->\n\n## What to build\n\n- Commit `deploy/examples/grafana/dashboards/obi-red.json`: request rate, errors and duration percentiles from `http_server_request_duration_seconds_*` and the client-side equivalents. This dashboard is the product promise (no-code observability into Grafana), so it is the acceptance test.\n\n## Acceptance criteria\n\n- [ ] Red tests: the harness extracts every panel target and runs it through Grafana's query API on OBI-shaped seed data: 0 errors, at least one non-empty series per panel. Adding a panel with an unsupported function fails CI and names the function.\n- [ ] Edge and negative: dashboard variables (namespace, service) resolve through `label_values`. The real OBI end-to-end run stays manual; the seed data uses OBI's metric and label names.\n\n## Blocked by\n\n- AX-40\n"
     },
     {
       "id": "AX-45",
@@ -428,7 +428,7 @@
       "ec": "ec:2",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-45 -->\nParent: none\nEC: 2\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- A test iterates every function in the vendored Prometheus parser's function\n  table and classifies each as supported or explicit-error. Upgrading\n  Prometheus to a version that adds a function fails the test until it is\n  classified.\n- Red tests: `TestEveryParserFunctionIsClassified`.\n- Edge and negative: every explicit-error function returns a Prometheus-shaped\n  error, never a 200 with an empty result.\n"
+      "body": "<!-- skopos-issue: AX-45 -->\n\n## What to build\n\n- A test iterates every function in the vendored Prometheus parser's function table and classifies each as supported or explicit-error. Upgrading Prometheus to a version that adds a function fails the test until it is classified.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestEveryParserFunctionIsClassified`.\n- [ ] Edge and negative: every explicit-error function returns a Prometheus-shaped error, never a 200 with an empty result.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-46",
@@ -437,7 +437,7 @@
       "ec": "ec:2",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-46 -->\nParent: none\nEC: 2\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- The upstream baseline seeds 30 near-identical log lines, which its own\n  Limitations section calls out as weak evidence. Seed varied levels, JSON and\n  logfmt fields, multi-line entries, unicode and empty bodies.\n- Red tests: `TestFixtureExercisesParsers` (parser-stage cases must yield\n  non-trivial, distinct results); the baseline is re-run and every mismatch\n  becomes a fix ticket.\n- Edge and negative: entries with identical timestamps; a very long line.\n"
+      "body": "<!-- skopos-issue: AX-46 -->\n\n## What to build\n\n- The upstream baseline seeds 30 near-identical log lines, which its own Limitations section calls out as weak evidence. Seed varied levels, JSON and logfmt fields, multi-line entries, unicode and empty bodies.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestFixtureExercisesParsers` (parser-stage cases must yield non-trivial, distinct results); the baseline is re-run and every mismatch becomes a fix ticket.\n- [ ] Edge and negative: entries with identical timestamps; a very long line.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-47",
@@ -448,7 +448,7 @@
       "blocked_by": [
         "AX-46"
       ],
-      "body": "<!-- skopos-issue: AX-47 -->\nParent: #32\nEC: 2\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-46.\n\n- Enumerate the stages and functions of the pinned Loki grammar (3.5.7) as\n  supported or explicit-error, so any unsupported construct (for example\n  `unwrap` or `decolorize`, whichever apply) errors instead of being ignored.\n- Red tests: `TestEveryLogQLConstructClassified`.\n- Edge and negative: the error body is in Loki's shape. Done when #32 is closed\n  as satisfied, with feature work deferred to B-07.\n"
+      "body": "<!-- skopos-issue: AX-47 -->\n\n## Parent\n\n#32\n\n## What to build\n\n- Enumerate the stages and functions of the pinned Loki grammar (3.5.7) as supported or explicit-error, so any unsupported construct (for example `unwrap` or `decolorize`, whichever apply) errors instead of being ignored.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestEveryLogQLConstructClassified`.\n- [ ] Edge and negative: the error body is in Loki's shape. Done when #32 is closed as satisfied, with feature work deferred to B-07.\n\n## Blocked by\n\n- AX-46\n"
     },
     {
       "id": "AX-48",
@@ -457,7 +457,7 @@
       "ec": "ec:2",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-48 -->\nParent: #33\nEC: 2\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Make the rejected-forms table in `docs/traceql-support.md` executable: the\n  test parses the table and checks that each example returns the documented\n  error.\n- Red tests: `TestRejectedFormsMatchDocs`.\n- Edge and negative: adding an undocumented rejected form fails the test;\n  whitespace and nesting variants of each form.\n"
+      "body": "<!-- skopos-issue: AX-48 -->\n\n## Parent\n\n#33\n\n## What to build\n\n- Make the rejected-forms table in `docs/traceql-support.md` executable: the test parses the table and checks that each example returns the documented error.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestRejectedFormsMatchDocs`.\n- [ ] Edge and negative: adding an undocumented rejected form fails the test; whitespace and nesting variants of each form.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-49",
@@ -470,7 +470,7 @@
         "AX-47",
         "AX-48"
       ],
-      "body": "<!-- skopos-issue: AX-49 -->\nParent: none\nEC: 2\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-45, AX-47, AX-48.\n\n- `docs/support-matrix.md` and a Limits section are generated from the\n  inventory results and the config defaults (maximum range, scan-row cap,\n  response-size cap, in-flight cap). CI fails on a diff. This replaces\n  hand-written status claims, such as the note that the k3d smoke test is not\n  automated.\n- Red tests: a golden test for the generator; changing a config default without\n  regenerating fails CI; a matrix row with no test reference makes the\n  generator error.\n"
+      "body": "<!-- skopos-issue: AX-49 -->\n\n## What to build\n\n- `docs/support-matrix.md` and a Limits section are generated from the inventory results and the config defaults (maximum range, scan-row cap, response-size cap, in-flight cap). CI fails on a diff. This replaces hand-written status claims, such as the note that the k3d smoke test is not automated.\n\n## Acceptance criteria\n\n- [ ] Red tests: a golden test for the generator; changing a config default without regenerating fails CI; a matrix row with no test reference makes the generator error.\n\n## Blocked by\n\n- AX-45\n- AX-47\n- AX-48\n"
     },
     {
       "id": "AX-50",
@@ -479,7 +479,7 @@
       "ec": "ec:5",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-50 -->\nParent: none\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- `scripts/check-code-scanning.sh` fails when any open alert is high or\n  critical; the release workflow calls it.\n- Red tests: stubbed API fixtures: 0 alerts passes, 1 high fails, an API error\n  fails closed.\n"
+      "body": "<!-- skopos-issue: AX-50 -->\n\n## What to build\n\n- `scripts/check-code-scanning.sh` fails when any open alert is high or critical; the release workflow calls it.\n\n## Acceptance criteria\n\n- [ ] Red tests: stubbed API fixtures: 0 alerts passes, 1 high fails, an API error fails closed.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-51",
@@ -488,7 +488,7 @@
       "ec": "ec:5",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-51 -->\nParent: none\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- `docs/security/osv-exceptions.yaml` entries need an id, a reason and an\n  expiry date; a script fails on an expired or reason-less entry.\n- Red tests: fixtures for valid, expired, missing reason and unknown id.\n"
+      "body": "<!-- skopos-issue: AX-51 -->\n\n## What to build\n\n- `docs/security/osv-exceptions.yaml` entries need an id, a reason and an expiry date; a script fails on an expired or reason-less entry.\n\n## Acceptance criteria\n\n- [ ] Red tests: fixtures for valid, expired, missing reason and unknown id.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-52",
@@ -497,7 +497,7 @@
       "ec": "ec:5",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-52 -->\nParent: none\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- Store the `main` ruleset in `docs/security/ruleset.json` and check that its\n  required checks equal the job names in `ci.yml`. Record the solo-maintainer\n  review exception already accepted in `docs/openssf-scorecard.md`.\n- Red tests: renaming a CI job fails the check; adding a required check only in\n  the ruleset fails it.\n"
+      "body": "<!-- skopos-issue: AX-52 -->\n\n## What to build\n\n- Store the `main` ruleset in `docs/security/ruleset.json` and check that its required checks equal the job names in `ci.yml`. Record the solo-maintainer review exception already accepted in `docs/openssf-scorecard.md`.\n\n## Acceptance criteria\n\n- [ ] Red tests: renaming a CI job fails the check; adding a required check only in the ruleset fails it.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-53",
@@ -506,7 +506,7 @@
       "ec": "ec:5",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-53 -->\nParent: #36\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: none.\n\n- `make release-verify TAG=` verifies image and chart signatures against the\n  release workflow identity, checks that SBOM and provenance exist, and checks\n  that the digest in `values.release.yaml` equals the image digest.\n- Red tests: an unsigned image fails; a digest mismatch fails; a missing SBOM\n  fails; the correct fixture passes.\n"
+      "body": "<!-- skopos-issue: AX-53 -->\n\n## Parent\n\n#36\n\n## What to build\n\n- `make release-verify TAG=` verifies image and chart signatures against the release workflow identity, checks that SBOM and provenance exist, and checks that the digest in `values.release.yaml` equals the image digest.\n\n## Acceptance criteria\n\n- [ ] Red tests: an unsigned image fails; a digest mismatch fails; a missing SBOM fails; the correct fixture passes.\n\n## Blocked by\n\n- None (can start immediately).\n"
     },
     {
       "id": "AX-54",
@@ -517,7 +517,7 @@
       "blocked_by": [
         "AX-53"
       ],
-      "body": "<!-- skopos-issue: AX-54 -->\nParent: #36\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-53.\n\n- Extract the README shell blocks tagged `quickstart`, run them in a clean k3d\n  against the published chart, and fail if the README names a chart version\n  that does not exist in the registry. Today the README says `0.1.0-alpha.2`\n  while the Releases page lists only `skopos-0.1.0-alpha.1`.\n- Red tests: it fails today, which is the point; a malformed version string\n  fails with a clear message.\n"
+      "body": "<!-- skopos-issue: AX-54 -->\n\n## Parent\n\n#36\n\n## What to build\n\n- Extract the README shell blocks tagged `quickstart`, run them in a clean k3d against the published chart, and fail if the README names a chart version that does not exist in the registry. Today the README says `0.1.0-alpha.2` while the Releases page lists only `skopos-0.1.0-alpha.1`.\n\n## Acceptance criteria\n\n- [ ] Red tests: it fails today, which is the point; a malformed version string fails with a clear message.\n\n## Blocked by\n\n- AX-53\n"
     },
     {
       "id": "AX-55",
@@ -525,13 +525,14 @@
       "phase": "phase:alpha-exit",
       "ec": "ec:5",
       "type": "type:micro",
+      "owner": "owner:human",
       "blocked_by": [
         "AX-50",
         "AX-51",
         "AX-53",
         "AX-54"
       ],
-      "body": "<!-- skopos-issue: AX-55 -->\nParent: #36\nEC: 5\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-50, AX-51, AX-53, AX-54.\n\n- Preconditions: `development` is promoted to `main`, the release workflow is\n  re-enabled by the maintainer, and the maintainer approves publication.\n- Tag `v0.1.0-alpha.2` through the release workflow and attach the AX-53\n  output. This is deliberately decoupled from #29 and #34 so the quickstart\n  works now; the exit candidate reuses the same pipeline.\n- Done when: AX-53 and AX-54 are green against the published artifacts and the\n  Dockerfile `ARG VERSION` default is updated.\n"
+      "body": "<!-- skopos-issue: AX-55 -->\n\n## Parent\n\n#36\n\n## What to build\n\n- Preconditions: `development` is promoted to `main`, the release workflow is re-enabled by the maintainer, and the maintainer approves publication.\n- Tag `v0.1.0-alpha.2` through the release workflow and attach the AX-53 output. This is deliberately decoupled from #29 and #34 so the quickstart works now; the exit candidate reuses the same pipeline.\n\n## Acceptance criteria\n\n- [ ] Done when: AX-53 and AX-54 are green against the published artifacts and the Dockerfile `ARG VERSION` default is updated.\n\n## Blocked by\n\n- AX-50\n- AX-51\n- AX-53\n- AX-54\n"
     },
     {
       "id": "AX-60",
@@ -540,7 +541,7 @@
       "ec": "ec:7",
       "type": "type:micro",
       "blocked_by": [],
-      "body": "<!-- skopos-issue: AX-60 -->\nParent: #37\nEC: 7\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: every EC evidence command.\n\n- Aggregates the machine-readable results of EC1 to EC7 into one table, exits\n  non-zero if any fails, and writes `docs/alpha-exit-report.md` (generated).\n- Red tests: fixture bundles: all pass gives 0; each single failing EC gives\n  non-zero and names it; a missing evidence file fails (fail closed); evidence\n  older than the configured age or from a different commit fails.\n- Done when: the check consumes `test/quality/evidence/ec-*.json` with\n  `status`, `commit`, `timestamp`, and `command`.\n"
+      "body": "<!-- skopos-issue: AX-60 -->\n\n## Parent\n\n#37\n\n## What to build\n\n- Aggregates the machine-readable results of EC1 to EC7 into one table, exits non-zero if any fails, and writes `docs/alpha-exit-report.md` (generated).\n\n## Acceptance criteria\n\n- [ ] Red tests: fixture bundles: all pass gives 0; each single failing EC gives non-zero and names it; a missing evidence file fails (fail closed); evidence older than the configured age or from a different commit fails.\n- [ ] Done when: the check consumes `test/quality/evidence/ec-*.json` with `status`, `commit`, `timestamp`, and `command`.\n\n## Blocked by\n\n- Every EC evidence command.\n"
     },
     {
       "id": "AX-61",
@@ -551,7 +552,16 @@
       "blocked_by": [
         "AX-60"
       ],
-      "body": "<!-- skopos-issue: AX-61 -->\nParent: #37\nEC: 7\nType: micro\nPlan: docs/alpha-exit-plan.md\n\nBlocked by: AX-60.\n\n- A script updates the generated status sections in the README and\n  `docs/beta-gates.md`, opens the Beta milestone, and starts the unfreeze\n  review (B-08). The maintainer signs off.\n- Done when: AX-60 prints 7/7 on a clean checkout of the exit commit, linked in\n  #37.\n"
+      "body": "<!-- skopos-issue: AX-61 -->\n\n## Parent\n\n#37\n\n## What to build\n\n- A script updates the generated status sections in the README and `docs/beta-gates.md`, opens the Beta milestone, and starts the unfreeze review (B-08). The maintainer signs off.\n\n## Acceptance criteria\n\n- [ ] Done when: AX-60 prints 7/7 on a clean checkout of the exit commit, linked in #37.\n\n## Blocked by\n\n- AX-60\n"
+    },
+    {
+      "id": "AX-62",
+      "title": "AX-62: Tickets in the to-tickets format",
+      "phase": "phase:alpha-exit",
+      "ec": "ec:7",
+      "type": "type:micro",
+      "blocked_by": [],
+      "body": "<!-- skopos-issue: AX-62 -->\n\n## Parent\n\n#37\n\n## What to build\n\n- Bodies follow the to-tickets template: a Parent section when a ticket has one, What to build, Acceptance criteria as checkboxes, and Blocked by. Labels carry the phase, EC, type, and owner.\n\n## Acceptance criteria\n\n- [ ] Red tests: `TestRenderBodyUsesToTicketsSections`, `TestAcceptanceItemsBecomeCheckboxes`, `TestOwnerMarkerSetsOwnerLabel`, `TestLintLiveReadsOnlyTheBlockedBySection`, `TestSyncIgnoresCheckboxState`, `TestSyncSkipsBodiesOfClosedIssues`, `TestSyncAddsAndRemovesNativeBlockedBy`, `TestClientAddBlockedBy`.\n- [ ] Edge and negative: a ticket with no description says what it builds by its title; blocker text that names no AX ticket is kept as written; a stale native edge to a managed ticket is removed while a human-made edge stays; a tick made on GitHub survives a sync whose plan text is unchanged; an edge to a ticket created in the same run waits for the next sync.\n- [ ] Done when: `make issues-manifest-check` and `make issues-lint` pass, the dry run of `make issues-sync` changes nothing on #25 to #37, and the open AX tickets carry the new bodies and native edges.\n\n## Blocked by\n\n- None (can start immediately).\n"
     }
   ],
   "existing": [

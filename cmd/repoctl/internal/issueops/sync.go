@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 )
 
 // RemoteIssue is the subset of a GitHub issue this tool needs.
 type RemoteIssue struct {
+	ID     int64
 	Number int
 	Title  string
 	State  string
@@ -26,6 +28,9 @@ type GitHub interface {
 	UpdateIssue(ctx context.Context, number int, issue Issue) error
 	AddLabels(ctx context.Context, number int, labels []string) error
 	RemoveLabels(ctx context.Context, number int, labels []string) error
+	ListBlockedBy(ctx context.Context, number int) ([]RemoteIssue, error)
+	AddBlockedBy(ctx context.Context, number int, blockerID int64) error
+	RemoveBlockedBy(ctx context.Context, number int, blockerID int64) error
 }
 
 type actionKind int
@@ -36,14 +41,17 @@ const (
 	actionUpdateIssue
 	actionAddLabels
 	actionRemoveLabels
+	actionAddBlockedBy
+	actionRemoveBlockedBy
 )
 
 type action struct {
-	kind  actionKind
-	label Label
-	issue Issue
-	num   int
-	names []string
+	kind    actionKind
+	label   Label
+	issue   Issue
+	num     int
+	names   []string
+	blocker RemoteIssue
 }
 
 func (a action) String() string {
@@ -58,13 +66,18 @@ func (a action) String() string {
 		return fmt.Sprintf("issue #%d add labels %s", a.num, strings.Join(a.names, ","))
 	case actionRemoveLabels:
 		return fmt.Sprintf("issue #%d remove labels %s", a.num, strings.Join(a.names, ","))
+	case actionAddBlockedBy:
+		return fmt.Sprintf("issue #%d blocked by #%d", a.num, a.blocker.Number)
+	case actionRemoveBlockedBy:
+		return fmt.Sprintf("issue #%d no longer blocked by #%d", a.num, a.blocker.Number)
 	default:
 		return "unknown action"
 	}
 }
 
-// SyncPlan computes the label and issue mutations needed to reach the manifest.
-func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue) ([]action, error) {
+// SyncPlan computes the label, issue, and blocker mutations needed to reach the
+// manifest. blockers maps each open managed issue number to its current blockers.
+func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue, blockers map[int][]RemoteIssue) ([]action, error) {
 	if errs := m.Validate(); len(errs) > 0 {
 		return nil, fmt.Errorf("invalid manifest: %v", errs)
 	}
@@ -85,10 +98,7 @@ func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue) ([]
 	byNumber := map[int]RemoteIssue{}
 	for _, issue := range remoteIssues {
 		byNumber[issue.Number] = issue
-		id := IssueIDFromBody(issue.Body)
-		if id == "" {
-			id = IssueIDFromTitle(issue.Title)
-		}
+		id := managedID(issue)
 		if id == "" {
 			continue
 		}
@@ -105,7 +115,7 @@ func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue) ([]
 			actions = append(actions, action{kind: actionCreateIssue, issue: want})
 			continue
 		}
-		if have.Title != want.Title || have.Body != want.Body {
+		if have.State == "open" && (have.Title != want.Title || !sameBody(have.Body, want.Body)) {
 			actions = append(actions, action{kind: actionUpdateIssue, issue: want, num: have.Number})
 		}
 		add, remove := labelDiff(have.Labels, wantLabels)
@@ -114,6 +124,9 @@ func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue) ([]
 		}
 		if len(remove) > 0 {
 			actions = append(actions, action{kind: actionRemoveLabels, num: have.Number, names: remove})
+		}
+		if have.State == "open" {
+			actions = append(actions, blockerActions(want, have.Number, byID, blockers[have.Number])...)
 		}
 	}
 
@@ -145,6 +158,56 @@ func SyncPlan(m *Manifest, remoteLabels []Label, remoteIssues []RemoteIssue) ([]
 	return actions, nil
 }
 
+// blockerActions adds the native blocked-by edges a ticket needs and removes
+// edges to managed tickets that the plan no longer names. A blocker with no
+// issue yet is skipped, so the next sync adds its edge.
+func blockerActions(want Issue, num int, byID map[string]RemoteIssue, current []RemoteIssue) []action {
+	var actions []action
+	desired := map[int64]bool{}
+	for _, dep := range want.BlockedBy {
+		blocker, ok := byID[dep]
+		if !ok {
+			continue
+		}
+		desired[blocker.ID] = true
+		if !hasBlocker(current, blocker.ID) {
+			actions = append(actions, action{kind: actionAddBlockedBy, num: num, blocker: blocker})
+		}
+	}
+	for _, blocker := range current {
+		if desired[blocker.ID] || managedID(blocker) == "" {
+			continue
+		}
+		actions = append(actions, action{kind: actionRemoveBlockedBy, num: num, blocker: blocker})
+	}
+	return actions
+}
+
+func hasBlocker(blockers []RemoteIssue, id int64) bool {
+	for _, blocker := range blockers {
+		if blocker.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// managedID returns the AX id that marks an issue as managed by this tool.
+func managedID(issue RemoteIssue) string {
+	if id := IssueIDFromBody(issue.Body); id != "" {
+		return id
+	}
+	return IssueIDFromTitle(issue.Title)
+}
+
+var checkedBoxRE = regexp.MustCompile(`(?m)^([ \t]*- )\[[xX]\]`)
+
+// sameBody compares two bodies with checkbox ticks ignored, so a tick made on
+// GitHub is not a change that the sync has to undo.
+func sameBody(have, want string) bool {
+	return checkedBoxRE.ReplaceAllString(have, "${1}[ ]") == checkedBoxRE.ReplaceAllString(want, "${1}[ ]")
+}
+
 // Sync applies (or, in dry-run mode, reports) the sync plan.
 func Sync(ctx context.Context, gh GitHub, m *Manifest, apply bool, out io.Writer) error {
 	labels, err := gh.ListLabels(ctx)
@@ -155,7 +218,18 @@ func Sync(ctx context.Context, gh GitHub, m *Manifest, apply bool, out io.Writer
 	if err != nil {
 		return err
 	}
-	actions, err := SyncPlan(m, labels, issues)
+	blockers := map[int][]RemoteIssue{}
+	for _, issue := range issues {
+		if issue.State != "open" || managedID(issue) == "" {
+			continue
+		}
+		current, err := gh.ListBlockedBy(ctx, issue.Number)
+		if err != nil {
+			return err
+		}
+		blockers[issue.Number] = current
+	}
+	actions, err := SyncPlan(m, labels, issues, blockers)
 	if err != nil {
 		return err
 	}
@@ -192,6 +266,10 @@ func runAction(ctx context.Context, gh GitHub, act action) error {
 		return gh.AddLabels(ctx, act.num, act.names)
 	case actionRemoveLabels:
 		return gh.RemoveLabels(ctx, act.num, act.names)
+	case actionAddBlockedBy:
+		return gh.AddBlockedBy(ctx, act.num, act.blocker.ID)
+	case actionRemoveBlockedBy:
+		return gh.RemoveBlockedBy(ctx, act.num, act.blocker.ID)
 	default:
 		return fmt.Errorf("unknown action")
 	}

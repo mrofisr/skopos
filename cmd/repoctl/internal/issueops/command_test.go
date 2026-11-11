@@ -53,7 +53,7 @@ func fixtureManifest() Manifest {
 			EC:        "ec:1",
 			Type:      "type:micro",
 			BlockedBy: []string{},
-			Body:      "Blocked by: none\n\n<!-- skopos-issue: AX-01 -->",
+			Body:      "<!-- skopos-issue: AX-01 -->\n\n## Blocked by\n\n- None (can start immediately).\n",
 		}},
 	}
 }
@@ -202,7 +202,7 @@ func TestSyncRequiresGitHub(t *testing.T) {
 
 func TestLintLiveCommand(t *testing.T) {
 	manifest := writeManifest(t, fixtureManifest())
-	body := "Blocked by: none\n\n<!-- skopos-issue: AX-01 -->"
+	body := "<!-- skopos-issue: AX-01 -->\n\n## Blocked by\n\n- None (can start immediately).\n"
 	env, _, stderr := clientEnv(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `[{"number":9,"title":"AX-01: first","state":"open","body":%q,"labels":[{"name":"phase:alpha-exit"},{"name":"ec:1"},{"name":"type:micro"}]}]`, body)
 	}))

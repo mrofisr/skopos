@@ -53,7 +53,7 @@ func LintLive(issues []RemoteIssue) []error {
 		if IssueIDFromBody(issue.Body) == "" {
 			errs = append(errs, fmt.Errorf("#%d (%s): body is missing the skopos-issue marker", issue.Number, id))
 		}
-		if !strings.Contains(issue.Body, "Blocked by:") {
+		if !strings.Contains(issue.Body, blockedSection) {
 			errs = append(errs, fmt.Errorf("#%d (%s): body is missing a Blocked by section", issue.Number, id))
 			continue
 		}
@@ -96,10 +96,10 @@ func labelsWithPrefix(labels []string, prefix string) []string {
 	return out
 }
 
-var blockedLineRE = regexp.MustCompile(`(?m)^Blocked by:\s*(.*)$`)
+var blockedSectionRE = regexp.MustCompile(`(?ms)^## Blocked by\s*\n(.*?)(?:^## |\z)`)
 
 func blockedRefs(body string) []string {
-	m := blockedLineRE.FindStringSubmatch(body)
+	m := blockedSectionRE.FindStringSubmatch(body)
 	if m == nil {
 		return nil
 	}

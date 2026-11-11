@@ -388,3 +388,10 @@ Decisions to confirm:
 3. **A YAML parser for WF-08.** No YAML library is vendored or in `go.mod`. Either add one (for example `gopkg.in/yaml.v3`) with a `docs/dependencies.md` entry and your approval, or limit the lint to grep rules like the existing 'blocked workflow patterns' step. I recommend the parser, since the repo's own policy puts parsing in Go.
 4. **A single required `ci-gate`** (recommended) or keep the per-job names required.
 5. **Docker build job.** Recommended: add it, since the gap is real.
+
+## Agent skills
+
+This repo uses the [mattpocock/skills](https://github.com/mattpocock/skills) conventions for agent-facing documentation:
+
+- [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md): where tickets live, the to-tickets body template, native blocked-by edges, and the sync and lint rules.
+- [docs/agents/triage-labels.md](docs/agents/triage-labels.md): how the five canonical triage roles map onto this repo's labels.

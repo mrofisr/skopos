@@ -18,9 +18,9 @@ var (
 	parentRE       = regexp.MustCompile(`\(parent #\d+\)`)
 	parentNumberRE = regexp.MustCompile(`\(parent #(\d+)\)`)
 	cutLineRE      = regexp.MustCompile(`\(cut-line\)`)
+	ownerRE        = regexp.MustCompile(`\(owner:human\)`)
 	ticketNumberRE = regexp.MustCompile(`^AX-(\d+)$`)
 	blockedIssueRE = regexp.MustCompile(`AX-\d+`)
-	blockedHeading = "Blocked by:"
 )
 
 // ParsePlanFile reads the alpha exit plan and extracts every AX ticket.
@@ -101,16 +101,24 @@ func ParsePlan(data string) (*Manifest, error) {
 		if pm := parentNumberRE.FindStringSubmatch(title); pm != nil {
 			parent = "#" + pm[1]
 		}
+		owner := ""
+		if ownerRE.MatchString(title) {
+			owner = "owner:human"
+		}
 		title = parentRE.ReplaceAllString(title, "")
 		title = cutLineRE.ReplaceAllString(title, "")
+		title = ownerRE.ReplaceAllString(title, "")
 		title = strings.Join(strings.Fields(title), " ")
 		if title == "" {
 			return nil, fmt.Errorf("%s: empty title", id)
 		}
 
-		body := fmt.Sprintf("%s\nParent: %s\nEC: %s\nType: %s\nPlan: docs/alpha-exit-plan.md\n\n%s\n\n%s\n",
-			Marker(id), valueOrNone(parent), strings.TrimPrefix(ec, "ec:"), strings.TrimPrefix(issueType, "type:"), blockedHeading+" "+blockedText+".", rawBody)
-		if !strings.Contains(body, "Blocked by:") {
+		blockedBy := blockedIssueRE.FindAllString(blockedText, -1)
+		if blockedBy == nil {
+			blockedBy = []string{}
+		}
+		body := renderBody(id, parent, title, rawBody, blockedText, blockedBy)
+		if !strings.Contains(body, blockedSection) {
 			return nil, fmt.Errorf("%s: rendered body lost the Blocked by section", id)
 		}
 
@@ -120,11 +128,9 @@ func ParsePlan(data string) (*Manifest, error) {
 			Phase:     "phase:alpha-exit",
 			EC:        ec,
 			Type:      issueType,
-			BlockedBy: blockedIssueRE.FindAllString(blockedText, -1),
+			Owner:     owner,
+			BlockedBy: blockedBy,
 			Body:      body,
-		}
-		if issue.BlockedBy == nil {
-			issue.BlockedBy = []string{}
 		}
 		manifest.Issues = append(manifest.Issues, issue)
 
@@ -167,18 +173,11 @@ func exitCriterion(n int) (string, error) {
 		return "ec:2", nil
 	case n >= 50 && n <= 55:
 		return "ec:5", nil
-	case n == 60 || n == 61:
+	case n == 60 || n == 61 || n == 62:
 		return "ec:7", nil
 	default:
 		return "", fmt.Errorf("no exit criterion mapping for AX-%d", n)
 	}
-}
-
-func valueOrNone(v string) string {
-	if v == "" {
-		return "none"
-	}
-	return v
 }
 
 // MarshalManifest renders a manifest as stable, indented JSON.

@@ -24,6 +24,7 @@ type Issue struct {
 	Phase     string   `json:"phase"`
 	EC        string   `json:"ec"`
 	Type      string   `json:"type"`
+	Owner     string   `json:"owner,omitempty"`
 	BlockedBy []string `json:"blocked_by"`
 	Body      string   `json:"body"`
 }
@@ -70,7 +71,11 @@ func IssueIDFromTitle(title string) string {
 
 // LabelsFor returns the labels a manifest issue must carry.
 func LabelsFor(issue Issue) []string {
-	return []string{issue.Phase, issue.EC, issue.Type}
+	labels := []string{issue.Phase, issue.EC, issue.Type}
+	if issue.Owner != "" {
+		labels = append(labels, issue.Owner)
+	}
+	return labels
 }
 
 // ManagedLabel reports whether this tool owns the label and may remove it
@@ -118,8 +123,11 @@ func (m *Manifest) Validate() []error {
 		if !strings.Contains(issue.Body, Marker(issue.ID)) {
 			errs = append(errs, fmt.Errorf("%s: body is missing the %s marker", issue.ID, Marker(issue.ID)))
 		}
-		if !strings.Contains(issue.Body, "Blocked by:") {
+		if !strings.Contains(issue.Body, blockedSection) {
 			errs = append(errs, fmt.Errorf("%s: body is missing a Blocked by section", issue.ID))
+		}
+		if issue.Owner != "" && issue.Owner != "owner:human" {
+			errs = append(errs, fmt.Errorf("%s: invalid owner label %q", issue.ID, issue.Owner))
 		}
 		for _, dep := range issue.BlockedBy {
 			if dep == issue.ID {
