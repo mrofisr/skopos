@@ -35,7 +35,7 @@ services:
     volumes:
       - ./.render/schema.sql:/schema/schema.sql:ro
       - ./.render/migrate.sh:/schema/migrate.sh:ro
-      - ./init-clickhouse.sh:/init/init-clickhouse.sh:ro
+      - ../../../scripts/e2e/obi/init-clickhouse.sh:/init/init-clickhouse.sh:ro
     restart: "no"
 
   seed:
@@ -52,7 +52,7 @@ services:
       GRAFANA_SEED_SQL: /seed/grafana-seed.sql
       GRAFANA_TRACES_JSON: /seed/grafana-traces.json
     volumes:
-      - ./seed.sh:/seed/seed.sh:ro
+      - ../../../scripts/e2e/obi/seed.sh:/seed/seed.sh:ro
       - ./.render/grafana-seed.sql:/seed/grafana-seed.sql:ro
       - ./.render/grafana-traces.json:/seed/grafana-traces.json:ro
     restart: "no"

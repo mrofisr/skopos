@@ -62,8 +62,7 @@ data:
                 process:
                   exe_path_glob:
                     - "*/clickhouse"
-                    - "*/skopos-gateway"
-                    - "*/gateway"
+                    - "*/skopos"
             {{- if .Values.obi.discovery.excludeSystemNamespaces }}
             - action: exclude
               name: exclude-system-namespaces

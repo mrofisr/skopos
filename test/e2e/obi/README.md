@@ -24,13 +24,13 @@ From the repository root:
 ```sh
 make e2e-obi
 # or
-./test/e2e/obi/run.sh
+./scripts/e2e/obi/run.sh
 ```
 
 To leave the stack running for inspection:
 
 ```sh
-SKOPOS_E2E_KEEP=1 ./test/e2e/obi/run.sh
+SKOPOS_E2E_KEEP=1 ./scripts/e2e/obi/run.sh
 ```
 
 Default host ports: app `18080`, gateway `18081`, ClickHouse HTTP `18123`,
@@ -48,7 +48,7 @@ ClickHouse, gateway, and the app.
 You can run the assertions alone against an existing stack:
 
 ```sh
-SKOPOS_E2E_GATEWAY_URL=http://127.0.0.1:18081 ./test/e2e/obi/verify.sh
+SKOPOS_E2E_GATEWAY_URL=http://127.0.0.1:18081 ./scripts/e2e/obi/verify.sh
 ```
 
 ## Grafana datasource harness
@@ -59,7 +59,7 @@ collector, so it works on a standard CI runner without privileged mode:
 ```sh
 make e2e-grafana
 # or
-./test/e2e/obi/grafana.sh
+./scripts/e2e/obi/grafana.sh
 ```
 
 The harness starts ClickHouse, the seed job, the gateway, a digest-pinned
@@ -121,8 +121,8 @@ expression; an unsupported function is reported by name.
 The harness has two negative self-checks:
 
 ```sh
-./test/e2e/obi/grafana.sh --self-test stopped
-./test/e2e/obi/grafana.sh --self-test auth
+./scripts/e2e/obi/grafana.sh --self-test stopped
+./scripts/e2e/obi/grafana.sh --self-test auth
 ```
 
 `stopped` stops the gateway and requires the checker to fail with the
@@ -145,7 +145,8 @@ dashboard. The harness posts the push bodies to the reference Loki and Tempo.
 - cgroup v2 (`/sys/fs/cgroup`).
 - Docker 24+ with the Compose plugin.
 - Permission to run `--privileged --pid=host` containers.
-- `curl`, `jq`, and `python3` (for the other harness scripts only).
+- `curl`, `jq`, and `go` (the harness scripts are shell plus the in-tree Go
+  tools).
 
 The reference run for this repository used:
 

@@ -195,8 +195,8 @@ collector:
 # backup, a data lake, or a query path; see docs/checkpoint.md.
 checkpoint:
   enabled: false
-  # Reuses gateway.image: the Skopos image contains both /gateway and
-  # /skopos-checkpoint. Pin gateway.image.digest for release installs.
+  # Reuses gateway.image: the Skopos image contains one /skopos binary and
+  # SKOPOS_MODE selects the role. Pin gateway.image.digest for release installs.
   replicas: 1
   service:
     type: ClusterIP

@@ -30,13 +30,11 @@ const (
 	rulePackageName     = "package-name"
 	rulePython          = "python"
 	ruleMainSize        = "main-size"
+	ruleShellLocation   = "shell-location"
 )
 
 var allowedCmdBinaries = map[string]bool{
-	"gateway":           true,
-	"skopos-checkpoint": true,
-	"skopos-mcp":        true,
-	"repoctl":           true,
+	"skopos": true,
 }
 
 var forbiddenInternalTooling = map[string]bool{
@@ -62,6 +60,12 @@ var forbiddenPackageNames = map[string]bool{
 // allowedProductImports is the one exception list for rule 11 of AGENTS.md.
 // It starts empty. Adding an entry needs a reason in the PR and a test update.
 var allowedProductImports = map[string]bool{}
+
+// allowedShellScripts are deployment assets that must stay beside the files
+// that package or install them. Every other shell script lives under scripts/.
+var allowedShellScripts = map[string]bool{
+	"deploy/helm/skopos/files/migrate.sh": true,
+}
 
 type pkg struct {
 	ImportPath string
@@ -149,7 +153,7 @@ func repoctlImportViolations(packages []pkg) []violation {
 	var out []violation
 	for _, p := range packages {
 		rel := relative(p.ImportPath)
-		if rel != "cmd/repoctl" && !strings.HasPrefix(rel, "cmd/repoctl/") {
+		if rel != "tools/repoctl" && !strings.HasPrefix(rel, "tools/repoctl/") {
 			continue
 		}
 		for _, imported := range p.Imports {
@@ -222,23 +226,80 @@ func pythonViolations(root string, skip ...string) ([]violation, error) {
 	return out, nil
 }
 
+func shellViolations(root string, skip ...string) ([]violation, error) {
+	skipped := make(map[string]bool, len(skip))
+	for _, dir := range skip {
+		skipped[filepath.ToSlash(dir)] = true
+	}
+	var out []violation
+	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == ".git" || name == "vendor" || name == "node_modules" || strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
+			rel, relErr := filepath.Rel(root, current)
+			if relErr != nil {
+				return relErr
+			}
+			if skipped[filepath.ToSlash(rel)] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(entry.Name()) != ".sh" {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, current)
+		if relErr != nil {
+			return relErr
+		}
+		slash := filepath.ToSlash(rel)
+		if strings.HasPrefix(slash, "scripts/") || allowedShellScripts[slash] {
+			return nil
+		}
+		out = append(out, violation{Rule: ruleShellLocation, Path: slash})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func mainSizeViolations(root string) ([]violation, error) {
-	file := filepath.Join(root, "cmd", "repoctl", "main.go")
-	data, err := os.ReadFile(file)
+	entries, err := os.ReadDir(filepath.Join(root, "cmd"))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	lines := strings.Count(strings.TrimRight(string(data), "\n"), "\n") + 1
-	if lines <= maxMainLines {
-		return nil, nil
+	var out []violation
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		rel := path.Join("cmd", entry.Name(), "main.go")
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		lines := strings.Count(strings.TrimRight(string(data), "\n"), "\n") + 1
+		if lines > maxMainLines {
+			out = append(out, violation{
+				Rule: ruleMainSize,
+				Path: fmt.Sprintf("%s (%d lines, max %d)", rel, lines, maxMainLines),
+			})
+		}
 	}
-	return []violation{{
-		Rule: ruleMainSize,
-		Path: fmt.Sprintf("cmd/repoctl/main.go (%d lines, max %d)", lines, maxMainLines),
-	}}, nil
+	return out, nil
 }
 
 func loadBaseline(t *testing.T, file string) map[string]violation {
@@ -339,7 +400,16 @@ func TestNoPythonFiles(t *testing.T) {
 	assertBaseline(t, rulePython, computed, loadBaseline(t, filepath.Join(root, baselinePath)))
 }
 
-func TestRepoctlMainIsSmall(t *testing.T) {
+func TestShellScriptsAreCentralized(t *testing.T) {
+	root := repoRoot(t)
+	computed, err := shellViolations(root, "internal/archtest/testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBaseline(t, ruleShellLocation, computed, loadBaseline(t, filepath.Join(root, baselinePath)))
+}
+
+func TestMainIsSmall(t *testing.T) {
 	root := repoRoot(t)
 	computed, err := mainSizeViolations(root)
 	if err != nil {
@@ -359,7 +429,15 @@ func TestRulesFireOnFixtures(t *testing.T) {
 		t.Fatalf("cmd violations = %#v, want cmd/skopos-tool", cmdViolations)
 	}
 
-	pyViolations, err := pythonViolations(root)
+	pyRoot := t.TempDir()
+	pyFile := filepath.Join(pyRoot, "test", "bench", "bench.py")
+	if err := os.MkdirAll(filepath.Dir(pyFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pyFile, []byte("print('fixture')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pyViolations, err := pythonViolations(pyRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,24 +445,32 @@ func TestRulesFireOnFixtures(t *testing.T) {
 		t.Fatalf("python violations = %#v, want test/bench/bench.py", pyViolations)
 	}
 
+	shellViolations, err := shellViolations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(shellViolations) != 1 || shellViolations[0].Path != "test/scripts/run.sh" {
+		t.Fatalf("shell violations = %#v, want test/scripts/run.sh", shellViolations)
+	}
+
 	mainViolations, err := mainSizeViolations(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(mainViolations) != 1 || !strings.Contains(mainViolations[0].Path, "cmd/repoctl/main.go") {
-		t.Fatalf("main-size violations = %#v, want cmd/repoctl/main.go", mainViolations)
+	if len(mainViolations) != 1 || !strings.Contains(mainViolations[0].Path, "cmd/skopos/main.go") {
+		t.Fatalf("main-size violations = %#v, want cmd/skopos/main.go", mainViolations)
 	}
 
 	packages := []pkg{
 		{ImportPath: module + "/internal/prcheck", Name: "prcheck"},
 		{ImportPath: module + "/internal/util", Name: "util"},
 		{ImportPath: module + "/internal/product", Name: "product"},
-		{ImportPath: module + "/cmd/repoctl", Name: "main", Imports: []string{
+		{ImportPath: module + "/tools/repoctl", Name: "main", Imports: []string{
 			module + "/internal/config",
-			module + "/cmd/repoctl/internal/command",
+			module + "/tools/repoctl/internal/command",
 		}},
-		{ImportPath: module + "/cmd/repoctl/internal/quality", Name: "quality", Imports: []string{
-			module + "/cmd/repoctl/internal/command",
+		{ImportPath: module + "/tools/repoctl/internal/quality", Name: "quality", Imports: []string{
+			module + "/tools/repoctl/internal/command",
 		}},
 	}
 	if got := internalToolingViolations(packages); len(got) != 1 || got[0].Path != "internal/prcheck" {

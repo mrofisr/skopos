@@ -1107,6 +1107,7 @@
           "type": "string",
           "enum": [
             "all",
+            "gateway",
             "query",
             "worker",
             "frontend"

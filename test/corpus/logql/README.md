@@ -4,24 +4,21 @@
 the input log entries and the expected normalized results for the supported
 LogQL subset.
 
-- Expected values come from a real `grafana/loki:3.5.7` instance started by
-  `test/compat/loki/run.sh`. Loki's presentation-only `detected_level` label
-  and `stats` object are removed.
+- Expected values were recorded from a real `grafana/loki:3.5.7` instance before
+  the Python differential harness was retired. Loki's presentation-only
+  `detected_level` label and `stats` object are removed.
 - `internal/loki.TestLogQLCorpus` runs the same cases against the Skopos Loki
-  head; it must not be used to regenerate expectations.
-- To re-record from the reference implementation:
+  head. It must not be used to regenerate expectations.
+- The corpus is a fixed contract. A Skopos change that alters a result fails the
+  Go test; changing `corpus.json` is a reviewed contract change. The full
+  recorded run is in
+  [`docs/logql-upstream-baseline.md`](../../../docs/logql-upstream-baseline.md).
 
-  ```sh
-  test/compat/loki/run.sh record
-  git diff test/corpus/logql/corpus.json
-  ```
+Verify:
 
-- To verify both the recorded corpus and, optionally, a seeded gateway:
-
-  ```sh
-  test/compat/loki/run.sh verify
-  GATEWAY_URL=http://127.0.0.1:8080 test/compat/loki/run.sh verify
-  ```
+```sh
+go test ./internal/loki -run TestLogQLCorpus -count=1
+```
 
 ## Format
 

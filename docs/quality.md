@@ -50,7 +50,7 @@ The `Coverage ratchet` job runs `make coverage` on every pull request and on
 
 Mutation testing is advisory for alpha (STG-6 / AX-02); it does not block a
 pull request. The tool is pinned in the separate `internal/tools` module so the
-root module and its `vendor/` tree stay clean.
+root module's dependency set stays clean.
 
 Two candidates were evaluated on `internal/auth`:
 
@@ -128,9 +128,9 @@ The following paths are frozen until the alpha exit apart from bug and
 security fixes:
 
 - `internal/semctx`
-- `cmd/skopos-mcp`
+- `internal/app/mcp`
 - `internal/checkpoint`
-- `cmd/skopos-checkpoint`
+- `internal/app/checkpoint`
 - `deploy/systemd`
 
 A pull request that touches one of them needs the `frozen-exception` label and

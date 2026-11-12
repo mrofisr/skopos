@@ -33,11 +33,11 @@ existing Grafana.
 | Helm data plane (OBI, Collector, ClickHouse) | Alpha | M1 complete; `helm lint`/`helm template`, a k3d generator smoke test, and a real OBI v1.0.0 eBPF e2e on kernel 6.18 (`make e2e-obi`, manual). |
 | Query core (plan IR, SQL emitter, ClickHouse HTTP client) | Alpha | M2: golden SQL, fuzz, unit, and real-ClickHouse integration tests. |
 | Prometheus-compatible API | Alpha | M3: query/query_range, series, labels, metadata, summary metrics, set operators, group matching, and a 212-case differential oracle against the official Prometheus engine. See [docs/promql-support.md](docs/promql-support.md). |
-| Tempo-compatible API | Alpha | M4: search with spanSets, trace by ID (JSON/protobuf), tags/scopes, trace/span intrinsics, and a 55-case corpus compared with Tempo 2.7.2. See [docs/traceql-support.md](docs/traceql-support.md). |
-| Loki-compatible API | Alpha | M5: log queries, JSON/logfmt parser stages, label filters, `count_over_time`/`rate`, labels/series, and an 11-case corpus compared with Loki 3.5.7. See [docs/logql-support.md](docs/logql-support.md). |
+| Tempo-compatible API | Alpha | M4: search with spanSets, trace by ID (JSON/protobuf), tags/scopes, trace/span intrinsics, and an 83-query corpus recorded from Tempo 2.7.2. See [docs/traceql-support.md](docs/traceql-support.md). |
+| Loki-compatible API | Alpha | M5: log queries, JSON/logfmt parser stages, label filters, `count_over_time`/`rate`, labels/series, and a 19-case corpus recorded from Loki 3.5.7. See [docs/logql-support.md](docs/logql-support.md). |
 | Grafana datasource examples | Alpha-ready | All three datasource types point at the gateway. |
 | Benchmarks | Measured | Compression and p95 latency in [docs/benchmarks.md](docs/benchmarks.md). |
-| Three-way differential | Passed for Skopos | 124 checks vs Prometheus/Loki/Tempo and cerberus v1.23.1: 0 Skopos divergences, 39 cerberus-only gaps baseline-pinned. |
+| Three-way differential | Recorded | 160 checks against Prometheus, Loki, Tempo, and cerberus v1.23.1: 0 Skopos divergences. The end-to-end harness was retired with the Python removal; see [docs/cerberus-baseline.md](docs/cerberus-baseline.md). |
 | Distributed read path | Alpha | Optional public frontend plus stateless query workers (`distributed.enabled=true`); the frontend has no ClickHouse credentials. |
 | Basic authentication | Optional | `auth.enabled=true` protects query/version routes with one operator-managed credential; `/healthz` and `/readyz` stay open for probes. Use TLS. |
 | systemd deployment | Alpha | Unit files for single-process and frontend/query split, local schema renderer, and a full operations guide in [docs/systemd.md](docs/systemd.md). |
@@ -165,7 +165,7 @@ For tiered S3 retention and scheduled backups, see
 [docs/storage.md](docs/storage.md). The local integration test uses RustFS:
 
 ```sh
-./test/integration/s3/run.sh
+./scripts/integration/s3.sh
 ```
 
 Check the data plane:
@@ -198,8 +198,7 @@ M3 adds the official Prometheus PromQL parser and the official OTLP protobuf
 types for Tempo responses; both are recorded in [docs/dependencies.md](docs/dependencies.md).
 
 ```sh
-make build                # build the gateway
-make mcp                  # build the stdio/HTTP MCP server
+make build                # build the single skopos binary
 make test                 # unit tests
 make test-integration     # requires a ClickHouse HTTP endpoint
 make fuzz                 # short anti-leak fuzz run
@@ -207,7 +206,6 @@ make helm-lint            # helm lint
 make helm-template        # render the chart
 make check                # vet + test + fuzz + helm lint
 make e2e-obi              # real privileged OBI e2e (Docker, BTF, tracefs)
-make compat-cerberus      # three-way PromQL/LogQL/TraceQL differential
 make storage-test         # ClickHouse + RustFS tiered storage/backup test
 make bench                # synthetic compression + latency benchmark
 make scorecard            # OpenSSF Scorecard CLI (requires a GitHub token)

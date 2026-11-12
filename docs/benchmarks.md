@@ -73,7 +73,7 @@ make bench
 SKOPOS_BENCH_ITERATIONS=30 \
 SKOPOS_BENCH_CONCURRENCY=30 \
 SKOPOS_BENCH_CONCURRENCY_SECONDS=60 \
-./test/bench/run.sh
+./scripts/bench/run.sh
 ```
 
 Optional environment variables:
@@ -239,7 +239,7 @@ at roughly 2-second intervals.
 Command (defaults are 30 clients and 60 seconds):
 
 ```sh
-SKOPOS_BENCH_KEEP=1 SKOPOS_BENCH_OUTPUT=/tmp/bench.json ./test/bench/run.sh
+SKOPOS_BENCH_KEEP=1 SKOPOS_BENCH_OUTPUT=/tmp/bench.json ./scripts/bench/run.sh
 ```
 
 Overall result:

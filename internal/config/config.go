@@ -19,6 +19,8 @@ type Mode string
 const (
 	// ModeAll serves the query heads and the public API in one process.
 	ModeAll Mode = "all"
+	// ModeGateway is an alias for ModeAll.
+	ModeGateway Mode = "gateway"
 	// ModeQuery serves only the query heads. It is the query worker role.
 	ModeQuery Mode = "query"
 	// ModeWorker is an explicit alias for ModeQuery, documented as the query
@@ -284,6 +286,8 @@ func ParseMode(raw string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "", string(ModeAll):
 		return ModeAll, nil
+	case string(ModeGateway):
+		return ModeAll, nil
 	case string(ModeQuery):
 		return ModeQuery, nil
 	case string(ModeWorker):
@@ -291,7 +295,7 @@ func ParseMode(raw string) (Mode, error) {
 	case string(ModeFrontend):
 		return ModeFrontend, nil
 	default:
-		return "", fmt.Errorf("SKOPOS_MODE: unsupported mode %q (want all, query, worker, or frontend)", raw)
+		return "", fmt.Errorf("SKOPOS_MODE: unsupported mode %q (want all, gateway, query, worker, or frontend)", raw)
 	}
 }
 

@@ -31,7 +31,7 @@ dispatch. It publishes results to the public Scorecard API and uploads SARIF to
 GitHub code scanning; no GHAS is required for a public repository.
 
 - `.github/workflows/scorecard.yml` is the official action path.
-- `make scorecard` / `scripts/scorecard.sh` remains the local CLI fallback
+- `make scorecard` / `scripts/scorecard/scorecard.sh` remains the local CLI fallback
   (pinned v5.6.0, checksum-verified).
 - The old private-repo CLI workflow and the GHAS-only workflow were removed.
 
@@ -66,7 +66,7 @@ Outputs are written under `dist/` (git-ignored):
 
 The CLI version is pinned to **v5.6.0** (commit
 `61e84743356275f6ffca23b1b2f2cb945e19eb96`) in
-[`scripts/scorecard.sh`](../scripts/scorecard.sh). The script verifies the
+[`scripts/scorecard/scorecard.sh`](../scripts/scorecard/scorecard.sh). The script verifies the
 release tarball against the published SHA-256 checksum before running it. To
 update, change the version and all four platform checksums together.
 

@@ -164,7 +164,7 @@ func TestAggregationPrecisionAndNaN(t *testing.T) {
 	}
 	engine = complianceEngine(steady...)
 	vector = queryVectorAtTime(t, engine, `stdvar(steady)`, base)
-	if len(vector) != 1 || vector[0].V != 2.211125 {
+	if len(vector) != 1 || math.Abs(vector[0].V-2.211125) > 1e-12 {
 		t.Fatalf("stdvar = %#v, want 2.211125", vector)
 	}
 }

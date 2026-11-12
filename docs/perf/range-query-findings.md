@@ -56,7 +56,7 @@ quarter of it.
 
 ## What the harness measures
 
-`./test/bench/run.sh` on the seeded stack, one query at a time (30 iterations):
+`./scripts/bench/run.sh` on the seeded stack, one query at a time (30 iterations):
 
 | Query | p50 ms | p95 ms | p99 ms |
 | --- | ---: | ---: | ---: |

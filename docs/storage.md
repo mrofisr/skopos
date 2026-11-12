@@ -346,7 +346,7 @@ duplicate rows; prefer a clean database.
 `test/integration/s3` runs a real ClickHouse + RustFS test:
 
 ```sh
-PATH=/tmp/opencode/linux-amd64:$PATH ./test/integration/s3/run.sh
+PATH=/tmp/opencode/linux-amd64:$PATH ./scripts/integration/s3.sh
 ```
 
 It renders the chart's tiered schema, applies all tables, inserts hot and old

@@ -16,7 +16,7 @@ Services:
 Run:
 
 ```sh
-PATH=/tmp/opencode/linux-amd64:$PATH ./test/integration/s3/run.sh
+PATH=/tmp/opencode/linux-amd64:$PATH ./scripts/integration/s3.sh
 ```
 
 `HELM_BIN` can point at another Helm binary. `SKOPOS_S3_IT_KEEP=1` keeps the

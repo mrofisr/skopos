@@ -307,11 +307,11 @@ Other limits:
   byte-identical responses, including rows with invalid UTF-8; an EXPLAIN test
   also checks `idx_body` usage for a tokenizable `match` predicate.
 - Deterministic corpus: `test/corpus/logql/corpus.json`, checked by
-  `internal/loki.TestLogQLCorpus` and by the real-Loki differential harness.
-- Differential harness: `test/compat/loki/run.sh verify` (Docker + Python 3);
-  see `test/compat/loki/README.md` for the optional seeded-gateway comparison.
-- Upstream corpus: `test/compat/loki/upstream.sh` pins Loki 3.5.7 by tag,
+  `internal/loki.TestLogQLCorpus`. The expectations were recorded from a real
+  `grafana/loki:3.5.7` before the Docker harness was retired; see
+  `test/corpus/logql/README.md`.
+- Upstream corpus: `scripts/compat/loki-upstream.sh` pins Loki 3.5.7 by tag,
   commit, and archive SHA-256 and regenerates
-  `test/compat/loki/upstream/corpus.json` from `pkg/logql/bench`.
-  `test/compat/loki/upstream-run.sh` starts Loki plus the ClickHouse gateway,
-  seeds both, and writes the baseline report with `--report`.
+  `test/compat/loki/upstream/corpus.json` from `pkg/logql/bench`. Run
+  `scripts/compat/loki-upstream.sh verify` to diff the committed copy;
+  `refresh` rewrites it.

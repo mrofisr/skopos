@@ -332,7 +332,7 @@ Run the Tempo differential harness (Docker required; pins
 and tag values):
 
 ```sh
-test/compat/tempo/run.sh
+scripts/compat/tempo.sh
 # or
 TEMPO_COMPAT=1 go test ./test/compat/tempo -run TestDifferential -v
 ```

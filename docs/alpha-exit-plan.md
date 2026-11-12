@@ -41,8 +41,8 @@ Reference scale is today's benchmark: about 560 series, 2.66M rows, a 4 vCPU /
 
 Frozen until exit, apart from bug and security fixes and logged exceptions:
 
-- AI context and MCP (`internal/semctx`, `cmd/skopos-mcp`)
-- The checkpoint WAL (`internal/checkpoint`, `cmd/skopos-checkpoint`)
+- AI context and MCP (`internal/semctx`, `internal/app/mcp`)
+- The checkpoint WAL (`internal/checkpoint`, `internal/app/checkpoint`)
 - systemd (`deploy/systemd`)
 
 The read-path FINAL work is not on that list. It is deferred on data and size
@@ -205,8 +205,8 @@ exempt).
 
 - Rule: a PR body must contain `Closes #N` or `Refs #N` for an issue labelled
   `phase:alpha-exit`, unless the commit type is fix, deps, docs, security or
-  ci. A PR touching a frozen path (`internal/semctx`, `cmd/skopos-mcp`,
-  `internal/checkpoint`, `cmd/skopos-checkpoint`, `deploy/systemd`) needs the
+  ci. A PR touching a frozen path (`internal/semctx`, `internal/app/mcp`,
+  `internal/checkpoint`, `internal/app/checkpoint`, `deploy/systemd`) needs the
   label `frozen-exception` and a one-line reason.
 - Red tests: a table test with eight fixtures (valid, missing reference, closed
   issue, non-alpha issue, exempt type, frozen path without label, frozen path
@@ -302,9 +302,10 @@ by: AX-10.
 
 **AX-20 Timeout invariants.** Blocked by: none.
 
-- Today `WriteTimeout` is a hard-coded 30 s in `cmd/gateway/main.go`, while the
-  query timeout and the ClickHouse max execution time are configurable; the
-  benchmark shows heavy requests dropped as connection resets at 30 s.
+- Today `WriteTimeout` is a hard-coded 30 s in `internal/app/gateway/run.go`,
+  while the query timeout and the ClickHouse max execution time are
+  configurable; the benchmark shows heavy requests dropped as connection resets
+  at 30 s.
 - Derive `WriteTimeout = QueryTimeout + 5 s` and refuse to start when
   `MaxExecutionTime > QueryTimeout`.
 - Red tests: `TestServerTimeouts_DerivedFromQueryTimeout`,
@@ -534,7 +535,7 @@ by: AX-11, AX-12.
 
 **AX-45 PromQL function inventory.** Blocked by: none.
 
-- A test iterates every function in the vendored Prometheus parser's function
+- A test iterates every function in the pinned Prometheus parser's function
   table and classifies each as supported or explicit-error. Upgrading
   Prometheus to a version that adds a function fails the test until it is
   classified.
@@ -586,7 +587,7 @@ AX-48.
 
 **AX-50 Code-scanning gate.** Blocked by: none.
 
-- `scripts/check-code-scanning.sh` fails when any open alert is high or
+- `go run ./tools/repoctl codescan` fails when any open alert is high or
   critical; the release workflow calls it.
 - Red tests: stubbed API fixtures: 0 alerts passes, 1 high fails, an API error
   fails closed.

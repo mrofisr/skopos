@@ -49,7 +49,8 @@ provenance guarantees below.
   observability and trace-context propagation, so it does not grant
   `CAP_NET_ADMIN` or `CAP_SYS_ADMIN`. See `values.yaml` and OBI's security
   documentation before enabling those features.
-- **Supply chain.** Go modules use `go.sum` and a committed `vendor/` tree.
+- **Supply chain.** Go modules are pinned by `go.sum`, and CI verifies them
+  with `go mod download` and `go mod verify`.
   Third-party images are pinned by digest, GitHub Actions are pinned by commit
   SHA, and the registry enforces SHA pinning. Releases are built from an
   annotated tag whose commit is on `main`; images and charts are signed with

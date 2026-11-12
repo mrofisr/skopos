@@ -26,11 +26,11 @@ means creating a new patch tag; published releases are immutable.
 3. Merge the version bump through a pull request with all required checks.
 4. Confirm that the commit is on `main` and CI is green.
 5. Confirm that there are no open high or critical code-scanning alerts. The
-   release preflight runs `go run ./cmd/repoctl codescan`, which fails closed
+   release preflight runs `go run ./tools/repoctl codescan`, which fails closed
    on API errors and names every blocking alert.
 6. Confirm that `docs/security/osv-exceptions.yaml` is empty or that every
    exception has a reason and an unexpired date. The release preflight runs
-   `go run ./cmd/repoctl osv`.
+   `go run ./tools/repoctl osv`.
 
 ## Create the release
 
@@ -45,7 +45,7 @@ git push origin v0.1.0-alpha.2
 
 1. Verifies that the tag is annotated, is an ancestor of `main`, and that the
    tag, release, and image tag do not already exist.
-2. Runs `go run ./cmd/repoctl codescan`, `go run ./cmd/repoctl osv`,
+2. Runs `go run ./tools/repoctl codescan`, `go run ./tools/repoctl osv`,
    `make release-check`, and `go test -race ./...`.
 3. Builds the image, chart, and SBOMs in a read-only job.
 4. Pushes the image, signs it with keyless Sigstore, and attests provenance and
@@ -79,7 +79,7 @@ checks that:
 
 It then renders the chart with the downloaded values. Every missing or
 mismatched artifact fails the command. `VERSION=...` and a positional version
-remain accepted by `scripts/verify-release.sh`.
+remain accepted by `scripts/release/verify-release.sh`.
 
 Or manually:
 
@@ -128,7 +128,7 @@ before installing when your policy requires it.
 `make quickstart-test` is the EC5 evidence command. It runs the shell block
 tagged `quickstart` in the README verbatim against the published chart:
 
-1. `go run ./cmd/repoctl quickstart` extracts the tagged block and requires exactly one
+1. `go run ./tools/repoctl quickstart` extracts the tagged block and requires exactly one
    `oci://` chart reference and one strict-SemVer `--version`.
 2. It runs `helm show chart <ref> --version <version>` and fails before creating
    a cluster when the chart version is not in the registry.

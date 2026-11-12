@@ -16,7 +16,7 @@ reference, so no AGPL dependency enters the Go module.
 ## Run
 
 ```sh
-test/compat/tempo/run.sh
+scripts/compat/tempo.sh
 ```
 
 or:

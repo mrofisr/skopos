@@ -36,15 +36,19 @@ The layout and language policy is [ADR 0004](docs/adr/0004-repository-layout-and
 summarised in [docs/structure.md](docs/structure.md) and enforced by
 `internal/archtest`. The short version:
 
-- `cmd/` holds binaries only: the shipped `gateway`, `skopos-checkpoint`, and
-  `skopos-mcp`, plus the one developer tool, `repoctl`.
-- A repository check is a package under `cmd/repoctl/internal/<name>` with a
-  `Run(ctx, env, args)` entry point and one registry line in `cmd/repoctl`.
-  Do not add another `cmd/skopos-*` binary or a Makefile-only script.
-- GitHub access goes through `cmd/repoctl/internal/ghapi`. Check logic does not
+- `cmd/` holds exactly one binary, `cmd/skopos`. `SKOPOS_MODE` selects the
+  role: `all` (default), `gateway` (alias for `all`), `query`, `worker`
+  (legacy alias), `frontend`, `mcp`, or `checkpoint`. The mode implementations
+  live under `internal/app/<mode>`.
+- The one developer tool lives under `tools/repoctl`. A repository check is a
+  package under `tools/repoctl/internal/<name>` with a `Run(ctx, env, args)`
+  entry point and one registry line in `tools/repoctl`. Do not add another
+  `cmd/skopos-*` binary or a Makefile-only script.
+- GitHub access goes through `tools/repoctl/internal/ghapi`. Check logic does not
   exec `gh` or call `net/http` directly.
 - `main` packages wire dependencies and call `Run`; they hold no parsing,
-  validation, or decision logic. `cmd/gateway` is grandfathered until RS-31.
+  validation, or decision logic, and stay under 50 lines (enforced by
+  `TestMainIsSmall`).
 
 ## Naming conventions
 
@@ -71,13 +75,15 @@ AX-52 batch rename changed only `dependency-review`, to `Dependency review`.
   `gh` or `go run`. Business logic does not live in YAML.
 - Shell in `scripts/` is limited to thin orchestration of external tools
   (release, signing, verification, SBOM). Parsing, validation, and decision
-  logic belong in Go with Go tests.
-- No new Python. The existing harnesses under `test/` are frozen until their
-  parity-first ports land, in this order: `test/bench/bench.py` (blocks AX-25),
-  the cerberus three-way harness, then the Loki harness and its seed/upstream
-  scripts. A Go port is accepted only when it reproduces the recorded Python
-  result on pinned inputs; a difference is investigated and documented, never
-  silently adjusted. The Python file is deleted in a later PR. See
+  logic belong in Go with Go tests. Scripts are grouped by purpose:
+  `scripts/{bench,compat,deploy,e2e,integration,quickstart,release,scorecard}`.
+  The only exception is `deploy/helm/skopos/files/migrate.sh`, which the Helm
+  chart packages.
+- No Python. The earlier harnesses were retired; `bench.py` was replaced by the
+  Go runner, and the Cerberus and Loki differentials were replaced by committed
+  corpus expectations and Go tests. The recorded results remain in
+  `docs/cerberus-baseline.md` and `docs/logql-upstream-baseline.md`. The
+  architecture test fails on any new `*.py` file. See
   [ADR 0004](docs/adr/0004-repository-layout-and-language-policy.md).
 - Do not add a new language runtime or a new shell test framework for
   repository checks.
@@ -111,8 +117,9 @@ New seams need agreement in the PR description before tests are written.
   official OTLP protobuf types used for Tempo responses. Both are
   provider-official and recorded in `docs/dependencies.md`. Test dependencies
   are limited to reference implementations run black-box.
-- `go.mod`, `go.sum`, and `vendor/` are committed. Regenerate vendor with
-  `go mod vendor`; CI runs `go mod verify`.
+- `go.mod` and `go.sum` are committed. Builds use the module graph; CI runs
+  `go mod download` and `go mod verify`. Regenerate `go.sum` with
+  `go mod tidy` after a dependency change.
 - Images in the chart are pinned by digest. Collector, OBI, and ClickHouse
   versions change only in separate, human-reviewed PRs.
 - No third-party Helm subcharts.

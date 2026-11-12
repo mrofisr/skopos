@@ -98,10 +98,10 @@ jobs:
       - name: Check open code-scanning alerts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: go run ./cmd/repoctl codescan
+        run: go run ./tools/repoctl codescan
 
       - name: Check OSV exceptions
-        run: go run ./cmd/repoctl osv
+        run: go run ./tools/repoctl osv
 
       - name: Run release checks
         run: |
@@ -145,7 +145,7 @@ jobs:
           CHART_VERSION: ${{ needs.preflight.outputs.version }}
           IMAGE_REPOSITORY: ${{ env.IMAGE_REPOSITORY }}
           OUTPUT_DIR: dist/release
-        run: ./scripts/release.sh
+        run: ./scripts/release/release.sh
 
       - name: Save the image for the publish job
         env:

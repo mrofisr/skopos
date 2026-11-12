@@ -4,17 +4,6 @@
 #
 # Format: rule<TAB>path
 #
-# The cmd-binary and internal-tooling entries disappear as each tool moves to
-# cmd/repoctl (RS-05 to RS-09). The python entries disappear after the
-# parity-first ports (RS-20 to RS-23).
-
-# Tooling binaries that still live outside cmd/repoctl.
-
-# Repository tooling packages that still live in internal/.
-
-# Python harnesses awaiting their parity-first Go ports.
-python	test/bench/bench.py
-python	test/compat/cerberus/harness.py
-python	test/compat/loki/harness.py
-python	test/compat/loki/seed_clickhouse.py
-python	test/compat/loki/upstream.py
+# The list is empty: cmd/ contains one binary, repository tooling lives under
+# tools/repoctl, every shell script lives under scripts/ except the Helm asset,
+# and the repository has no Python source.

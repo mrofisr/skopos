@@ -1,7 +1,7 @@
 // Command bench measures Skopos gateway latency for representative
 // Prometheus, Tempo, and Loki queries against a running gateway.
 //
-// It is the Go port of bench.py (RS-20). Sequential mode warms and times each
+// It records the same fields as the retired Python harness (RS-20). Sequential mode warms and times each
 // query; concurrent mode runs a mixed workload across a client pool. The JSON
 // report is the machine-readable contract used by the parity fixtures and, in
 // a later ticket, the AX-25 concurrency gate.

@@ -64,7 +64,7 @@ jobs:
         id: paths
         env:
           GH_TOKEN: ${{ github.token }}
-        run: go run ./cmd/repoctl changes --event "$GITHUB_EVENT_PATH"
+        run: go run ./tools/repoctl changes --event "$GITHUB_EVENT_PATH"
 
   go:
     name: Go build, vet, test
@@ -83,11 +83,9 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Verify module checksums
-        run: go mod verify
-      - name: Verify vendor tree is current
         run: |
-          go mod vendor
-          git diff --exit-code -- vendor go.mod go.sum
+          go mod download
+          go mod verify
       - name: Build
         run: go build ./...
       - name: Verify issue manifest
@@ -167,7 +165,7 @@ jobs:
       - name: Replay dedup schema integration
         env:
           CLICKHOUSE_URL: http://127.0.0.1:8123
-        run: sh test/integration/dedup/run.sh
+        run: sh scripts/integration/dedup.sh
 
   compat:
     name: Tempo and Loki differentials
@@ -186,9 +184,9 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Tempo differential
-        run: test/compat/tempo/run.sh
+        run: scripts/compat/tempo.sh
       - name: Loki differential
-        run: test/compat/loki/run.sh verify
+        run: go test ./internal/loki -run TestLogQLCorpus -count=1
 
   cerberus:
     name: cerberus three-way differential
@@ -207,7 +205,7 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Prometheus + cerberus + Skopos
-        run: test/compat/cerberus/run.sh
+        run: go test ./test/compat/cerberus/... -count=1
 
   storage:
     name: S3 tiered storage and backup (RustFS)
@@ -225,7 +223,7 @@ jobs:
         with:
           version: ${{ env.HELM_VERSION }}
       - name: Run ClickHouse + RustFS integration
-        run: test/integration/s3/run.sh
+        run: scripts/integration/s3.sh
 
   helm:
     name: Helm lint and render
@@ -434,8 +432,7 @@ jobs:
           docker create --name skopos-ci-check skopos-ci >/dev/null
           docker export skopos-ci-check > /tmp/skopos-ci.tar
           docker rm skopos-ci-check >/dev/null
-          tar -tf /tmp/skopos-ci.tar | grep -qx 'gateway'
-          tar -tf /tmp/skopos-ci.tar | grep -qx 'skopos-checkpoint'
+          tar -tf /tmp/skopos-ci.tar | grep -qx 'skopos'
 
   policy:
     name: Workflow policy
@@ -480,9 +477,9 @@ jobs:
       - name: Check ruleset consistency
         run: make ruleset-check
       - name: Workflow trigger policy
-        run: go run ./cmd/repoctl workflow-lint
+        run: go run ./tools/repoctl workflow-lint
       - name: Workflow documentation
-        run: go run ./cmd/repoctl workflows-doc --check
+        run: go run ./tools/repoctl workflows-doc --check
       - name: Support matrix
         run: go run ./test/supportmatrix --check
       - name: Reject blocked workflow patterns
@@ -530,4 +527,4 @@ jobs:
       - name: Evaluate job results
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-        run: go run ./cmd/repoctl ci-gate
+        run: go run ./tools/repoctl ci-gate

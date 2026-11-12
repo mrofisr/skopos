@@ -1,6 +1,6 @@
 //go:build skopos_upstream
 
-// This file is copied into the pinned Loki tree by upstream.sh. The build tag
+// This file is copied into the pinned Loki tree by scripts/compat/loki-upstream.sh. The build tag
 // keeps it out of the Skopos module, where defaultGeneratorConfig does not
 // exist.
 package bench

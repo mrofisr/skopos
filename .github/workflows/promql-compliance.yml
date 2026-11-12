@@ -44,7 +44,7 @@ jobs:
           if [[ -n "${COMPLIANCE_FILES}" ]]; then
             args+=(--files "${COMPLIANCE_FILES}")
           fi
-          test/compat/prometheus/compliance.sh "${args[@]}"
+          scripts/compat/prometheus-compliance.sh "${args[@]}"
 
       - name: Upload compliance report
         if: always()

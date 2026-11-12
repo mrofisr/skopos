@@ -28,7 +28,7 @@ the receiver component and its maturity first.
 | Health `/healthz`, `/readyz`, `/version` | Implemented | — |
 | Context `/api/v1/context/*` | Implemented alpha (optional catalog; metrics, services, logs, traces, coverage/alerts, discovery, observed metadata, suggestions) | [ai-context.md](ai-context.md) |
 | Context metrics `/metrics` | Implemented alpha (Prometheus text gauges; auth applies) | [ai-context.md](ai-context.md) |
-| MCP server | Implemented alpha (`cmd/skopos-mcp`, stdio and HTTP sessions/SSE) | [ai-context.md](ai-context.md#mcp-server) |
+| MCP server | Implemented alpha (`SKOPOS_MODE=mcp`, stdio and HTTP sessions/SSE) | [ai-context.md](ai-context.md#mcp-server) |
 
 The gateway exposes all three APIs on one public port. The Grafana datasource
 example points all three datasource types at that service.
@@ -307,15 +307,17 @@ Every row is backed by an executable inventory test.
   credentials. The chart does not create buckets.
 - The distributed frontend scales the read path only. ClickHouse is still a
   single node in the default chart; there is no ClickHouse replication/HA.
-- The language support lists are intentionally narrow. The current harnesses
+- The language support lists are intentionally narrow. The current checks
   cover a subset: PromQL differential oracle (212 cases), TraceQL corpus
-  (55 cases), LogQL corpus (11 cases), and the cerberus three-way gate
-  (124 checks, 0 Skopos divergences, 39 cerberus-only gaps baseline-pinned).
-  The literal three-way zero is blocked by cerberus v1.23.1; the harness fails
-  on any new or fixed cerberus gap.
+  (83 queries plus tag and trace-by-id cases), LogQL corpus (19 cases), and the
+  deterministic three-signal fixture recorded against Prometheus, Loki, Tempo,
+  and cerberus v1.23.1 (0 Skopos divergences; see
+  [cerberus-baseline.md](cerberus-baseline.md)). The end-to-end cerberus
+  comparison was retired with the Python harnesses, so CI now runs the Go seed
+  and corpus tests.
 - The full Prometheus compliance tester and the complete Loki benchmark corpus
   remain beta gates; see [beta-gates.md](beta-gates.md).
 - The OBI e2e and release signing/publishing are manual because they need
   privileged eBPF or project credentials; normal CI covers build, unit,
-  integration, fuzz, Helm, PromQL oracle, Tempo/Loki references, the cerberus
-  three-way gate, and the S3/RustFS test. OpenSSF Scorecard runs weekly.
+  integration, fuzz, Helm, PromQL oracle, Tempo and LogQL corpora, the cerberus
+  seed tests, and the S3/RustFS test. OpenSSF Scorecard runs weekly.

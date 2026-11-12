@@ -9,7 +9,8 @@ recorded here before it lands.
 M0-M2 used only the Go standard library. M3-M5 add two provider-official
 dependencies and the official protobuf runtime, plus their permissive
 transitive modules.
-`go.mod`, `go.sum`, and `vendor/` are committed. Builds use the vendored tree.
+`go.mod` and `go.sum` are committed. Builds use the module graph; the module
+cache or a module proxy supplies the source.
 
 | Module | Version | License | Owner | Why |
 | --- | --- | --- | --- | --- |
@@ -43,17 +44,16 @@ updated from v0.60.0 to v0.62.0 on 2026-11-07 to fix `GO-2026-6860` and
 graphs stay clean.
 
 LogQL and TraceQL parsers are written in-house without copying code from Loki
-or Tempo (both AGPL-3.0). No AGPL dependency is linked or vendored.
+or Tempo (both AGPL-3.0). No AGPL dependency is linked or copied.
 
 The PromQL differential oracle under `test/compat/prometheus/` is a separate
 test-only Go module. It imports the official Prometheus engine and storage
 helpers but is not linked into the gateway binary and does not change the main
-module's `vendor/` tree. Its dependencies are pinned in that module's
+module's dependency set. Its dependencies are pinned in that module's
 `go.mod`/`go.sum`.
 
-Dependency changes require a separate, human-reviewed PR. The `vendor/` tree is
-regenerated with `go mod vendor`; CI runs `go mod verify` and verifies the
-vendor diff.
+Dependency changes require a separate, human-reviewed PR. `go.sum` is
+regenerated with `go mod tidy`; CI runs `go mod download` and `go mod verify`.
 
 ## CI and development tools
 
@@ -64,11 +64,11 @@ These tools are not linked into the gateway binary:
 | Go | `go.mod` (`1.27.4`) | Build and test; CI reads the version from `go.mod` |
 | Helm | 3.19+ or 4.x | Chart lint and render |
 | govulncheck | v1.9.0 | Vulnerability scan |
-| Docker / Compose | any current release | ClickHouse integration tests, Loki/Tempo/cerberus harnesses, S3 + RustFS test, OBI e2e |
+| Docker / Compose | any current release | ClickHouse integration tests, Tempo differential, S3 + RustFS test, OBI e2e |
 | actionlint | v1.7.12 | Workflow syntax checks in the required `policy` job |
 | zizmor | v1.32.0 | Workflow security checks in the required `policy` job |
 | go-licenses | v1.6.0 | License allowlist check in the required `policy` job |
-| OpenSSF Scorecard CLI | v5.6.0 | Scorecard scan via `scripts/scorecard.sh`; checksum-verified, not linked into the gateway |
+| OpenSSF Scorecard CLI | v5.6.0 | Scorecard scan via `scripts/scorecard/scorecard.sh`; checksum-verified, not linked into the gateway |
 | gitleaks | v8.30.1 | Local secret scan during the OpenSSF pass; not a CI dependency |
 | gremlins | v0.6.0 | Mutation testing via `make mutation`; pinned in the separate `internal/tools` module |
 
@@ -118,21 +118,21 @@ owns schema changes.
 
 ## Release security
 
-The release path is implemented in `scripts/release.sh`,
-`scripts/verify-release.sh`, and `.github/workflows/release.yml`:
+The release path is implemented in `scripts/release/release.sh`,
+`scripts/release/verify-release.sh`, and `.github/workflows/release.yml`:
 
 - One annotated `vX.Y.Z` tag releases both the image and chart.
 - The tag must be an ancestor of `main`; the workflow refuses to overwrite an
   existing image tag or GitHub release.
-- `scripts/release.sh` builds the image, chart, SBOMs, checksums, and metadata
+- `scripts/release/release.sh` builds the image, chart, SBOMs, checksums, and metadata
   only. It never pushes or signs.
 - Every image and chart is signed with keyless Sigstore using the GitHub Actions
   OIDC identity and the transparency log. There are no long-lived signing keys.
 - GitHub artifact attestations cover provenance and SBOMs.
 - GitHub releases are created as drafts, fully populated, then published as
   immutable releases.
-- `make release-check` runs vet, tests, Helm lint/render, module checksum
-  verification, and vendor drift checks before publishing.
+- `make release-check` runs vet, tests, Helm lint/render, and module checksum
+  verification before publishing.
 - `govulncheck`, the SQL fuzz gate, the PromQL/Loki/Tempo differentials, the
   S3/RustFS integration test, and the Helm render matrix are blocking CI gates.
 - The official OpenSSF Scorecard action runs weekly, on pushes to `main`, and on

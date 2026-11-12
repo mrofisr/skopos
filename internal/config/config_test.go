@@ -178,6 +178,7 @@ func TestParseMode(t *testing.T) {
 		{"", ModeAll},
 		{"all", ModeAll},
 		{"ALL", ModeAll},
+		{"gateway", ModeAll},
 		{" query ", ModeQuery},
 		{"query", ModeQuery},
 		{"worker", ModeWorker},

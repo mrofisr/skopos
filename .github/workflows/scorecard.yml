@@ -2,7 +2,7 @@ name: Scorecard
 
 # Public repository path: run the official OpenSSF Scorecard action and publish
 # the result to the public Scorecard API. The CLI fallback in
-# scripts/scorecard.sh remains available for local scans.
+# scripts/scorecard/scorecard.sh remains available for local scans.
 #
 # The action needs no GHAS on a public repository. It writes SARIF to code
 # scanning and publishes the score/badge data under the repository's public

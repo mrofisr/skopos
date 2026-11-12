@@ -36,7 +36,7 @@ WAL lives on a persistent volume.
 
 ```text
                     ┌─────────────────────────────┐
-OTel Collector ────▶│ skopos-checkpoint (serve)   │
+OTel Collector ────▶│ skopos (mode=checkpoint)    │
   otlphttp/checkpoint│  OTLP/HTTP ─▶ active.wal   │
                     │                   │         │
                     │                   ▼         │
@@ -45,7 +45,7 @@ OTel Collector ────▶│ skopos-checkpoint (serve)   │
                     │                   ▼         │
                     └──────────────────▶ S3 ◀──────┘
                                           │
-skopos-checkpoint replay ──OTLP/HTTP──▶ Collector ──▶ ClickHouse
+skopos replay ─────OTLP/HTTP──▶ Collector ──▶ ClickHouse
 ```
 
 The Collector fans out each signal to its ClickHouse exporter and to
@@ -290,11 +290,12 @@ operations on its prefix, not bucket administration.
 ## Replay
 
 ```sh
+SKOPOS_MODE=checkpoint \
 SKOPOS_CHECKPOINT_S3_ENDPOINT=http://rustfs:9000 \
 SKOPOS_CHECKPOINT_S3_BUCKET=skopos-checkpoint \
 SKOPOS_CHECKPOINT_S3_PREFIX=skopos/checkpoint \
 SKOPOS_CHECKPOINT_FORWARD_URL=http://otel-collector:4318 \
-skopos-checkpoint replay
+skopos replay
 ```
 
 Objects are listed lexicographically (date, then segment time), decompressed,
@@ -307,7 +308,7 @@ In a chart install, run replay from a checkpoint pod so the
 
 ```sh
 kubectl -n observability exec -it skopos-checkpoint-0 -- \
-  /skopos-checkpoint replay
+  /skopos replay
 ```
 
 Add `-delete` to the command to remove each object after its records are
@@ -365,7 +366,7 @@ flush completes.
 ## Verification
 
 ```sh
-go test ./internal/checkpoint ./cmd/skopos-checkpoint
+go test ./internal/checkpoint ./internal/app/checkpoint
 go test -race ./internal/checkpoint
 go test -run='^$' -fuzz=FuzzDecodeRecords -fuzztime=30s ./internal/checkpoint
 go test -bench=. ./internal/checkpoint
@@ -377,7 +378,7 @@ round-trips, corruption, torn tails, backpressure, local recovery, and replay.
 The replay-dedup schema is exercised against a real ClickHouse by:
 
 ```sh
-CLICKHOUSE_URL=http://127.0.0.1:8123 sh test/integration/dedup/run.sh
+CLICKHOUSE_URL=http://127.0.0.1:8123 sh scripts/integration/dedup.sh
 ```
 
 ## Deliberate limits and follow-ups

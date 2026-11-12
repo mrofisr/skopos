@@ -7,7 +7,7 @@ covered in `SECURITY.md` and the deployment documentation.
 
 ## Assets
 
-- Source code and the committed `vendor/` tree.
+- Source code and the dependency graph pinned by `go.sum`.
 - GitHub Actions workflows, composite actions, and repository settings.
 - Maintainer and agent credentials, including tokens and SSH keys.
 - The GitHub organization and repository administration.
@@ -24,7 +24,7 @@ covered in `SECURITY.md` and the deployment documentation.
 | Maintainer | Write, review, and release authority | Source, workflows, releases |
 | Agent identity | Write to branches and pull requests; no admin, workflow, or secret access | Proposed changes only |
 | External contributor | Fork or branch pull requests | Proposed changes, never release credentials |
-| Upstream dependency maintainer | Provides code consumed through vendored modules, actions, and images | Build inputs |
+| Upstream dependency maintainer | Provides code consumed through Go modules, actions, and images | Build inputs |
 | GitHub, Sigstore, and the container registry | Platform trust | Build execution, OIDC identity, signing, storage |
 | Consumer | Verifies artifacts before use | Deployment decisions |
 
@@ -76,7 +76,7 @@ A compromised dependency could execute in CI or ship inside the image. Controls:
   actions.
 - Container images are pinned by digest in Dockerfiles, Compose files, the
   chart, and CI services.
-- Go modules are vendored and reviewed; `go mod verify` and vendor drift checks
+- Go modules are pinned by `go.sum`; `go mod download` and `go mod verify`
   run in CI and the release preflight.
 - Dependabot uses a five-day cooldown; dependency changes are separate,
   reviewed PRs.
@@ -108,7 +108,7 @@ artifact. Controls:
 - SBOM and provenance attestations attached to the artifacts.
 - Immutable GitHub releases lock assets and tags after publication.
 - Consumers pin digests and verify signatures and attestations.
-- `scripts/verify-release.sh` and `docs/release.md` provide the verification
+- `scripts/release/verify-release.sh` and `docs/release.md` provide the verification
   commands.
 
 Residual risk: consumers who ignore verification remain exposed. Signatures
