@@ -65,6 +65,7 @@
         "image",
         "database",
         "tables",
+        "dedup",
         "ttl",
         "storage",
         "backup",
@@ -155,6 +156,18 @@
             "metricsSummary": {
               "type": "string",
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        },
+        "dedup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
             }
           }
         },
@@ -510,6 +523,7 @@
         "replicas",
         "service",
         "sendingQueue",
+        "memoryLimiter",
         "resources",
         "podSecurityContext",
         "securityContext",
@@ -596,7 +610,8 @@
             "queueSize",
             "batchMinSize",
             "batchFlushTimeout",
-            "storageSize"
+            "storageSize",
+            "persistence"
           ],
           "properties": {
             "numConsumers": {
@@ -618,6 +633,50 @@
             "storageSize": {
               "type": "string",
               "minLength": 1
+            },
+            "persistence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "size",
+                "storageClass"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "storageClass": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "memoryLimiter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "checkInterval",
+            "limitMiB",
+            "spikeLimitMiB"
+          ],
+          "properties": {
+            "checkInterval": {
+              "type": "string",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            "limitMiB": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "spikeLimitMiB": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         },
@@ -879,6 +938,7 @@
         "serviceAccount",
         "rbac",
         "hostPID",
+        "batch",
         "tolerations",
         "resources",
         "securityContext",
@@ -963,6 +1023,29 @@
         },
         "hostPID": {
           "type": "boolean"
+        },
+        "batch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleDelayMs",
+            "maxExportBatchSize",
+            "maxQueueSize"
+          ],
+          "properties": {
+            "scheduleDelayMs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxExportBatchSize": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxQueueSize": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
         "tolerations": {
           "type": "array",

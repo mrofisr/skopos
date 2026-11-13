@@ -57,6 +57,18 @@ func TestChartSchemaRendersWithLocalDefaults(t *testing.T) {
 	if !strings.Contains(got, "idx_body Body TYPE text") {
 		t.Fatal("chart schema is missing the case-sensitive body index")
 	}
+	if strings.Contains(got, "idx_lower_body") {
+		t.Fatal("chart schema still ships the redundant lower-body index")
+	}
+	if !strings.Contains(got, "CODEC(ZSTD(3))") || strings.Contains(got, "ZSTD(1)") {
+		t.Fatal("chart schema is not using ZSTD(3) for signal columns")
+	}
+	if strings.Count(got, "enable_block_number_column = 1") < 2 {
+		t.Fatal("chart schema is missing block number/offset settings on logs and traces")
+	}
+	if !strings.Contains(got, "_skopos_row_hash") || !strings.Contains(got, "ENGINE = ReplacingMergeTree()") {
+		t.Fatal("chart schema is missing the reliable replay-dedup schema")
+	}
 	if strings.Count(got, "CREATE TABLE IF NOT EXISTS") != 8 {
 		t.Fatalf("expected 8 tables in the rendered schema, got %d", strings.Count(got, "CREATE TABLE IF NOT EXISTS"))
 	}

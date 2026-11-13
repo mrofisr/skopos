@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jawaracloud/skopos/internal/plan"
@@ -38,6 +39,8 @@ type Config struct {
 	HTTPClient       *http.Client
 	// Observer receives per-query accounting. Nil disables it.
 	Observer QueryObserver
+	// Now returns the current time. Nil uses time.Now.
+	Now func() time.Time
 	// Logger defaults to a discard logger.
 	Logger *slog.Logger
 }
@@ -56,6 +59,9 @@ type Client struct {
 	http             *http.Client
 	observer         QueryObserver
 	logger           *slog.Logger
+	now              func() time.Time
+	noFinalMu        sync.Mutex
+	noFinal          map[string]time.Time
 }
 
 // QueryObserver receives one query's outcome and ClickHouse read accounting.
@@ -229,6 +235,9 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
 	return &Client{
 		base:             u,
 		database:         cfg.Database,
@@ -242,6 +251,8 @@ func New(cfg Config) (*Client, error) {
 		http:             cfg.HTTPClient,
 		observer:         cfg.Observer,
 		logger:           cfg.Logger,
+		now:              cfg.Now,
+		noFinal:          make(map[string]time.Time),
 	}, nil
 }
 
@@ -293,6 +304,11 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 	}
 	if !isReadOnlySQL(sql) {
 		return nil, errors.New("chclient: only SELECT and WITH statements are allowed")
+	}
+	if strings.Contains(sql, " FINAL") && c.skipsFinal(sql) {
+		if fallback, ok := withoutFinal(sql); ok {
+			sql = fallback
+		}
 	}
 
 	u := *c.base
@@ -373,6 +389,7 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 		// FINAL so reads stay available; only read-time deduplication is lost.
 		if isIllegalFinal(queryErr) {
 			if fallback, ok := withoutFinal(sql); ok {
+				c.markNoFinal(sql)
 				return c.Query(ctx, fallback, params)
 			}
 		}
@@ -647,9 +664,45 @@ var codePattern = regexp.MustCompile(`(?i)code:\s*([0-9]+)`)
 // reject FINAL; ReplacingMergeTree tables accept it.
 const illegalFinalCode = "181"
 
+// noFinalTTL bounds how long a table is remembered as rejecting FINAL. The
+// cache avoids a failed round trip on every query in the fast profile and
+// re-enables FINAL automatically if an operator migrates the table to
+// ReplacingMergeTree.
+const noFinalTTL = time.Minute
+
 func isIllegalFinal(err error) bool {
 	var chErr *Error
 	return errors.As(err, &chErr) && chErr.Code == illegalFinalCode
+}
+
+// skipsFinal reports whether any table in sql recently rejected FINAL.
+func (c *Client) skipsFinal(sql string) bool {
+	now := c.now()
+	c.noFinalMu.Lock()
+	defer c.noFinalMu.Unlock()
+	skip := false
+	for _, table := range tablesFromSQL(sql) {
+		until, ok := c.noFinal[table]
+		if !ok {
+			continue
+		}
+		if now.Before(until) {
+			skip = true
+			continue
+		}
+		delete(c.noFinal, table)
+	}
+	return skip
+}
+
+// markNoFinal remembers the tables in sql until noFinalTTL expires.
+func (c *Client) markNoFinal(sql string) {
+	until := c.now().Add(noFinalTTL)
+	c.noFinalMu.Lock()
+	defer c.noFinalMu.Unlock()
+	for _, table := range tablesFromSQL(sql) {
+		c.noFinal[table] = until
+	}
 }
 
 // withoutFinal removes the first bare FINAL marker the emitter placed after a

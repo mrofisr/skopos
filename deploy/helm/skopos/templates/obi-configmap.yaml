@@ -26,9 +26,9 @@ data:
                 endpoint: http://{{ include "skopos.collector.host" . }}:{{ .Values.collector.service.grpcPort }}
                 tls:
                   insecure: true
-            schedule_delay: 5000
-            max_export_batch_size: 512
-            max_queue_size: 2048
+            schedule_delay: {{ .Values.obi.batch.scheduleDelayMs }}
+            max_export_batch_size: {{ .Values.obi.batch.maxExportBatchSize }}
+            max_queue_size: {{ .Values.obi.batch.maxQueueSize }}
 
     meter_provider:
       readers:

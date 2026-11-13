@@ -34,9 +34,8 @@ TTL/delete behavior and does not require any S3 credentials.
 
 ## Replay deduplication
 
-The signal tables use `ReplacingMergeTree` so replaying the checkpoint is
-idempotent in ClickHouse:
-
+In the default reliable profile, the signal tables use `ReplacingMergeTree` so
+replaying the checkpoint is idempotent in ClickHouse:
 - `otel_traces` ends its sort key with the OTel span identity
   `(TraceId, SpanId)`.
 - `otel_logs` and the metric tables add a 128-bit materialized
@@ -52,6 +51,17 @@ idempotent in ClickHouse:
 There is no OTel record id for a log or metric point. Two byte-identical rows
 are therefore the same row and collapse to one; distinct rows keep distinct
 hashes.
+
+The opt-in fast profile (`clickhouse.dedup.enabled=false`) switches logs and
+metric tables to `MergeTree` and omits `_skopos_row_hash`. It keeps trace
+identity dedup and the durable Collector queue, but replay is at-least-once:
+a checkpoint replay can duplicate log and metric rows. The default remains the
+reliable profile. The gateway client caches `ILLEGAL_FINAL` per table for one
+minute, so fast-mode reads skip `FINAL` after the first query.
+
+Switching an existing full install to fast does not rewrite existing hash
+tables; rebuild them or reinstall to reclaim the space. Switching fast to full
+is migrated automatically by the init Job.
 
 The ClickHouse init Job runs `schema.sql` and then `migrate.sh`. On a fresh
 install both are no-ops beyond creating the current tables. On an upgrade the
@@ -236,10 +246,10 @@ ALTER TABLE otel.otel_logs
 ALTER TABLE otel.otel_logs MATERIALIZE INDEX idx_body;
 ```
 
-`idx_body` serves case-sensitive `match(Body, ...)` and token search. The
-existing `idx_lower_body lower(Body)` index remains for case-insensitive
-predicates. Neither index changes query results; they only let ClickHouse skip
-granules.
+`idx_body` serves case-sensitive `match(Body, ...)` and token search. It is the
+default body index; it changes no query result, only lets ClickHouse skip
+granules. For case-insensitive `lower(Body)` SQL outside LogQL, add a separate
+`idx_lower_body lower(Body)` index manually.
 
 ### Query behavior
 

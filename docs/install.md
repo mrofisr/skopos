@@ -206,6 +206,7 @@ The important values are:
 | --- | --- | --- |
 | `clickhouse.database` | `otel` | Database name. Validated as an SQL identifier. |
 | `clickhouse.tables.*` | `otel_*` | Table names used by the DDL, Collector, and gateway. Validated as SQL identifiers. The gateway parses them now; the M3–M5 query heads consume them. |
+| `clickhouse.dedup.enabled` | `true` | Full replay dedup for logs and metrics (`ReplacingMergeTree` + 16-byte row hash). Set `false` for the fast profile: `MergeTree`, no row hash, at-least-once replay. Trace identity dedup stays on. |
 | `clickhouse.ttl.tracesDays` | `7` | Trace and trace-lookup TTL in days. |
 | `clickhouse.ttl.logsDays` | `7` | Log TTL in days. |
 | `clickhouse.ttl.metricsDays` | `30` | Metrics TTL in days. |
@@ -221,7 +222,11 @@ The important values are:
 | `clickhouse.backup.schedule` | `0 2 * * *` | Cron schedule for the full backup. |
 | `clickhouse.backup.*` | empty | Backup S3 endpoint, bucket, prefix, and credentials. The destination must not overlap the live cold tier. |
 | `checkpoint.enabled` | `false` | Fan out every OTLP signal to the recent-window durability checkpoint. Requires a bucket and credentials; see [checkpoint.md](checkpoint.md). |
-| `collector.sendingQueue.storageSize` | `1Gi` | `emptyDir` size for the checkpoint exporter's file-backed queue. Survives Collector container restarts, not pod deletion. |
+| `collector.sendingQueue.storageSize` | `5Gi` | `emptyDir` size when the queue PVC is disabled. The default is a PVC. |
+| `collector.sendingQueue.persistence.enabled` | `true` | Use a PVC for the Collector's disk-backed queue. Queued batches survive Collector restarts and pod rescheduling. |
+| `collector.sendingQueue.persistence.size` | `5Gi` | Queue PVC size. Resize it with the StorageClass if ClickHouse outages last longer than the buffer. |
+| `collector.memoryLimiter.limitMiB`, `spikeLimitMiB` | `700`, `100` | Keep the Collector below its memory limit and apply backpressure before the OOM killer. Lower these with a smaller Collector memory limit. |
+| `obi.batch.maxExportBatchSize`, `maxQueueSize` | `2048`, `8192` | OBI's OTLP batch and in-memory queue. Larger values reduce overhead and absorb short Collector stalls. |
 | `checkpoint.persistence.size` | `2Gi` | Per-replica WAL PVC. Keep it above `checkpoint.maxLocalBytes` plus filesystem reserve. |
 | `checkpoint.sealBytes`, `sealInterval` | `8388608`, `15s` | Seal the active segment on size or age. The unshipped window is bounded by `max(sealBytes, arrival_rate * sealInterval)`. |
 | `checkpoint.maxLocalBytes` | `1073741824` | Local budget; the receiver returns `503` with `Retry-After` above it. |
@@ -283,11 +288,12 @@ tighten `networkPolicy.gateway.allowFrom` to the ingress controller namespace.
 - The PVC is a single `ReadWriteOnce` volume. ClickHouse single-node does not
   replicate. A lost PVC loses telemetry.
 - When the disk fills, ClickHouse rejects inserts with errors such as
-  `NOT_ENOUGH_SPACE` or `TOO_MANY_PARTS`. The Collector retries according to
-  `retry_on_failure` and its sending queue, then drops data when the queue is
-  full. The gateway remains readable but queries may fail. Increase the PVC (if
-  the StorageClass supports expansion), lower TTL, or add storage; do not delete
-  the ClickHouse data directory while the pod is running.
+  `NOT_ENOUGH_SPACE` or `TOO_MANY_PARTS`. The Collector retries against its
+  disk-backed queue and applies backpressure until the queue fills; after that
+  OBI drops from its own bounded in-memory queue. The gateway remains readable
+  but queries may fail. Increase the PVC (if the StorageClass supports
+  expansion), lower TTL, or add storage; do not delete the ClickHouse data
+  directory while the pod is running.
 - The chart does not set a Prometheus alert for disk usage. Use your cluster's
   PVC alerts.
 - Tiered storage is optional and off by default. When enabled, cold parts live

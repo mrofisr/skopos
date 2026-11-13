@@ -115,9 +115,10 @@ ALTER TABLE <database>.<logs_table> MATERIALIZE INDEX idx_body;
 ClickHouse uses this index only when it can extract complete tokens from the
 pattern (for example a phrase or anchored literal words); an unanchored
 `match(Body, 'timeout')` is a substring regex and may still scan. `position`
-substring filters are exact but do not use the text index at all.
-`idx_lower_body` is not used by LogQL because `|=`, `|~`, and their negations
-are case-sensitive.
+substring filters are exact but do not use the text index at all. LogQL does
+not need a case-insensitive body index because `|=`, `|~`, and their negations
+are case-sensitive; add `idx_lower_body lower(Body)` manually if you run
+case-insensitive SQL outside the gateway.
 
 Pushdown reduces rows read, but the gateway still applies the full selector,
 parser stages, label filters, and metric aggregation in Go, and still enforces

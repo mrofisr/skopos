@@ -3,16 +3,46 @@
 # non-Kubernetes/systemd install. Writes SQL to stdout unless an output path is
 # given. This is the default schema; tiered storage requires the Helm/S3
 # configuration described in docs/storage.md.
+#
+# SKOPOS_DEDUP=false renders the fast profile: MergeTree without the row hash
+# for logs and metrics. Trace identity dedup remains.
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 src="$root/deploy/helm/skopos/files/schema.sql"
 out=${1:-}
+dedup=${SKOPOS_DEDUP:-true}
+
+case "$dedup" in
+  true|false) ;;
+  *)
+    echo "render-schema: SKOPOS_DEDUP must be true or false" >&2
+    exit 2
+    ;;
+esac
+
+dedup_filter() {
+  if [ "$dedup" = true ]; then
+    sed \
+      -e 's|{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}|ReplacingMergeTree()|g' \
+      -e 's|{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}|, _skopos_row_hash|g'
+  else
+    sed \
+      -e 's|{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}|MergeTree()|g' \
+      -e 's|{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}||g'
+  fi
+}
 
 render() {
-  sed \
-    -e "s|{{- if .Values.clickhouse.storage.enabled }}, storage_policy = 'tiered'{{- end }}||g" \
-    "$src" \
+  awk -v keep="$dedup" '
+      /^\{\{ if \.Values\.clickhouse\.dedup\.enabled \}\}$/ { in_dedup = 1; next }
+      in_dedup && /^\{\{ end \}\}$/ { in_dedup = 0; next }
+      in_dedup { if (keep == "true") print; next }
+      { print }
+    ' "$src" \
+    | dedup_filter \
+    | sed \
+        -e "s|{{- if .Values.clickhouse.storage.enabled }}, storage_policy = 'tiered'{{- end }}||g" \
     | awk '
         /{{- if \.Values\.clickhouse\.storage\.enabled }}/ { in_block = 1; next }
         in_block && /{{- else }}/ { in_block = 0; keep_else = 1; next }

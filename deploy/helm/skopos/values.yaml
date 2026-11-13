@@ -43,6 +43,11 @@ clickhouse:
     metricsHistogram: otel_metrics_histogram
     metricsExponentialHistogram: otel_metrics_exponential_histogram
     metricsSummary: otel_metrics_summary
+  dedup:
+    # Full replay dedup for logs and metrics: ReplacingMergeTree plus a
+    # 16-byte full-row hash. Set false for the fast profile: MergeTree, no row
+    # hash, at-least-once replay. Trace identity dedup is always on.
+    enabled: true
   ttl:
     tracesDays: 7
     logsDays: 7
@@ -162,11 +167,20 @@ collector:
     queueSize: 50000
     batchMinSize: 5000
     batchFlushTimeout: 5s
-    # File-backed queue for the checkpoint exporter, mounted as an emptyDir.
-    # It survives Collector container restarts but not pod deletion. The
-    # checkpoint WAL is the durable layer; this queue only covers a checkpoint
-    # or S3 outage. Used only when checkpoint.enabled=true.
-    storageSize: 1Gi
+    # Disk-backed queue shared by the ClickHouse and checkpoint exporters.
+    # It survives Collector container restarts and, with persistence enabled,
+    # pod rescheduling. The checkpoint WAL remains the durable S3 layer.
+    storageSize: 5Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+  memoryLimiter:
+    # Keep the Collector below its 1Gi limit and apply backpressure before the
+    # kernel OOM killer can drop in-flight telemetry.
+    checkInterval: 1s
+    limitMiB: 700
+    spikeLimitMiB: 100
   resources:
     requests:
       cpu: 100m
@@ -298,6 +312,12 @@ obi:
   rbac:
     create: true
   hostPID: true
+  batch:
+    # Larger batches reduce gRPC/send overhead under load. The queue bounds
+    # memory while the Collector is catching up.
+    scheduleDelayMs: 5000
+    maxExportBatchSize: 2048
+    maxQueueSize: 8192
   tolerations:
     - operator: Exists
   resources:

@@ -19,14 +19,17 @@ data:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
-      {{- if .Values.checkpoint.enabled }}
-      # File-backed queue for the checkpoint exporter. The Collector process can
-      # restart without losing queued batches; the checkpoint WAL is the
-      # durable layer.
+      # Disk-backed queue shared by the exporters. It survives Collector
+      # restarts and, when persistence is enabled, pod rescheduling.
       file_storage:
         directory: /var/lib/otelcol/storage
         timeout: 10s
-      {{- end }}
+
+    processors:
+      memory_limiter:
+        check_interval: {{ .Values.collector.memoryLimiter.checkInterval }}
+        limit_mib: {{ .Values.collector.memoryLimiter.limitMiB }}
+        spike_limit_mib: {{ .Values.collector.memoryLimiter.spikeLimitMiB }}
 
     exporters:
       clickhouse:
@@ -53,6 +56,7 @@ data:
         timeout: 5s
         sending_queue:
           enabled: true
+          storage: file_storage
           num_consumers: {{ .Values.collector.sendingQueue.numConsumers }}
           queue_size: {{ .Values.collector.sendingQueue.queueSize }}
           sizer: items
@@ -63,7 +67,10 @@ data:
           enabled: true
           initial_interval: 5s
           max_interval: 30s
-          max_elapsed_time: 300s
+          # Retry for as long as the disk queue holds the batch. Dropping after
+          # a fixed window would silently lose telemetry during a ClickHouse
+          # outage; the bounded queue supplies backpressure instead.
+          max_elapsed_time: 0s
 
       {{- if .Values.checkpoint.enabled }}
       # Fan-out copy for the durability checkpoint. The local write is ACKed by
@@ -97,13 +104,13 @@ data:
     service:
       extensions:
         - health_check
-        {{- if .Values.checkpoint.enabled }}
         - file_storage
-        {{- end }}
       pipelines:
         traces:
           receivers:
             - otlp
+          processors:
+            - memory_limiter
           exporters:
             - clickhouse
             {{- if .Values.checkpoint.enabled }}
@@ -112,6 +119,8 @@ data:
         metrics:
           receivers:
             - otlp
+          processors:
+            - memory_limiter
           exporters:
             - clickhouse
             {{- if .Values.checkpoint.enabled }}
@@ -120,6 +129,8 @@ data:
         logs:
           receivers:
             - otlp
+          processors:
+            - memory_limiter
           exporters:
             - clickhouse
             {{- if .Values.checkpoint.enabled }}

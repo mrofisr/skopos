@@ -74,6 +74,7 @@ budgets, and MCP tools.
 | [ADR 0002](adr/0002-distributed-read-path.md) | Distributed frontend/query split, S3 retention, full-text, no compactor |
 | [ADR 0003](adr/0003-replay-deduplication.md) | ReplacingMergeTree replay dedup, row hashes, FINAL, online migration |
 | [ADR 0004](adr/0004-repository-layout-and-language-policy.md) | One shipped binary, one `repoctl` tool, Go for logic, no Python, scripts under `scripts/` |
+| [ADR 0005](adr/0005-obi-wrapper-speed-and-durability.md) | ZSTD(3), body-index pruning, durable Collector queue, OBI batching, dedup trade-off |
 | [Dependency policy](dependencies.md) | Go modules, pinned images, reference test containers, supply chain |
 
 ## Security and project process

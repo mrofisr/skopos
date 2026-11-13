@@ -119,9 +119,14 @@ type seeder struct {
 // uses local-only storage, so it keeps the {{- else }} branch.
 var storageIfBlock = regexp.MustCompile(`(?s)\{\{- if \.Values\.clickhouse\.storage\.enabled \}\}.*?\{\{- else \}\}(.*?)\{\{- end \}\}`)
 
-// renderChartDefaults renders the chart schema with storage disabled. It is a
-// deliberately small renderer for the one conditional used by schema.sql; if
-// the schema grows more conditionals, replace this with Helm or a full
+// dedupIfBlock matches the optional full-row hash column block. The seeder
+// renders the reliable profile, so it keeps the block. It must be line-anchored:
+// the engine line also contains an inline dedup conditional.
+var dedupIfBlock = regexp.MustCompile(`(?ms)^\{\{ if \.Values\.clickhouse\.dedup\.enabled \}\}\n(.*?)^\{\{ end \}\}\n?`)
+
+// renderChartDefaults renders the chart schema with storage disabled and
+// replay dedup enabled. It is a deliberately small renderer for the schema's
+// conditionals; if the schema grows more, replace this with Helm or a full
 // template renderer and keep the tests in sync.
 func renderChartDefaults(raw, database string) string {
 	// Remove the inline storage_policy fragment before matching the block form.
@@ -129,6 +134,13 @@ func renderChartDefaults(raw, database string) string {
 	rendered := strings.ReplaceAll(raw,
 		"{{- if .Values.clickhouse.storage.enabled }}, storage_policy = 'tiered'{{- end }}", "")
 	rendered = storageIfBlock.ReplaceAllString(rendered, "$1")
+	rendered = dedupIfBlock.ReplaceAllString(rendered, "$1")
+	rendered = strings.ReplaceAll(rendered,
+		"{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}",
+		"ReplacingMergeTree()")
+	rendered = strings.ReplaceAll(rendered,
+		"{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}",
+		", _skopos_row_hash")
 	return strings.NewReplacer(
 		"{{ .Values.clickhouse.database }}", database,
 		"{{ .Values.clickhouse.tables.traces }}", "otel_traces",

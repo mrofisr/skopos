@@ -18,7 +18,7 @@ AWS SDK, MinIO client, or compression module is linked.
 | Failure | What protects the data |
 | --- | --- |
 | Checkpoint process crash or restart | `active.wal` is recovered and sealed on open; sealed segments remain until uploaded. |
-| Collector or checkpoint pod restart | The checkpoint's PVC and WAL survive pod rescheduling. The Collector's file-backed queue survives a container restart; it is an `emptyDir`, so a deleted Collector pod loses queued batches. |
+| Collector or checkpoint pod restart | The checkpoint's PVC and WAL survive pod rescheduling. The Collector's file-backed queue also uses a PVC by default, so queued batches survive container restarts and pod rescheduling. |
 | ClickHouse committed data, then lost it | Objects in S3 are replayed through the Collector into ClickHouse. |
 | S3 outage | Segments accumulate locally up to `MaxLocalBytes`; the receiver returns `503` with `Retry-After` instead of dropping. |
 | Node loss before an upload | Segments already PUT to S3 are safe. The unsealed or unuploaded tail can be lost. A persistent volume preserves the WAL across pod rescheduling, but it does not replace the S3 PUT as the crash-consistency point. |
@@ -236,14 +236,15 @@ Size the checkpoint's local volume above `MaxLocalBytes` plus the filesystem
 reserve. A persistent volume preserves its WAL across pod restarts and
 rescheduling. If the checkpoint directory is an `emptyDir`, a pod restart loses
 the unshipped window by design. The Collector's file queue is a separate
-buffer; the chart uses an `emptyDir` for it and a PVC for the checkpoint.
+buffer; the chart uses a PVC for it and a PVC for the checkpoint.
 
 ### Helm wiring
 
 The chart renders the exporter, the `file_storage` extension, and the queue
 volume above when `checkpoint.enabled=true`. It does not create the S3 bucket.
-The Collector queue is an `emptyDir`: it survives a Collector container restart
-but not pod deletion. The checkpoint's PVC and WAL are the durable layer.
+The Collector queue is a PVC by default: it survives a Collector container
+restart and pod rescheduling. The checkpoint's PVC and WAL remain the durable
+S3 layer.
 
 ```yaml
 checkpoint:
