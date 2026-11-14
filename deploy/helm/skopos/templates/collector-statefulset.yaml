@@ -72,6 +72,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "skopos.clickhouse.secretName" . }}
                   key: admin-password
+            {{- if .Values.collector.otlpAuth.enabled }}
+            - name: OTLP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skopos.collector.otlpAuthSecretName" . }}
+                  key: {{ .Values.collector.otlpAuth.tokenKey }}
+            {{- end }}
             {{- with .Values.collector.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -127,6 +127,17 @@ The chart now ships:
 
 These do not make ClickHouse HA; that remains beta scope.
 
+### 8. Optional OTLP bearer authentication
+
+`collector.otlpAuth.enabled=true` adds the `bearertokenauth` extension to the
+Collector, applies it to both OTLP protocols, and injects the matching
+`OTEL_EXPORTER_OTLP_HEADERS` value into OBI from the same Secret. The token is
+off by default; inline tokens are rendered into a Secret, while production
+installs should use `existingSecret`. Rotating the token requires restarting
+the Collector and OBI because the extension reads the environment at startup.
+Plaintext bearer tokens are only safe on a trusted network; TLS/mTLS is the
+next guardrail.
+
 ## Consequences
 
 - New installs get smaller and faster storage without losing replay dedup.

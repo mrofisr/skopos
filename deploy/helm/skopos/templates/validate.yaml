@@ -9,6 +9,15 @@
 {{- if and $oldCollector $oldCollector.metadata $oldCollector.metadata.name }}
 {{- fail (printf "collector is now a StatefulSet; drain the queue, delete the old Deployment %q, then rerun the upgrade" (include "skopos.collector.fullname" .)) }}
 {{- end }}
+{{- if .Values.collector.otlpAuth.enabled }}
+{{- $auth := .Values.collector.otlpAuth }}
+{{- if and $auth.existingSecret $auth.token }}
+{{- fail "set either collector.otlpAuth.existingSecret or collector.otlpAuth.token, not both" }}
+{{- end }}
+{{- if and (not $auth.existingSecret) (not $auth.token) }}
+{{- fail "collector.otlpAuth.enabled=true requires collector.otlpAuth.existingSecret or collector.otlpAuth.token" }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if .Values.checkpoint.enabled }}
 {{- $checkpoint := .Values.checkpoint }}

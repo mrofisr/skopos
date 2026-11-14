@@ -156,6 +156,53 @@ If you are upgrading from a release where the Collector was a Deployment:
 
 The chart fails the upgrade before step 2 instead of running both workloads.
 
+## OTLP authentication
+
+OTLP ingress auth is **off by default**. Enable a static bearer token for the
+Collector's gRPC and HTTP receivers:
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.otlpAuth.enabled=true \
+  --set collector.otlpAuth.token='change-me'
+```
+
+For production, create the Secret yourself and pass its name. It must contain
+the token key (`token` by default) and a full header key (`otlp-headers` by
+default):
+
+```sh
+kubectl -n observability create secret generic skopos-otlp-auth \
+  --from-literal=token='change-me' \
+  --from-literal=otlp-headers='Authorization=Bearer change-me'
+
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.otlpAuth.enabled=true \
+  --set collector.otlpAuth.existingSecret=skopos-otlp-auth
+```
+
+The chart sets `OTLP_AUTH_TOKEN` on the Collector and
+`OTEL_EXPORTER_OTLP_HEADERS` on OBI, so OBI keeps sending after auth is enabled.
+External senders must add the same header:
+
+```sh
+curl -X POST http://skopos-collector:4318/v1/logs \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer change-me' \
+  --data-binary @logs.json
+```
+
+For OTLP/gRPC, send `authorization: Bearer change-me` as request metadata.
+Without the token the Collector returns **401**.
+
+The token is an environment variable, so rotate it by updating the Secret and
+restarting the Collector and OBI pods. The token protects only the Collector
+ingress; it does not protect the checkpoint endpoint or ClickHouse. Bearer
+tokens over plaintext are visible to anything that can sniff the network — use
+TLS at the ingress or mTLS for untrusted networks.
+
 ## Admission limits
 
 Admission is enabled by default in the chart: **16 in-flight requests per query
@@ -272,6 +319,9 @@ The important values are:
 | `collector.sendingQueue.persistence.enabled` | `true` | Give each Collector replica its own PVC for the disk-backed queue. Queued batches survive restarts and pod rescheduling. |
 | `collector.sendingQueue.persistence.size` | `5Gi` | Queue PVC size. Resize it with the StorageClass if ClickHouse outages last longer than the buffer. |
 | `collector.memoryLimiter.limitMiB`, `spikeLimitMiB` | `700`, `100` | Keep the Collector below its memory limit and apply backpressure before the OOM killer. Lower these with a smaller Collector memory limit. |
+| `collector.otlpAuth.enabled` | `false` | Require a bearer token on OTLP/gRPC and OTLP/HTTP ingress. |
+| `collector.otlpAuth.existingSecret` | `""` | Secret with `token` and `otlp-headers` keys (names configurable). Preferred over inline tokens. |
+| `collector.otlpAuth.token` | `""` | Inline token, rendered into a Secret. The chart also creates the `otlp-headers` value for OBI. |
 | `obi.batch.maxExportBatchSize`, `maxQueueSize` | `2048`, `8192` | OBI's OTLP batch and in-memory queue. Larger values reduce overhead and absorb short Collector stalls. |
 | `checkpoint.persistence.size` | `2Gi` | Per-replica WAL PVC. Keep it above `checkpoint.maxLocalBytes` plus filesystem reserve. |
 | `checkpoint.sealBytes`, `sealInterval` | `8388608`, `15s` | Seal the active segment on size or age. The unshipped window is bounded by `max(sealBytes, arrival_rate * sealInterval)`. |

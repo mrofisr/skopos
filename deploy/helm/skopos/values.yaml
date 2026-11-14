@@ -190,6 +190,17 @@ collector:
     checkInterval: 1s
     limitMiB: 700
     spikeLimitMiB: 100
+  otlpAuth:
+    # Require a bearer token on the OTLP gRPC/HTTP receivers. OBI reads the
+    # matching OTEL_EXPORTER_OTLP_HEADERS value from the same Secret. Prefer
+    # existingSecret; inline token is rendered into a Secret but also appears
+    # in Helm values. Bearer tokens are only as safe as the transport: use
+    # TLS at the ingress or mTLS for untrusted networks.
+    enabled: false
+    existingSecret: ""
+    token: ""
+    tokenKey: token
+    headersKey: otlp-headers
   resources:
     requests:
       cpu: 100m

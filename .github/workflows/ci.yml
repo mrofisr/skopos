@@ -287,6 +287,14 @@ jobs:
             --set gateway.config.maxInflight=4 \
             --set gateway.config.queueDepth=4 \
             --set gateway.config.queueWaitSeconds=1 > /tmp/skopos-admission.yaml
+      - name: Render OTLP auth
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set collector.otlpAuth.enabled=true \
+            --set collector.otlpAuth.token=test-token > /tmp/skopos-otlp-auth.yaml
+          grep -q 'authenticator: bearertokenauth' /tmp/skopos-otlp-auth.yaml
+          grep -q 'OTEL_EXPORTER_OTLP_HEADERS' /tmp/skopos-otlp-auth.yaml
+          grep -q 'name: skopos-collector-otlp-auth' /tmp/skopos-otlp-auth.yaml
           grep -q 'SKOPOS_MAX_INFLIGHT' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_DEPTH' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_WAIT' /tmp/skopos-admission.yaml

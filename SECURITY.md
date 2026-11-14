@@ -37,6 +37,12 @@ provenance guarantees below.
   ClusterIP. NetworkPolicies restrict ingress traffic between components (v0.1
   does not ship egress policies; that is M6 hardening). The chart does not
   expose the gateway to the internet.
+- **Optional OTLP bearer auth.** `collector.otlpAuth.enabled=true` requires a
+  static bearer token on the Collector's gRPC and HTTP receivers and injects
+  the matching header into OBI. It is off by default. Tokens over plaintext are
+  visible to network observers; use TLS at the ingress or mTLS for untrusted
+  networks. The checkpoint endpoint and ClickHouse are not covered by this
+  token.
 - **Read-only ClickHouse user.** The gateway connects with a ClickHouse user
   that has `SELECT` on the configured database and `readonly = 2` (read-only
   queries, but query settings can be changed to enforce limits). Query time,

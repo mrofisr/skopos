@@ -73,6 +73,14 @@ app.kubernetes.io/component: {{ $component }}
 {{- printf "%s-headless" (include "skopos.collector.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "skopos.collector.otlpAuthSecretName" -}}
+{{- if .Values.collector.otlpAuth.existingSecret -}}
+{{- .Values.collector.otlpAuth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-otlp-auth" (include "skopos.collector.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end }}
+
 {{- define "skopos.checkpoint.fullname" -}}
 {{- printf "%s-checkpoint" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}

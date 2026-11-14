@@ -524,6 +524,7 @@
         "service",
         "sendingQueue",
         "memoryLimiter",
+        "otlpAuth",
         "resources",
         "podSecurityContext",
         "securityContext",
@@ -702,6 +703,36 @@
             "spikeLimitMiB": {
               "type": "integer",
               "minimum": 0
+            }
+          }
+        },
+        "otlpAuth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "existingSecret",
+            "token",
+            "tokenKey",
+            "headersKey"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "token": {
+              "type": "string"
+            },
+            "tokenKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "headersKey": {
+              "type": "string",
+              "minLength": 1
             }
           }
         },
