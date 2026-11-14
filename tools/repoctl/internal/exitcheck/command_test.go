@@ -215,3 +215,39 @@ func TestCommandIdentity(t *testing.T) {
 		t.Fatal("Summary is empty")
 	}
 }
+
+func TestEvaluateSkip(t *testing.T) {
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	for _, evidence := range freshEvidence(now, "abc")[:6] {
+		writeEvidence(t, dir, evidence)
+	}
+	results, err := EvaluateSkip(dir, "abc", time.Hour, now, map[int]bool{7: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 6 {
+		t.Fatalf("results = %d, want 6", len(results))
+	}
+	for _, result := range results {
+		if result.Problem != "" {
+			t.Fatalf("EC%d: %s", result.Number, result.Problem)
+		}
+	}
+}
+
+func TestParseSkipRejectsUnknown(t *testing.T) {
+	if _, err := parseSkip("8"); err == nil {
+		t.Fatal("accepted unknown criterion")
+	}
+	if _, err := parseSkip("one"); err == nil {
+		t.Fatal("accepted non-numeric criterion")
+	}
+	skip, err := parseSkip("1, 7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !skip[1] || !skip[7] || len(skip) != 2 {
+		t.Fatalf("skip = %v", skip)
+	}
+}

@@ -27,6 +27,7 @@
     "tools/repoctl/internal/cigate": 98.2,
     "tools/repoctl/internal/codescanning": 93.8,
     "tools/repoctl/internal/command": 69.6,
+    "tools/repoctl/internal/evidence": 74.7,
     "tools/repoctl/internal/exitcheck": 92.8,
     "tools/repoctl/internal/ghapi": 78.1,
     "tools/repoctl/internal/grafanacheck": 88.6,

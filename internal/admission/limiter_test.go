@@ -28,6 +28,41 @@ func TestWeightedLimiterRejectsOverCapacity(t *testing.T) {
 	}
 }
 
+func TestAcquireWeightNormalizesNonPositive(t *testing.T) {
+	limiter, err := New(1, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, weight := range []int{0, -3} {
+		release, err := limiter.AcquireWeight(context.Background(), weight)
+		if err != nil {
+			t.Fatalf("AcquireWeight(%d): %v", weight, err)
+		}
+		if got := limiter.InFlight(); got != 1 {
+			t.Fatalf("InFlight = %d, want 1 for weight %d", got, weight)
+		}
+		release()
+		if got := limiter.InFlight(); got != 0 {
+			t.Fatalf("InFlight = %d after release, want 0", got)
+		}
+	}
+}
+
+func TestAbandonReleasesGrantedSlot(t *testing.T) {
+	limiter, err := New(1, 1, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter.inflight = 1
+	pending := &waiter{ch: make(chan struct{}, 1), weight: 1, granted: true}
+	if err := limiter.abandon(pending, ErrRejected); !errors.Is(err, ErrRejected) {
+		t.Fatalf("abandon = %v, want ErrRejected", err)
+	}
+	if got := limiter.InFlight(); got != 0 {
+		t.Fatalf("InFlight = %d, want 0 after abandoning a granted waiter", got)
+	}
+}
+
 func TestWeightedLimiterQueuesAndGrantsFittingWork(t *testing.T) {
 	limiter, err := New(4, 2, time.Second)
 	if err != nil {

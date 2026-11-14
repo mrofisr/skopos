@@ -40,7 +40,7 @@ test/                             black-box harnesses, build-tagged Go
   bench/ compat/ e2e/ integration/ grafana/
 test/quality/                     coverage floor, layout violations, quality data
 scripts/                          thin orchestration of external tools only
-  bench/ compat/ deploy/ e2e/ integration/ quickstart/ release/ scorecard/
+  bench/ compat/ deploy/ e2e/ integration/ quality/ quickstart/ release/ scorecard/
 deploy/ docs/
 AGENTS.md CONTRIBUTING.md
 ```

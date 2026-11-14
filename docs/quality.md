@@ -1,6 +1,6 @@
 # Quality gates
 
-Skopos uses generated, checked-in evidence for the alpha-exit quality gates.
+Skopos uses generated evidence artifacts for the alpha-exit quality gates.
 This page covers the coverage ratchet (STG-5 / AX-01). Mutation testing
 (STG-6 / AX-02) is advisory for alpha and documented with its harness.
 
@@ -99,7 +99,7 @@ scheduled and manual only, is not a required check, and is advisory for alpha.
 make alpha-exit-check
 ```
 
-Each criterion is a `test/quality/evidence/ec-N.json` file:
+Each criterion is a generated `test/quality/evidence/ec-N.json` file:
 
 ```json
 {
@@ -107,16 +107,40 @@ Each criterion is a `test/quality/evidence/ec-N.json` file:
   "status": "pass",
   "commit": "<sha>",
   "timestamp": "2026-11-10T12:00:00Z",
-  "command": "make e2e-grafana"
+  "command": "make grafana-journeys"
 }
 ```
+
+The evidence directory is ignored by git: the files record the commit they
+were produced from, so they are run artifacts rather than source. Upload the
+directory as a CI artifact when the exit run is recorded.
+
+The producers are:
+
+| EC | Command | What it records |
+| --- | --- | --- |
+| 1 | `make grafana-journeys` | Grafana datasource journeys and the OBI RED dashboard |
+| 2 | `make compat-all` | PromQL, LogQL, TraceQL, Tempo differential, and cerberus seed checks |
+| 3 | `make bench-gate` | Concurrent safety gate with the memory limit |
+| 4 | `make metrics-contract` | Required metric names and labels |
+| 5 | `make release-evidence TAG=vX.Y.Z` | Signature/attestation/SBOM verification and the README quickstart |
+| 6 | `make quality-report` | Coverage, layout, workflow policy, ruleset, and checker tests |
+| 7 | `make alpha-exit-check` | Scope checks, then the aggregate check |
+
+`repoctl evidence run` executes one gate and writes pass/fail evidence;
+`repoctl evidence record` writes pass evidence after a compound Make target
+has completed. Compound targets remove their previous evidence before running,
+so a failure cannot leave an old pass file behind. `make alpha-exit-check`
+first verifies EC1-EC6 with `--skip 7`, then runs the scope checks, records
+EC7, and aggregates all seven. Run it on the exit commit, within the 24-hour
+evidence window, with the same `GITHUB_SHA` the aggregate check uses.
 
 The check fails closed: a missing file, malformed JSON, a mismatched EC
 number, a status other than `pass`, an empty command, a timestamp older than
 `--max-age` (24h by default), or a commit other than `--commit` (`GITHUB_SHA`)
 all fail and name the criterion. A report is written to
-`docs/alpha-exit-report.md`. Until the per-criterion producers write these
-files, the check reports 0/7 instead of passing silently.
+`docs/alpha-exit-report.md`. An empty evidence directory fails 0/7 instead of
+passing silently.
 
 ## PR traceability and freeze guard
 

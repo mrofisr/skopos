@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,17 +73,22 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 	maxAge := fs.Duration("max-age", 24*time.Hour, "maximum evidence age")
 	reportPath := fs.String("report", "docs/alpha-exit-report.md", "generated report")
 	check := fs.Bool("check", false, "validate only; do not write the report")
+	skipRaw := fs.String("skip", "", "comma-separated criteria to omit, for staged checks")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *maxAge <= 0 {
 		return fmt.Errorf("max-age must be positive")
 	}
+	skip, err := parseSkip(*skipRaw)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
 	if env.Now != nil {
 		now = env.Now()
 	}
-	results, err := Evaluate(*dir, *commit, *maxAge, now)
+	results, err := EvaluateSkip(*dir, *commit, *maxAge, now, skip)
 	if err != nil {
 		return err
 	}
@@ -113,8 +119,16 @@ func (Command) Run(ctx context.Context, env command.Env, args []string) error {
 
 // Evaluate reads and checks every criterion in dir.
 func Evaluate(dir, commit string, maxAge time.Duration, now time.Time) ([]Result, error) {
+	return EvaluateSkip(dir, commit, maxAge, now, nil)
+}
+
+// EvaluateSkip reads and checks every criterion except the skipped numbers.
+func EvaluateSkip(dir, commit string, maxAge time.Duration, now time.Time, skip map[int]bool) ([]Result, error) {
 	results := make([]Result, 0, len(Criteria))
 	for _, criterion := range Criteria {
+		if skip[criterion.Number] {
+			continue
+		}
 		result := Result{Criterion: criterion}
 		path := filepath.Join(dir, fmt.Sprintf("ec-%d.json", criterion.Number))
 		data, err := os.ReadFile(path)
@@ -149,6 +163,32 @@ func Evaluate(dir, commit string, maxAge time.Duration, now time.Time) ([]Result
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func parseSkip(raw string) (map[int]bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	skip := make(map[int]bool)
+	for _, part := range strings.Split(raw, ",") {
+		number, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("invalid --skip %q: %w", part, err)
+		}
+		found := false
+		for _, criterion := range Criteria {
+			if criterion.Number == number {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("invalid --skip %q: no such criterion", part)
+		}
+		skip[number] = true
+	}
+	return skip, nil
 }
 
 // WriteReport writes the generated Markdown report.

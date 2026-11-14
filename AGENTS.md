@@ -78,7 +78,7 @@ test/
   bench/ compat/ e2e/ integration/ grafana/    Go harnesses, build-tagged, black-box
 test/quality/                     coverage floor, layout violations, quality data
 scripts/                          thin orchestration of external tools only
-  bench/ compat/ deploy/ e2e/ integration/ quickstart/ release/ scorecard/
+  bench/ compat/ deploy/ e2e/ integration/ quality/ quickstart/ release/ scorecard/
 .github/                          workflows, CODEOWNERS, dependabot
 deploy/ docs/
 AGENTS.md CONTRIBUTING.md

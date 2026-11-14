@@ -677,6 +677,11 @@ func (e *evalCtx) overTime(name string, matrix Matrix) Vector {
 // kahanAdd performs one Kahan-Neumaier summation step, matching the
 // compensated summation used by the reference Prometheus evaluator.
 func kahanAdd(inc, sum, c float64) (float64, float64) {
+	// Keep the argument and result rounding boundaries explicit. Go may fuse
+	// a multiply-add across an inlined call, which changes Kahan summation.
+	inc = float64(inc)
+	sum = float64(sum)
+	c = float64(c)
 	t := sum + inc
 	switch {
 	case math.IsInf(t, 0):
@@ -686,6 +691,8 @@ func kahanAdd(inc, sum, c float64) (float64, float64) {
 	default:
 		c += (inc - t) + sum
 	}
+	t = float64(t)
+	c = float64(c)
 	return t, c
 }
 

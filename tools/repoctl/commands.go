@@ -5,6 +5,7 @@ import (
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/cigate"
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/codescanning"
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/jawaracloud/skopos/tools/repoctl/internal/evidence"
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/exitcheck"
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/grafanacheck"
 	"github.com/jawaracloud/skopos/tools/repoctl/internal/issueops"
@@ -27,6 +28,7 @@ func newRegistry() (*command.Registry, error) {
 		changes.Command{},
 		cigate.Command{},
 		codescanning.Command{},
+		evidence.Command{},
 		exitcheck.Command{},
 		grafanacheck.Command{},
 		issueops.Command{},

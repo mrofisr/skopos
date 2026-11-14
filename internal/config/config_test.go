@@ -120,9 +120,19 @@ func TestInvalidValues(t *testing.T) {
 		{"duration", "SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME", "soon", "SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME"},
 		{"memory", "SKOPOS_CLICKHOUSE_MAX_MEMORY_USAGE", "-1", "SKOPOS_CLICKHOUSE_MAX_MEMORY_USAGE"},
 		{"rows", "SKOPOS_CLICKHOUSE_MAX_ROWS_TO_READ", "many", "SKOPOS_CLICKHOUSE_MAX_ROWS_TO_READ"},
+		{"result rows", "SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS", "many", "SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS"},
+		{"response bytes", "SKOPOS_CLICKHOUSE_MAX_RESPONSE_BYTES", "many", "SKOPOS_CLICKHOUSE_MAX_RESPONSE_BYTES"},
+		{"request bytes", "SKOPOS_MAX_REQUEST_BYTES", "many", "SKOPOS_MAX_REQUEST_BYTES"},
+		{"readiness timeout", "SKOPOS_READINESS_TIMEOUT", "soon", "SKOPOS_READINESS_TIMEOUT"},
 		{"log level", "SKOPOS_LOG_LEVEL", "verbose", "SKOPOS_LOG_LEVEL"},
 		{"database", "SKOPOS_CLICKHOUSE_DATABASE", "bad-name", "SKOPOS_CLICKHOUSE_DATABASE"},
 		{"table", "SKOPOS_TABLE_TRACES", "bad-name", "SKOPOS_TABLE_TRACES"},
+		{"logs table", "SKOPOS_TABLE_LOGS", "bad-name", "SKOPOS_TABLE_LOGS"},
+		{"gauge table", "SKOPOS_TABLE_METRICS_GAUGE", "bad-name", "SKOPOS_TABLE_METRICS_GAUGE"},
+		{"sum table", "SKOPOS_TABLE_METRICS_SUM", "bad-name", "SKOPOS_TABLE_METRICS_SUM"},
+		{"histogram table", "SKOPOS_TABLE_METRICS_HISTOGRAM", "bad-name", "SKOPOS_TABLE_METRICS_HISTOGRAM"},
+		{"exponential table", "SKOPOS_TABLE_METRICS_EXPONENTIAL_HISTOGRAM", "bad-name", "SKOPOS_TABLE_METRICS_EXPONENTIAL_HISTOGRAM"},
+		{"summary table", "SKOPOS_TABLE_METRICS_SUMMARY", "bad-name", "SKOPOS_TABLE_METRICS_SUMMARY"},
 		{"scan rows", "SKOPOS_MAX_SCAN_ROWS", "0", "SKOPOS limits"},
 		{"scan rows overflow", "SKOPOS_MAX_SCAN_ROWS", strconv.FormatUint(uint64(math.MaxInt)+1, 10), "SKOPOS_MAX_SCAN_ROWS"},
 		{"scan rows negative", "SKOPOS_MAX_SCAN_ROWS", "-1", "SKOPOS limits"},
@@ -132,6 +142,8 @@ func TestInvalidValues(t *testing.T) {
 		{"query timeout", "SKOPOS_QUERY_TIMEOUT", "soon", "SKOPOS_QUERY_TIMEOUT"},
 		{"zero query timeout", "SKOPOS_QUERY_TIMEOUT", "0s", "SKOPOS_QUERY_TIMEOUT"},
 		{"auth bool", "SKOPOS_AUTH_ENABLED", "maybe", "SKOPOS_AUTH_ENABLED"},
+		{"context observed", "SKOPOS_CONTEXT_OBSERVED", "maybe", "SKOPOS_CONTEXT_OBSERVED"},
+		{"points per slot", "SKOPOS_POINTS_PER_SLOT", "many", "SKOPOS_POINTS_PER_SLOT"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

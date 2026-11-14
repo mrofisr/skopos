@@ -8,7 +8,7 @@ BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
 LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana grafana-journeys compat-all metrics-contract quality-report release-evidence storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -24,11 +24,16 @@ help:
 		'helm-template     render the Helm chart' \
 		'e2e-obi           run the real OBI end-to-end harness (Docker, Linux)' \
 		'e2e-grafana       verify Grafana datasources, journeys, and the OBI RED dashboard (Docker)' \
+		'grafana-journeys  run the Grafana journeys and record EC1 evidence' \
+		'compat-all        run the reference compatibility corpora and record EC2 evidence' \
+		'metrics-contract  run the metrics contract and record EC4 evidence' \
+		'quality-report    run local EC6 gates and record evidence' \
+		'release-evidence  verify a published release and quickstart, record EC5 evidence' \
 		'storage-test      run ClickHouse + RustFS storage, backup, restore drill, and lifecycle test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
-		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
+		'bench-gate        run the concurrent safety gate and record EC3 evidence' \
 		'mutation          run mutation testing (PKG=./internal/auth by default)' \
-		'alpha-exit-check  aggregate the EC evidence and fail closed' \
+		'alpha-exit-check  verify EC1-6, record EC7, and aggregate all evidence' \
 		'profile-range     capture pprof and metrics for the 6h range query' \
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
@@ -85,6 +90,30 @@ e2e-obi:
 e2e-grafana:
 	./scripts/e2e/obi/grafana.sh
 
+grafana-journeys:
+	rm -f test/quality/evidence/ec-1.json
+	./scripts/e2e/obi/grafana.sh
+	$(GO) run ./tools/repoctl evidence record --ec 1 --command "make grafana-journeys"
+
+compat-all:
+	rm -f test/quality/evidence/ec-2.json
+	./scripts/compat/all.sh
+	$(GO) run ./tools/repoctl evidence record --ec 2 --command "make compat-all"
+
+metrics-contract:
+	$(GO) run ./tools/repoctl evidence run --ec 4 --command "make metrics-contract" -- $(GO) test ./internal/metrics -run '^TestMetricsContract$$' -count=1
+
+quality-report:
+	rm -f test/quality/evidence/ec-6.json
+	./scripts/quality/report.sh
+	$(GO) run ./tools/repoctl evidence record --ec 6 --command "make quality-report"
+
+release-evidence:
+	@test -n "$(TAG)" || (echo "TAG is required" >&2; exit 1)
+	rm -f test/quality/evidence/ec-5.json
+	TAG=$(TAG) ./scripts/release/evidence.sh
+	$(GO) run ./tools/repoctl evidence record --ec 5 --command "make release-evidence TAG=$(TAG)"
+
 storage-test:
 	./scripts/integration/s3.sh
 
@@ -95,7 +124,9 @@ bench:
 	./scripts/bench/run.sh
 
 bench-gate:
+	rm -f test/quality/evidence/ec-3.json
 	SKOPOS_BENCH_GATE=1 SKOPOS_BENCH_MEMORY_LIMIT_BYTES=$(BENCH_MEMORY_LIMIT_BYTES) ./scripts/bench/run.sh
+	$(GO) run ./tools/repoctl evidence record --ec 3 --command "make bench-gate"
 
 test-faults:
 	SKOPOS_FAULTS_TEST=1 $(GO) test ./test/integration/faults -count=1 -v
@@ -112,6 +143,13 @@ mutation:
 	$(GO) run ./tools/repoctl mutation report --input mutation.json
 
 alpha-exit-check:
+	rm -f test/quality/evidence/ec-7.json
+	$(GO) run ./tools/repoctl exit-check --check --skip 7
+	$(GO) test ./internal/archtest -count=1
+	$(GO) run ./tools/repoctl issues manifest --check
+	$(GO) run ./tools/repoctl issues lint
+	$(GO) run ./tools/repoctl ruleset
+	$(GO) run ./tools/repoctl evidence record --ec 7 --command "make alpha-exit-check"
 	$(GO) run ./tools/repoctl exit-check
 
 mutation-gate:
@@ -184,6 +222,9 @@ release-check: vet test helm-lint ruleset-check
 	sh -n scripts/bench/measure-compression.sh
 	sh -n scripts/compat/loki-upstream.sh
 	sh -n scripts/compat/tempo.sh
+	sh -n scripts/compat/all.sh
+	sh -n scripts/quality/report.sh
+	sh -n scripts/release/evidence.sh
 	@printf '%s\n' 'release-check: ok'
 
 clean:
