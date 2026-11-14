@@ -127,6 +127,9 @@ The producers are:
 | 6 | `make quality-report` | Coverage, layout, workflow policy, ruleset, and checker tests |
 | 7 | `make alpha-exit-check` | Scope checks, then the aggregate check |
 
+EC1-EC3 need Docker; EC5 needs `cosign`, `gh`, `helm`, `k3d`, `kubectl`, and a
+published release whose tag matches the README quickstart version.
+
 `repoctl evidence run` executes one gate and writes pass/fail evidence;
 `repoctl evidence record` writes pass evidence after a compound Make target
 has completed. Compound targets remove their previous evidence before running,
