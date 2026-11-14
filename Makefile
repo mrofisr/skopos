@@ -4,6 +4,7 @@ GO ?= go
 HELM ?= helm
 GOVULNCHECK ?= govulncheck
 VERSION ?= 0.1.0-alpha.2
+BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
 LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
 
@@ -94,7 +95,7 @@ bench:
 	./scripts/bench/run.sh
 
 bench-gate:
-	SKOPOS_BENCH_GATE=1 ./scripts/bench/run.sh
+	SKOPOS_BENCH_GATE=1 SKOPOS_BENCH_MEMORY_LIMIT_BYTES=$(BENCH_MEMORY_LIMIT_BYTES) ./scripts/bench/run.sh
 
 test-faults:
 	SKOPOS_FAULTS_TEST=1 $(GO) test ./test/integration/faults -count=1 -v

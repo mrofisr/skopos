@@ -178,7 +178,8 @@ The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
 sets `GOMEMLIMIT` to 90% of `gateway.resources.limits.memory`, or to
 `gateway.goMemLimit` when set; omit both to leave `GOMEMLIMIT` unset. At
 startup the gateway warns when `maxInflight x maxResponseBytes` exceeds the
-Go memory limit.
+Go memory limit. The gateway and query workers default to **128Mi request /
+1.5Gi limit**; the bench gate enforces a 1.5Gi peak.
 
 `gateway.config.metadataTTL` (default `30s`, environment
 `SKOPOS_METADATA_TTL`) caches metric-to-table discovery, per-table emptiness,

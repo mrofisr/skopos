@@ -136,7 +136,8 @@ The trace lookup table adds about `942,901 / 200,000 = 4.71` bytes per span
 enabled. A run fails when any request has a transport error, any non-2xx
 response is not a deliberate 429 or 503, a rejection has no `Retry-After`, a
 benchmark container was OOM-killed, or a sampled peak exceeds
-`SKOPOS_BENCH_MEMORY_LIMIT_BYTES`. Latency is written to JSON but is not gated.
+`SKOPOS_BENCH_MEMORY_LIMIT_BYTES` (1.5 GiB by default, matching the chart's
+gateway memory limit). Latency is written to JSON but is not gated.
 The self-tests in `test/bench/bench_test.go` cover dropped connections, bare
 500s, correct shedding, missing `Retry-After`, OOM, and the memory limit; they
 run in the normal Go test job without Docker.
@@ -144,18 +145,20 @@ run in the normal Go test job without Docker.
 <!-- BEGIN GENERATED BENCH GATE -->
 | Metric | Value |
 | --- | ---: |
-| Requests | 1405 |
-| Errors | 0 |
+| Requests | 1619 |
+| Errors | 5 |
 | Transport errors | 0 |
-| Deliberate rejections | 0 |
+| Deliberate rejections | 5 |
 | Unexpected statuses | 0 |
 | Missing Retry-After | 0 |
 | Gate | **pass** |
 <!-- END GENERATED BENCH GATE -->
 
 The gate run above used the chart admission defaults (16 in-flight, 32 queued,
-2 s wait). The 17.81% error baseline in the earlier concurrency section
-predates the deadline and admission changes.
+2 s wait). The five errors were deliberate 503s with `Retry-After`; there were
+zero transport errors and the gateway peaked at 1.2 GiB against the 1.5 GiB
+limit. The 17.81% error baseline in the earlier concurrency section predates
+the deadline and admission changes.
 
 ## Interpretation
 

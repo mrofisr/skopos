@@ -428,10 +428,10 @@ gateway:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 1536Mi
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 65532
@@ -523,10 +523,10 @@ query:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 1536Mi
   podAnnotations: {}
   nodeSelector: {}
   tolerations: []
