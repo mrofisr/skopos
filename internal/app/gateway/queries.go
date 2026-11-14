@@ -10,16 +10,16 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/httpapi"
-	"github.com/jawaracloud/skopos/internal/loki"
-	"github.com/jawaracloud/skopos/internal/metrics"
-	"github.com/jawaracloud/skopos/internal/plan"
-	"github.com/jawaracloud/skopos/internal/prom"
-	"github.com/jawaracloud/skopos/internal/semctx"
-	"github.com/jawaracloud/skopos/internal/tempo"
+	"github.com/mrofisr/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/httpapi"
+	"github.com/mrofisr/skopos/internal/loki"
+	"github.com/mrofisr/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/tempo"
 )
 
 func runQueries(ctx context.Context, cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic, buildVersion string) error {

@@ -3,5 +3,5 @@ package version
 
 // Version is the build version. Release builds set it with
 //
-//	-ldflags "-X github.com/jawaracloud/skopos/internal/version.Version=<version>"
+//	-ldflags "-X github.com/mrofisr/skopos/internal/version.Version=<version>"
 var Version = "dev"

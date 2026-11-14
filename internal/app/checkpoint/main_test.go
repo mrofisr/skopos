@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/checkpoint"
+	"github.com/mrofisr/skopos/internal/checkpoint"
 )
 
 func testLogger() *slog.Logger {

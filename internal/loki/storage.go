@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
-	"github.com/jawaracloud/skopos/internal/sqlgen"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/sqlgen"
 )
 
 // ClickHouseFetcher reads logs from the exporter's otel_logs table.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
 const validWorkflow = `name: Test

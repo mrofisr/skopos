@@ -18,7 +18,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/prometheus/prometheus/util/stats"
 
-	"github.com/jawaracloud/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/prom"
 )
 
 // ErrNativeHistogram is returned when a fixture contains native-histogram

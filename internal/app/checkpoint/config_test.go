@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/checkpoint"
+	"github.com/mrofisr/skopos/internal/checkpoint"
 )
 
 func envLookup(values map[string]string) func(string) (string, bool) {

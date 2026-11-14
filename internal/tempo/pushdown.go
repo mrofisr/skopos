@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // FilterPredicate compiles the safe intrinsic subset of a TraceQL filter into a

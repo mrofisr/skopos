@@ -6,15 +6,15 @@ import (
 )
 
 const fixtureProfile = `mode: set
-github.com/jawaracloud/skopos/internal/auth/auth.go:1.1,2.2 1 1
-github.com/jawaracloud/skopos/internal/sqlgen/emit.go:1.1,2.2 2 1
-github.com/jawaracloud/skopos/internal/sqlgen/emit.go:3.1,4.2 2 0
-github.com/jawaracloud/skopos/test/compat/seed/seed.go:1.1,2.2 10 1
+github.com/mrofisr/skopos/internal/auth/auth.go:1.1,2.2 1 1
+github.com/mrofisr/skopos/internal/sqlgen/emit.go:1.1,2.2 2 1
+github.com/mrofisr/skopos/internal/sqlgen/emit.go:3.1,4.2 2 0
+github.com/mrofisr/skopos/test/compat/seed/seed.go:1.1,2.2 10 1
 `
 
 const toolsProfile = `mode: set
-github.com/jawaracloud/skopos/tools/repoctl/internal/quality/coverage.go:1.1,2.2 2 1
-github.com/jawaracloud/skopos/tools/repoctl/main.go:1.1,2.2 2 0
+github.com/mrofisr/skopos/tools/repoctl/internal/quality/coverage.go:1.1,2.2 2 1
+github.com/mrofisr/skopos/tools/repoctl/main.go:1.1,2.2 2 0
 `
 
 func TestParseProfile_ComputesExactPercent(t *testing.T) {
@@ -22,11 +22,11 @@ func TestParseProfile_ComputesExactPercent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseProfile: %v", err)
 	}
-	auth := cov["github.com/jawaracloud/skopos/internal/auth"]
+	auth := cov["github.com/mrofisr/skopos/internal/auth"]
 	if auth.Percent != 100 || auth.Statements != 1 || auth.Covered != 1 {
 		t.Errorf("auth = %#v", auth)
 	}
-	sqlgen := cov["github.com/jawaracloud/skopos/internal/sqlgen"]
+	sqlgen := cov["github.com/mrofisr/skopos/internal/sqlgen"]
 	if sqlgen.Percent != 50 || sqlgen.Statements != 4 || sqlgen.Covered != 2 {
 		t.Errorf("sqlgen = %#v", sqlgen)
 	}
@@ -44,7 +44,7 @@ func TestCoverageGate_FailsBelowFloor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := &Floor{Module: "github.com/jawaracloud/skopos", Packages: map[string]float64{
+	floor := &Floor{Module: "github.com/mrofisr/skopos", Packages: map[string]float64{
 		"internal/auth":   100,
 		"internal/sqlgen": 60,
 	}}
@@ -59,7 +59,7 @@ func TestCoverageGate_MissingPackageFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := &Floor{Module: "github.com/jawaracloud/skopos", Packages: map[string]float64{
+	floor := &Floor{Module: "github.com/mrofisr/skopos", Packages: map[string]float64{
 		"internal/auth": 100,
 	}}
 	errs := floor.Gate(cov, nil)
@@ -73,7 +73,7 @@ func TestCoverageGate_MissingPackageFromProfileFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := &Floor{Module: "github.com/jawaracloud/skopos", Packages: map[string]float64{
+	floor := &Floor{Module: "github.com/mrofisr/skopos", Packages: map[string]float64{
 		"internal/auth":    100,
 		"internal/sqlgen":  50,
 		"internal/removed": 10,
@@ -89,7 +89,7 @@ func TestCoverageGate_LoweredFloorFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := &Floor{Module: "github.com/jawaracloud/skopos", Packages: map[string]float64{
+	floor := &Floor{Module: "github.com/mrofisr/skopos", Packages: map[string]float64{
 		"internal/auth":   100,
 		"internal/sqlgen": 50,
 	}}
@@ -108,7 +108,7 @@ func TestCoverageGate_PassesAtFloor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := &Floor{Module: "github.com/jawaracloud/skopos", Packages: map[string]float64{
+	floor := &Floor{Module: "github.com/mrofisr/skopos", Packages: map[string]float64{
 		"internal/auth":   100,
 		"internal/sqlgen": 50,
 	}}
@@ -122,7 +122,7 @@ func TestRenderFloor_RoundsDownAndSkipsTestPackages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := RenderFloor(cov, "github.com/jawaracloud/skopos")
+	floor := RenderFloor(cov, "github.com/mrofisr/skopos")
 	if got := floor.Packages["internal/sqlgen"]; got != 50 {
 		t.Errorf("sqlgen floor = %v, want 50", got)
 	}
@@ -136,7 +136,7 @@ func TestRenderFloor_IncludesRepositoryTooling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	floor := RenderFloor(cov, "github.com/jawaracloud/skopos")
+	floor := RenderFloor(cov, "github.com/mrofisr/skopos")
 	if got, ok := floor.Packages["tools/repoctl/internal/quality"]; !ok || got != 100 {
 		t.Errorf("repoctl quality floor = %v (present %v), want 100", got, ok)
 	}

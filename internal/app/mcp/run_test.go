@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/appenv"
 )
 
 func testEnv(stdin io.Reader, env map[string]string) appenv.Env {

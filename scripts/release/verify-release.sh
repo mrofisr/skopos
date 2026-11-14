@@ -26,7 +26,7 @@ tag=${tag#v}
 version=$tag
 tag="v$version"
 
-repo=${REPO:-${GITHUB_REPOSITORY:-jawaracloud/skopos}}
+repo=${REPO:-${GITHUB_REPOSITORY:-mrofisr/skopos}}
 image_repository=${IMAGE_REPOSITORY:-ghcr.io/${repo%%/*}/skopos-gateway}
 chart_ref=${CHART_REF:-ghcr.io/${repo%%/*}/charts/skopos}
 

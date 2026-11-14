@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // noPushdownFetcher intentionally exposes only LogFetcher so the API takes the

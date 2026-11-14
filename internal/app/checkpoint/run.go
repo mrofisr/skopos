@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/appenv"
-	"github.com/jawaracloud/skopos/internal/checkpoint"
-	"github.com/jawaracloud/skopos/internal/version"
+	"github.com/mrofisr/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/checkpoint"
+	"github.com/mrofisr/skopos/internal/version"
 )
 
 const usageText = `usage: SKOPOS_MODE=checkpoint skopos [serve|replay]

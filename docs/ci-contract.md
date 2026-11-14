@@ -7,8 +7,8 @@ reviewed against it instead of guessing from the YAML.
 ## How to reproduce
 
 ```sh
-gh api repos/jawaracloud/skopos/rulesets/26493931
-gh api 'repos/jawaracloud/skopos/rulesets?targets=branch'
+gh api repos/mrofisr/skopos/rulesets/26493931
+gh api 'repos/mrofisr/skopos/rulesets?targets=branch'
 ```
 
 The second command lists the active branch rulesets. Only `main-protection`

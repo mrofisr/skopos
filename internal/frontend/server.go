@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 // Config configures the frontend proxy.

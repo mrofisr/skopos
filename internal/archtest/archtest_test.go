@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	module       = "github.com/jawaracloud/skopos"
+	module       = "github.com/mrofisr/skopos"
 	baselinePath = "test/quality/layout-violations.txt"
 	maxMainLines = 50
 )

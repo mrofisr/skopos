@@ -20,7 +20,7 @@
 set -eu
 
 SCORECARD_VERSION="v5.6.0"
-SCORECARD_REPO="${SCORECARD_REPO:-github.com/jawaracloud/skopos}"
+SCORECARD_REPO="${SCORECARD_REPO:-github.com/mrofisr/skopos}"
 OUT_DIR="${SCORECARD_OUT_DIR:-dist/scorecard}"
 TOOLS_DIR="${SCORECARD_TOOLS_DIR:-dist/tools}"
 

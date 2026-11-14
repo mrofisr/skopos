@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jawaracloud/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/config"
 )
 
 func TestWorstCaseBufferingWarning(t *testing.T) {

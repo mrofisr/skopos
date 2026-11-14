@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/prom"
 )
 
 type fakeMetadataFetcher struct {

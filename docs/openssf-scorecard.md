@@ -15,7 +15,7 @@ claim.
 
 | Area | Status | Evidence |
 | --- | --- | --- |
-| Code scanning | Clean | `gh api 'repos/jawaracloud/skopos/code-scanning/alerts?state=open'` returns `[]` (0 open, 0 dismissed). Default CodeQL setup is configured for Go with the default query suite and weekly schedule. The latest analysis on `refs/heads/development` (commit `75dbcf6`, CodeQL 2.27.4) completed with **0 results** across 34 rules. |
+| Code scanning | Clean | `gh api 'repos/mrofisr/skopos/code-scanning/alerts?state=open'` returns `[]` (0 open, 0 dismissed). Default CodeQL setup is configured for Go with the default query suite and weekly schedule. The latest analysis on `refs/heads/development` (commit `75dbcf6`, CodeQL 2.27.4) completed with **0 results** across 34 rules. |
 | OSV / `golang.org/x/net` | Fixed | `GO-2026-6860` (CVE-2026-78661) and `GO-2026-6866` (CVE-2026-97045) affect `golang.org/x/net` before v0.62.0. The root module and `test/compat/prometheus` now pin **v0.62.0**. An OSV API query for v0.62.0 returns no vulnerabilities. |
 | `govulncheck` | Clean | `govulncheck v1.9.0 ./...` reports `No vulnerabilities found.` |
 | Tests | Pass | `go test ./...`, `go test -race ./...`, `go test -cover ./...`, and `go vet ./...` pass after the dependency update. `go mod verify` reports `all modules verified`. |
@@ -25,7 +25,7 @@ claim.
 
 ## Public repository and workflows
 
-`github.com/jawaracloud/skopos` became public on 2026-11-01. The official
+`github.com/mrofisr/skopos` became public on 2026-11-01. The official
 `ossf/scorecard-action` runs on every push to `main`, weekly, and on manual
 dispatch. It publishes results to the public Scorecard API and uploads SARIF to
 GitHub code scanning; no GHAS is required for a public repository.

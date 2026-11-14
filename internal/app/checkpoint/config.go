@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/checkpoint"
+	"github.com/mrofisr/skopos/internal/checkpoint"
 )
 
 // Config is the checkpoint service configuration loaded from

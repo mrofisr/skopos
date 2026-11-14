@@ -15,7 +15,7 @@ import (
 
 	"github.com/prometheus/prometheus/promql/parser"
 
-	"github.com/jawaracloud/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/metrics"
 )
 
 // QueryEngine is the subset of Engine used by the HTTP API.

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/metrics"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"

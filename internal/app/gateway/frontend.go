@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/jawaracloud/skopos/internal/auth"
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/frontend"
-	"github.com/jawaracloud/skopos/internal/metrics"
-	"github.com/jawaracloud/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/frontend"
+	"github.com/mrofisr/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/semctx"
 )
 
 func runFrontend(ctx context.Context, cfg config.Config, logger *slog.Logger, basicAuth *auth.Basic, buildVersion string) error {

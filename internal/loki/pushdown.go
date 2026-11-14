@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // pushdownColumns maps stream labels whose values come from a dedicated

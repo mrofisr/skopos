@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ghapi"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ghapi"
 )
 
 func testClient(t *testing.T, handler http.Handler) *Client {

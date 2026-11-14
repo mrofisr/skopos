@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 func metricsStub(body string) http.Handler {

@@ -4,7 +4,7 @@
 
 Do not open a public issue for a security problem. Open a private security
 advisory at
-<https://github.com/jawaracloud/skopos/security/advisories/new>. The repository
+<https://github.com/mrofisr/skopos/security/advisories/new>. The repository
 is public, so any GitHub user can use the advisory form. If the form is
 unavailable, open a minimal public issue that asks the maintainers for a
 private channel, without disclosing the vulnerability details. Include the

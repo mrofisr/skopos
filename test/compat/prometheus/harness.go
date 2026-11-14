@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 
-	"github.com/jawaracloud/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/prom"
 )
 
 const lookback = 5 * time.Minute

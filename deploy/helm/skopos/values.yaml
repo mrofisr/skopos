@@ -445,7 +445,7 @@ gateway:
   mode: all
   replicaCount: 1
   image:
-    repository: ghcr.io/jawaracloud/skopos-gateway
+    repository: ghcr.io/mrofisr/skopos-gateway
     tag: dev
     # Release values must set a digest. Local development may leave it empty.
     digest: ""
@@ -532,7 +532,7 @@ metrics:
     # Labels used by the Prometheus ruleSelector.
     additionalLabels: {}
     # Base URL for alert runbook links. Set to "" to omit the annotation.
-    runbookURL: https://github.com/jawaracloud/skopos/blob/development/docs/monitoring.md
+    runbookURL: https://github.com/mrofisr/skopos/blob/development/docs/monitoring.md
     # Extra rules appended to the skopos.rules group.
     additionalRules: []
   dashboards:

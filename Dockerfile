@@ -11,11 +11,11 @@ RUN go mod download
 
 COPY . .
 
-ARG VERSION=0.1.0-alpha.3
+ARG VERSION=0.0.1-alpha
 RUN CGO_ENABLED=0 GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-$(go env GOARCH)}" go build \
     -mod=readonly \
     -trimpath \
-    -ldflags "-s -w -X github.com/jawaracloud/skopos/internal/version.Version=${VERSION}" \
+    -ldflags "-s -w -X github.com/mrofisr/skopos/internal/version.Version=${VERSION}" \
     -o /out/skopos ./cmd/skopos
 
 FROM scratch

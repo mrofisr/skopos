@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 func TestProfileDisabledByDefault(t *testing.T) {

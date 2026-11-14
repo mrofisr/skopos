@@ -1,6 +1,6 @@
 # Governance
 
-Skopos is an alpha-stage project maintained in the `jawaracloud` GitHub
+Skopos is an alpha-stage project maintained in the `mrofisr` GitHub
 organization. This document describes the current, deliberately small process;
 it is not a claim of foundation or multi-vendor governance.
 

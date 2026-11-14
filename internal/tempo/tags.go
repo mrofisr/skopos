@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // ErrTagFallback means a tag query is not safe to push into ClickHouse.

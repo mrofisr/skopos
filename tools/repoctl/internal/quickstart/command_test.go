@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
-const readmeFixture = "# Skopos\n\n```sh quickstart\nhelm install skopos oci://ghcr.io/jawaracloud/charts/skopos --version 0.1.0-alpha.2\nkubectl get pods\n```\n"
+const readmeFixture = "# Skopos\n\n```sh quickstart\nhelm install skopos oci://ghcr.io/mrofisr/charts/skopos --version 0.1.0-alpha.2\nkubectl get pods\n```\n"
 
 type fakeRunner struct {
 	calls [][]string
@@ -99,7 +99,7 @@ func TestQuickstartVerifiesTheChart(t *testing.T) {
 	if err := (Command{}).Run(context.Background(), env, []string{"--readme", readme}); err != nil {
 		t.Fatalf("quickstart: %v", err)
 	}
-	want := "helm show chart oci://ghcr.io/jawaracloud/charts/skopos --version 0.1.0-alpha.2"
+	want := "helm show chart oci://ghcr.io/mrofisr/charts/skopos --version 0.1.0-alpha.2"
 	if len(runner.calls) != 1 || strings.Join(runner.calls[0], " ") != want {
 		t.Fatalf("calls = %v, want %q", runner.calls, want)
 	}
@@ -187,7 +187,7 @@ func TestQuickstartRejectsMalformedReadme(t *testing.T) {
 
 func TestQuickstartRejectsPlanWithoutVersion(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "README.md")
-	body := "```sh quickstart\nhelm install skopos oci://ghcr.io/jawaracloud/charts/skopos\n```\n"
+	body := "```sh quickstart\nhelm install skopos oci://ghcr.io/mrofisr/charts/skopos\n```\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}

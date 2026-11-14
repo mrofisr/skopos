@@ -3,7 +3,7 @@ package gateway
 import (
 	"fmt"
 
-	"github.com/jawaracloud/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/config"
 )
 
 // worstCaseBufferingWarning reports when MaxInflight responses at the maximum

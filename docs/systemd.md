@@ -55,7 +55,7 @@ deploy/systemd/
 
 ```sh
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags "-s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(git describe --tags --always)" \
+  -ldflags "-s -w -X github.com/mrofisr/skopos/internal/version.Version=$(git describe --tags --always)" \
   -o /tmp/skopos ./cmd/skopos
 
 sudo install -m 0755 /tmp/skopos /usr/local/bin/skopos

@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ruleset"
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/workflowlint"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ruleset"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/workflowlint"
 )
 
 // Command implements `repoctl workflows-doc`.

@@ -1,5 +1,5 @@
 {
-  "module": "github.com/jawaracloud/skopos",
+  "module": "github.com/mrofisr/skopos",
   "packages": {
     "cmd/skopos": 0,
     "internal/admission": 98,

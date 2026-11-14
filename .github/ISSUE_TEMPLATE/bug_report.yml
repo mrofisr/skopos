@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Do not report security vulnerabilities here. Use the private advisory
-        process in [SECURITY.md](https://github.com/jawaracloud/skopos/blob/main/SECURITY.md).
+        process in [SECURITY.md](https://github.com/mrofisr/skopos/blob/main/SECURITY.md).
 
         Skopos is alpha software. Include enough detail to reproduce the problem
         against a specific commit or chart revision.

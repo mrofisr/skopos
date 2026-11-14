@@ -3,7 +3,7 @@
 Skopos publishes its Helm chart as an OCI artifact in GitHub Container Registry:
 
 ```text
-oci://ghcr.io/jawaracloud/charts/skopos
+oci://ghcr.io/mrofisr/charts/skopos
 ```
 
 The chart is released from the same `vX.Y.Z` tag as the gateway image and is
@@ -13,8 +13,8 @@ each release uses a new version and consumers should pin the OCI digest.
 ## Use the chart
 
 ```sh
-helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.3 \
+helm install skopos oci://ghcr.io/mrofisr/charts/skopos \
+  --version 0.0.1-alpha \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace
@@ -26,8 +26,8 @@ gateway and pins the image digest.
 Verify the chart before installing:
 
 ```sh
-cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.3 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
+cosign verify ghcr.io/mrofisr/charts/skopos:0.0.1-alpha \
+  --certificate-identity 'https://github.com/mrofisr/skopos/.github/workflows/release.yml@refs/tags/v0.0.1-alpha' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
@@ -45,7 +45,7 @@ job.
 
 ## Legacy GitHub Pages repository
 
-`https://jawaracloud.github.io/skopos/` is the legacy chart repository created by
+`https://mrofisr.github.io/skopos/` is the legacy chart repository created by
 `skopos-0.1.0-alpha.1`. It predates the OCI release process and is not covered
 by the current signing and provenance guarantees. Do not add it to new
 installations. The old `gh-pages` branch is kept read-only for historical

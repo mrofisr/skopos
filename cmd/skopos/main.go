@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jawaracloud/skopos/internal/app"
-	"github.com/jawaracloud/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/app"
+	"github.com/mrofisr/skopos/internal/appenv"
 )
 
 func main() {

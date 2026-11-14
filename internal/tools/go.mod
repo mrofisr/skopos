@@ -1,4 +1,4 @@
-module github.com/jawaracloud/skopos/internal/tools
+module github.com/mrofisr/skopos/internal/tools
 
 go 1.27.4
 

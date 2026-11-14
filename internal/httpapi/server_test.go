@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 type fakePinger struct {

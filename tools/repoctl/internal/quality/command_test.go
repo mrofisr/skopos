@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
 type fakeRunner struct {
@@ -59,7 +59,7 @@ func TestCommandIdentity(t *testing.T) {
 
 func TestCoverageReportPrintsTable(t *testing.T) {
 	profile := writeTemp(t, "coverage.out", fixtureProfile)
-	floor := writeTemp(t, "floor.json", `{"module":"github.com/jawaracloud/skopos","packages":{"internal/auth":100,"internal/sqlgen":50}}`)
+	floor := writeTemp(t, "floor.json", `{"module":"github.com/mrofisr/skopos","packages":{"internal/auth":100,"internal/sqlgen":50}}`)
 	env, stdout, _ := testEnv()
 	if err := (Command{}).Run(context.Background(), env, []string{"report", "--profile", profile, "--floor", floor}); err != nil {
 		t.Fatalf("report: %v", err)
@@ -73,7 +73,7 @@ func TestCoverageReportPrintsTable(t *testing.T) {
 
 func TestCoverageGateFailsBelowFloor(t *testing.T) {
 	profile := writeTemp(t, "coverage.out", fixtureProfile)
-	floor := writeTemp(t, "floor.json", `{"module":"github.com/jawaracloud/skopos","packages":{"internal/auth":100,"internal/sqlgen":60}}`)
+	floor := writeTemp(t, "floor.json", `{"module":"github.com/mrofisr/skopos","packages":{"internal/auth":100,"internal/sqlgen":60}}`)
 	env, _, stderr := testEnv()
 	err := (Command{}).Run(context.Background(), env, []string{"gate", "--profile", profile, "--floor", floor})
 	if err == nil {
@@ -86,10 +86,10 @@ func TestCoverageGateFailsBelowFloor(t *testing.T) {
 
 func TestCoverageGateUsesRenamesForThePreviousFloor(t *testing.T) {
 	profile := writeTemp(t, "coverage.out", `mode: set
-github.com/jawaracloud/skopos/cmd/new/main.go:1.1,2.2 2 1
+github.com/mrofisr/skopos/cmd/new/main.go:1.1,2.2 2 1
 `)
-	floor := writeTemp(t, "floor.json", `{"module":"github.com/jawaracloud/skopos","packages":{"cmd/new":50}}`)
-	previous := writeTemp(t, "previous.json", `{"module":"github.com/jawaracloud/skopos","packages":{"cmd/old":50}}`)
+	floor := writeTemp(t, "floor.json", `{"module":"github.com/mrofisr/skopos","packages":{"cmd/new":50}}`)
+	previous := writeTemp(t, "previous.json", `{"module":"github.com/mrofisr/skopos","packages":{"cmd/old":50}}`)
 	renames := writeTemp(t, "renames.json", `{"cmd/old":"cmd/new"}`)
 	env, _, stderr := testEnv()
 	err := (Command{}).Run(context.Background(), env, []string{
@@ -170,7 +170,7 @@ func TestApplyRenamesNil(t *testing.T) {
 }
 
 func TestLoadPreviousUsesRunner(t *testing.T) {
-	runner := &fakeRunner{output: []byte(`{"module":"github.com/jawaracloud/skopos","packages":{"cmd/old":50}}`)}
+	runner := &fakeRunner{output: []byte(`{"module":"github.com/mrofisr/skopos","packages":{"cmd/old":50}}`)}
 	env, _, _ := testEnv()
 	env.Run = runner
 	previous, err := loadPrevious(context.Background(), env, options{floor: "floor.json", previousRef: "origin/development"})

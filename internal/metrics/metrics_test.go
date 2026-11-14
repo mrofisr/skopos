@@ -17,7 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
 
-	"github.com/jawaracloud/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/semctx"
 )
 
 var update = flag.Bool("update", false, "update golden files")

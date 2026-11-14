@@ -5,7 +5,7 @@
 > ClickHouse. It is not production-ready. APIs, schemas, and chart values may
 > change without notice.
 
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jawaracloud/skopos/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jawaracloud/skopos)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/mrofisr/skopos/badge)](https://securityscorecards.dev/viewer/?uri=github.com/mrofisr/skopos)
 
 Skopos keeps the Grafana workflows you already have. It stores metrics, traces,
 and logs in ClickHouse and exposes Prometheus, Loki, and Tempo compatible query
@@ -45,8 +45,8 @@ existing Grafana.
 | S3 retention and backups | Alpha | Optional ClickHouse tiered storage (hot -> S3 cold, still queryable), a separate scheduled `BACKUP DATABASE` CronJob, an optional latest-backup restore drill, and a backup lifecycle CronJob. Tested against RustFS 1.0.4. See [docs/storage.md](docs/storage.md). |
 | Durability checkpoint | Alpha | Optional stdlib-only local WAL (`checkpoint.enabled=true`) that receives a Collector fan-out, batches gzip segments to S3, and replays them through the Collector after ClickHouse loss. Replay is at-least-once in transport and deduplicated on read by the `ReplacingMergeTree` schema. See [docs/checkpoint.md](docs/checkpoint.md). |
 | LogQL full-text | Alpha | Stream selectors and body line filters are pushed into ClickHouse; `match(Body, ...)` uses the `idx_body` text index. Go remains the final evaluator. |
-| OpenSSF | Measured, public | The last official Scorecard snapshot reports **7.8**; it predates the release hardening and will be re-run after `v0.1.0-alpha.3`. Best Practices evidence is ready; a maintainer must submit it at bestpractices.dev. See [docs/openssf-scorecard.md](docs/openssf-scorecard.md). |
-| Release tooling | Implemented; alpha.3 published | One annotated `vX.Y.Z` tag releases a `linux/amd64` and `linux/arm64` image and OCI chart; the workflow verifies the tag is on `main`, then signs, attests, and publishes immutable artifacts. `v0.1.0-alpha.3` is published as a prerelease. See [docs/release.md](docs/release.md). |
+| OpenSSF | Measured, public | The last official Scorecard snapshot reports **7.8**; it predates the release hardening and will be re-run after `v0.0.1-alpha`. Best Practices evidence is ready; a maintainer must submit it at bestpractices.dev. See [docs/openssf-scorecard.md](docs/openssf-scorecard.md). |
+| Release tooling | Implemented; fresh `v0.0.1-alpha` release pending | One annotated `vX.Y.Z` tag releases a `linux/amd64` and `linux/arm64` image and OCI chart; the workflow verifies the tag is on `main`, then signs, attests, and publishes immutable artifacts. The repository moved to `mrofisr/skopos`; `v0.0.1-alpha` is the first release from the new history. See [docs/release.md](docs/release.md). |
 
 The gateway serves `/healthz`, `/readyz`, `/version`, and the alpha PromQL,
 TraceQL, and LogQL endpoints. Unsupported functions return an explicit error.
@@ -128,8 +128,8 @@ helm install skopos ./deploy/helm/skopos \
 Published releases use the OCI chart and the attached digest-pinned values:
 
 ```sh quickstart
-helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.3 \
+helm install skopos oci://ghcr.io/mrofisr/charts/skopos \
+  --version 0.0.1-alpha \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ghapi"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ghapi"
 )
 
 // Rule is the code-scanning rule attached to an alert.

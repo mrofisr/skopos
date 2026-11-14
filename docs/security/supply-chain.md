@@ -49,7 +49,7 @@ Applying the file is a maintainer action, not part of a pull request:
 
 ```sh
 jq '.ruleset' docs/security/ruleset.json > /tmp/main-ruleset.json
-gh api -X PUT repos/jawaracloud/skopos/rulesets/26493931 --input /tmp/main-ruleset.json
+gh api -X PUT repos/mrofisr/skopos/rulesets/26493931 --input /tmp/main-ruleset.json
 ```
 
 Change the file and the live ruleset in the same release cycle. The

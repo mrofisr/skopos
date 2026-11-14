@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
-	"github.com/jawaracloud/skopos/internal/sqlgen"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/sqlgen"
 )
 
 func emitQueries(t *testing.T, queries []Query, mutate func(*plan.Schema)) sqlgen.Result {

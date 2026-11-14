@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"strings"
 
-	checkpointapp "github.com/jawaracloud/skopos/internal/app/checkpoint"
-	"github.com/jawaracloud/skopos/internal/app/gateway"
-	"github.com/jawaracloud/skopos/internal/app/mcp"
-	"github.com/jawaracloud/skopos/internal/appenv"
-	"github.com/jawaracloud/skopos/internal/version"
+	checkpointapp "github.com/mrofisr/skopos/internal/app/checkpoint"
+	"github.com/mrofisr/skopos/internal/app/gateway"
+	"github.com/mrofisr/skopos/internal/app/mcp"
+	"github.com/mrofisr/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/version"
 )
 
 // Mode is the role selected by SKOPOS_MODE.

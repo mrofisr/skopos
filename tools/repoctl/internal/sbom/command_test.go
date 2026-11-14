@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
 type fakeRunner struct {
@@ -61,7 +61,7 @@ func TestRunWritesFallbackInventory(t *testing.T) {
 		"github.com/example/beta|v1.2.3\n" +
 			"github.com/example/alpha|v0.1.0\n" +
 			"github.com/example/alpha|v0.1.0\n" +
-			"github.com/jawaracloud/skopos|\n")}
+			"github.com/mrofisr/skopos|\n")}
 	cmd := Command{NewUUID: func() (string, error) { return "00000000-0000-4000-8000-000000000000", nil }}
 	if err := cmd.Run(context.Background(), env, []string{
 		"--image", "skopos:test", "--version", "0.1.0", "--output", output, "--root", root,

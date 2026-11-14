@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/jawaracloud/skopos/internal/admission"
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/admission"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/metrics"
 )
 
 const admissionRetryAfterSeconds = "1"

@@ -16,7 +16,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/auth"
 )
 
 // Pinger checks backend readiness. The ClickHouse client implements it.

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
-	"github.com/jawaracloud/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/semctx"
 )
 
 const observedSignalsTTL = 60 * time.Second

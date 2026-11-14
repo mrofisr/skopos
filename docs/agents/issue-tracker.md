@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues in `jawaracloud/skopos`.
+Issues and specs for this repo live as GitHub issues in `mrofisr/skopos`.
 Use the `gh` CLI for all operations. The alpha-exit backlog has one extra layer:
 the plan is the source of truth and `repoctl issues` keeps GitHub in step with
 it.

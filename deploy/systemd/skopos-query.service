@@ -1,6 +1,6 @@
 [Unit]
 Description=Skopos internal query worker
-Documentation=https://github.com/jawaracloud/skopos/blob/main/docs/systemd.md
+Documentation=https://github.com/mrofisr/skopos/blob/main/docs/systemd.md
 After=network-online.target
 Wants=network-online.target
 # If ClickHouse runs as a local systemd unit, add:

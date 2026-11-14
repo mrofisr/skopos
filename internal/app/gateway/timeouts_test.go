@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/loki"
-	"github.com/jawaracloud/skopos/internal/plan"
-	"github.com/jawaracloud/skopos/internal/prom"
-	"github.com/jawaracloud/skopos/internal/semctx"
-	"github.com/jawaracloud/skopos/internal/tempo"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/loki"
+	"github.com/mrofisr/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/tempo"
 )
 
 func TestServerTimeouts_DerivedFromQueryTimeout(t *testing.T) {

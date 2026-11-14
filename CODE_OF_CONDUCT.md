@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported privately through the repository's security advisory form at
-<https://github.com/jawaracloud/skopos/security/advisories/new> with the subject
+<https://github.com/mrofisr/skopos/security/advisories/new> with the subject
 "Code of Conduct". While the repository is private, only users with repository
 access can use that form. Do not open a public issue. If the advisory form is
 unavailable, contact the maintainer listed in `.github/CODEOWNERS` through

@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ghapi"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ghapi"
 )
 
 // Command implements `repoctl prcheck`.

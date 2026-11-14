@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jawaracloud/skopos/internal/appenv"
-	"github.com/jawaracloud/skopos/internal/version"
+	"github.com/mrofisr/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/version"
 )
 
 func testEnv(args []string, env map[string]string) (appenv.Env, *bytes.Buffer, *bytes.Buffer) {

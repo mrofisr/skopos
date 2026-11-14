@@ -43,8 +43,8 @@ helm install skopos ./deploy/helm/skopos \
 Published releases use the OCI chart and the attached digest-pinned values:
 
 ```sh
-helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.3 \
+helm install skopos oci://ghcr.io/mrofisr/charts/skopos \
+  --version 0.0.1-alpha \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace

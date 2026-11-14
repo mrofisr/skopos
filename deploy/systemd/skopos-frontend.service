@@ -1,6 +1,6 @@
 [Unit]
 Description=Skopos public query frontend
-Documentation=https://github.com/jawaracloud/skopos/blob/main/docs/systemd.md
+Documentation=https://github.com/mrofisr/skopos/blob/main/docs/systemd.md
 After=network-online.target skopos-query.service
 Wants=network-online.target skopos-query.service
 StartLimitIntervalSec=60

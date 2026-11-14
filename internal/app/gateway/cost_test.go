@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/metrics"
 )
 
 func rangeValues(start, end, step string) url.Values {

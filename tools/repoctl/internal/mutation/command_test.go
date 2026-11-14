@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
 const reportFixture = `{"files":[{"mutations":[{"status":"KILLED"},{"status":"LIVED"},{"status":"TIMED OUT"}]}]}`

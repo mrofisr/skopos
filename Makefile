@@ -3,9 +3,9 @@ SHELL := /bin/sh
 GO ?= go
 HELM ?= helm
 GOVULNCHECK ?= govulncheck
-VERSION ?= 0.1.0-alpha.3
+VERSION ?= 0.0.1-alpha
 BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
-LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
+LDFLAGS := -s -w -X github.com/mrofisr/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
 
 .PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana grafana-journeys compat-all metrics-contract quality-report release-evidence storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test

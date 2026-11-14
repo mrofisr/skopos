@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ghapi"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ghapi"
 )
 
 // Command is one repoctl subcommand. Run receives the remaining arguments

@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/jawaracloud/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/semctx"
 )
 
 const lowCoverageThreshold = 0.8

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/ghapi"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/ghapi"
 )
 
 // Client adapts the shared GitHub client to the small surface used by sync and

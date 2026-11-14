@@ -7,7 +7,7 @@ has been awarded.
 
 ## Status: ready to submit with documented exceptions
 
-The repository is **public** at `github.com/jawaracloud/skopos` (visibility
+The repository is **public** at `github.com/mrofisr/skopos` (visibility
 changed on 2026-11-01). The passing criterion `repo_public` is now met, and the
 public issue tracker, security advisory form, and commit history are
 accessible to an assessor. The badge has **not** been submitted or awarded; a
@@ -73,7 +73,7 @@ for v0.62.0, and `govulncheck v1.9.0 ./...` reports no vulnerabilities.
 
 | ID | Status | Evidence and action |
 | --- | --- | --- |
-| `repo_public` | **Met** | The repository is public at `github.com/jawaracloud/skopos` as of 2026-11-01. |
+| `repo_public` | **Met** | The repository is public at `github.com/mrofisr/skopos` as of 2026-11-01. |
 | `repo_track` | Met | Git history records author, timestamp, and change in every commit. |
 | `repo_interim` | Met | The repository contains dozens of incremental commits and feature branches, not only final release snapshots. |
 | `repo_distributed` | Met | Git is used. |
@@ -104,7 +104,7 @@ is recorded in
 | `enhancement_responses` | Not demonstrated | Same as above; no enhancement requests exist yet. |
 | `report_archive` | Met | GitHub Issues is the searchable archive. |
 | `vulnerability_report_process` | Met | `SECURITY.md` explains the private advisory process and supported versions. |
-| `vulnerability_report_private` | Met | `SECURITY.md` links the GitHub private advisory form at `https://github.com/jawaracloud/skopos/security/advisories/new`. External reporters can use it now. |
+| `vulnerability_report_private` | Met | `SECURITY.md` links the GitHub private advisory form at `https://github.com/mrofisr/skopos/security/advisories/new`. External reporters can use it now. |
 | `vulnerability_report_response` | Not demonstrated | No vulnerability reports exist, so there is no response history. `SECURITY.md` now states 7-day acknowledgement, 14-day initial assessment, and 90-day default disclosure targets. The maintainer must honor them. |
 
 ## Quality

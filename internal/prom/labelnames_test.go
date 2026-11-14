@@ -12,8 +12,8 @@ import (
 
 	promlabels "github.com/prometheus/prometheus/model/labels"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 func newNamesFetcher(t *testing.T, names map[string][]string) (*ClickHouseFetcher, *fakeClickHouse) {

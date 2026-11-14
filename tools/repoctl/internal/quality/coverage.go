@@ -15,7 +15,7 @@ import (
 )
 
 // DefaultModule is the module path used when a floor file omits it.
-const DefaultModule = "github.com/jawaracloud/skopos"
+const DefaultModule = "github.com/mrofisr/skopos"
 
 // Coverage is the measured statement coverage for one package.
 type Coverage struct {

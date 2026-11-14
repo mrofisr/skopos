@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/appenv"
-	"github.com/jawaracloud/skopos/internal/version"
+	"github.com/mrofisr/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/version"
 )
 
 // Run starts the MCP server. It serves HTTP when SKOPOS_MCP_HTTP_ADDR is set

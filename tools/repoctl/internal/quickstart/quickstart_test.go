@@ -153,7 +153,7 @@ func TestBuildRejectsInvalidPlans(t *testing.T) {
 		{
 			name: "multiple versions",
 			blocks: []Block{{
-				Command: "helm install skopos oci://registry.example/charts/skopos --version 0.1.0-alpha.2\nhelm upgrade skopos oci://registry.example/charts/skopos --version 0.1.0-alpha.3",
+				Command: "helm install skopos oci://registry.example/charts/skopos --version 0.1.0-alpha.2\nhelm upgrade skopos oci://registry.example/charts/skopos --version 0.0.1-alpha",
 				Line:    1,
 			}},
 			want: "multiple chart versions",
@@ -195,10 +195,10 @@ func TestRealREADMEQuickstart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if plan.ChartRef != "oci://ghcr.io/jawaracloud/charts/skopos" {
+	if plan.ChartRef != "oci://ghcr.io/mrofisr/charts/skopos" {
 		t.Fatalf("ChartRef = %q", plan.ChartRef)
 	}
-	if plan.Version != "0.1.0-alpha.3" {
+	if plan.Version != "0.0.1-alpha" {
 		t.Fatalf("Version = %q", plan.Version)
 	}
 	if len(plan.Commands) != 1 {
@@ -236,7 +236,7 @@ func TestBuildAcceptsQuotedVersionAndReference(t *testing.T) {
 }
 
 func TestExtractSkipsDeeplyIndentedFences(t *testing.T) {
-	body := "    ```sh quickstart\n    helm install skopos oci://ghcr.io/jawaracloud/charts/skopos --version 0.1.0\n    ```\n"
+	body := "    ```sh quickstart\n    helm install skopos oci://ghcr.io/mrofisr/charts/skopos --version 0.1.0\n    ```\n"
 	if _, err := Extract([]byte(body)); err == nil || !strings.Contains(err.Error(), "no quickstart-tagged") {
 		t.Fatalf("error = %v, want the indented fence to be skipped", err)
 	}

@@ -8,7 +8,7 @@ create a `v*` tag or edit the rulesets.
 
 Create a dedicated fine-grained token or GitHub App installation for agents:
 
-- Repository access: only `jawaracloud/skopos`.
+- Repository access: only `mrofisr/skopos`.
 - Contents: read and write (branches and commits).
 - Pull requests: read and write.
 - Metadata: read.
@@ -39,7 +39,7 @@ Run these checks before trusting the setup:
 
 ```sh
 # Should not include "admin": true.
-gh api repos/jawaracloud/skopos --jq '.permissions'
+gh api repos/mrofisr/skopos --jq '.permissions'
 
 # Should fail.
 git push origin HEAD:main

@@ -90,7 +90,7 @@ workflows, and docs call `go run ./tools/repoctl <command>`.
 
 ## Nested Go modules
 
-The root module is `github.com/jawaracloud/skopos`. Two test harnesses are
+The root module is `github.com/mrofisr/skopos`. Two test harnesses are
 separate modules because they pin reference implementations:
 
 - `test/compat/prometheus` (Prometheus parser and reference binary)

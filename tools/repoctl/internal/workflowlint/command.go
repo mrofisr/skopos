@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jawaracloud/skopos/tools/repoctl/internal/command"
+	"github.com/mrofisr/skopos/tools/repoctl/internal/command"
 )
 
 // Command implements `repoctl workflow-lint`.

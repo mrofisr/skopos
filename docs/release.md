@@ -38,8 +38,8 @@ means creating a new patch tag; published releases are immutable.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.1.0-alpha.3 -m "Skopos v0.1.0-alpha.3"
-git push origin v0.1.0-alpha.3
+git tag -a v0.0.1-alpha -m "Skopos v0.0.1-alpha"
+git push origin v0.0.1-alpha
 ```
 
 `.github/workflows/release.yml` then:
@@ -64,7 +64,7 @@ created.
 ## Verify a release
 
 ```sh
-make release-verify TAG=v0.1.0-alpha.3
+make release-verify TAG=v0.0.1-alpha
 ```
 
 The verifier downloads `values.release.yaml` from the published release and
@@ -87,20 +87,20 @@ remain accepted by `scripts/release/verify-release.sh`.
 Or manually:
 
 ```sh
-cosign verify ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
+cosign verify ghcr.io/mrofisr/skopos-gateway:0.0.1-alpha \
+  --certificate-identity 'https://github.com/mrofisr/skopos/.github/workflows/release.yml@refs/tags/v0.0.1-alpha' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.3 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
+cosign verify ghcr.io/mrofisr/charts/skopos:0.0.1-alpha \
+  --certificate-identity 'https://github.com/mrofisr/skopos/.github/workflows/release.yml@refs/tags/v0.0.1-alpha' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3 \
-  --repo jawaracloud/skopos \
-  --signer-workflow jawaracloud/skopos/.github/workflows/release.yml
+gh attestation verify oci://ghcr.io/mrofisr/skopos-gateway:0.0.1-alpha \
+  --repo mrofisr/skopos \
+  --signer-workflow mrofisr/skopos/.github/workflows/release.yml
 
-gh release view v0.1.0-alpha.3 \
-  --repo jawaracloud/skopos \
+gh release view v0.0.1-alpha \
+  --repo mrofisr/skopos \
   --json assets
 ```
 
@@ -111,7 +111,7 @@ Confirm that the tag is a multi-architecture manifest:
 
 ```sh
 docker buildx imagetools inspect \
-  ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3
+  ghcr.io/mrofisr/skopos-gateway:0.0.1-alpha
 ```
 
 The digest in `values.release.yaml` and the `cosign verify` output is the
@@ -132,8 +132,8 @@ The gateway is disabled by default. A release install uses the attached
 `values.release.yaml`, which enables the gateway and pins its digest:
 
 ```sh
-helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.3 \
+helm install skopos oci://ghcr.io/mrofisr/charts/skopos \
+  --version 0.0.1-alpha \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace
@@ -162,7 +162,7 @@ intentionally red until the chart version named in the README is published;
 
 ## Local dry run
 
-`make release VERSION=0.1.0-alpha.3` builds the image, chart, SBOMs, metadata,
+`make release VERSION=0.0.1-alpha` builds the image, chart, SBOMs, metadata,
 and checksums locally. It does not push, sign, or create a release. The local
 image is built for the host architecture for SBOM generation and the dry run;
 the release workflow builds and pushes the `linux/amd64` and `linux/arm64`

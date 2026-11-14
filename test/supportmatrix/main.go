@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/loki"
-	"github.com/jawaracloud/skopos/internal/prom"
-	"github.com/jawaracloud/skopos/internal/tempo"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/loki"
+	"github.com/mrofisr/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/tempo"
 )
 
 type row struct {

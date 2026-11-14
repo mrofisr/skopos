@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // Config configures a Client. All limits are sent to ClickHouse on every

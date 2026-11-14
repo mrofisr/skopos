@@ -10,7 +10,7 @@ import (
 
 	promlabels "github.com/prometheus/prometheus/model/labels"
 
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 type cacheClock struct {

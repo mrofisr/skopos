@@ -15,8 +15,8 @@ import (
 
 	promlabels "github.com/prometheus/prometheus/model/labels"
 
-	"github.com/jawaracloud/skopos/internal/chclient"
-	"github.com/jawaracloud/skopos/internal/plan"
+	"github.com/mrofisr/skopos/internal/chclient"
+	"github.com/mrofisr/skopos/internal/plan"
 )
 
 // fakeClickHouse answers the four metric table queries with canned JSON rows.

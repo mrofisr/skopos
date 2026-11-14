@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jawaracloud/skopos/internal/semctx"
+	"github.com/mrofisr/skopos/internal/semctx"
 )
 
 // TestMetricsContract is the EC4 evidence gate. It asserts the metric names

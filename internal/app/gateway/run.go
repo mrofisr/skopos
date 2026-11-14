@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/jawaracloud/skopos/internal/appenv"
-	"github.com/jawaracloud/skopos/internal/auth"
-	"github.com/jawaracloud/skopos/internal/config"
-	"github.com/jawaracloud/skopos/internal/version"
+	"github.com/mrofisr/skopos/internal/appenv"
+	"github.com/mrofisr/skopos/internal/auth"
+	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/version"
 )
 
 // Run loads the gateway configuration and serves until ctx is cancelled.

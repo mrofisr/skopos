@@ -20,7 +20,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
-repo=${REPO:-${GITHUB_REPOSITORY:-jawaracloud/skopos}}
+repo=${REPO:-${GITHUB_REPOSITORY:-mrofisr/skopos}}
 cluster=${SKOPOS_QUICKSTART_CLUSTER:-skopos-quickstart}
 
 need() {

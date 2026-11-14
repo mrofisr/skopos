@@ -7,9 +7,9 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/jawaracloud/skopos/internal/metrics"
-	"github.com/jawaracloud/skopos/internal/prom"
-	"github.com/jawaracloud/skopos/internal/tempo"
+	"github.com/mrofisr/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/prom"
+	"github.com/mrofisr/skopos/internal/tempo"
 )
 
 func TestUnsupportedFeatureCounted(t *testing.T) {
