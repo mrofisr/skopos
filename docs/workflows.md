@@ -13,7 +13,7 @@ The source of truth is `.github/workflows/` and `docs/security/ruleset.json`.
 | `mutation.yml` | `schedule`, `workflow_dispatch` | `Mutation (${{ matrix.package }})` | — |
 | `pr-guard.yml` | `pull_request` | `PR traceability and freeze guard` | — |
 | `promql-compliance.yml` | `workflow_dispatch`, `schedule` | `Official Prometheus PromQL suite` | — |
-| `release.yml` | `push` | `Preflight release`, `Build release artifacts`, `Publish and attest image`, `Publish and attest chart`, `Publish immutable GitHub release` | — |
+| `release.yml` | `push` | `Preflight release`, `Build release artifacts`, `Build, publish, and attest image`, `Publish and attest chart`, `Publish immutable GitHub release` | — |
 | `scorecard.yml` | `branch_protection_rule`, `schedule`, `push`, `workflow_dispatch` | `OpenSSF Scorecard` | — |
 
 ## Required checks

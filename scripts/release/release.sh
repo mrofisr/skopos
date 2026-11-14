@@ -26,6 +26,12 @@ chart_version=${CHART_VERSION:-$version}
 image_repository=${IMAGE_REPOSITORY:-ghcr.io/jawaracloud/skopos-gateway}
 image="$image_repository:$version"
 output_dir=${OUTPUT_DIR:-$root/dist/release}
+host_arch=$(docker version --format '{{.Server.Arch}}' 2>/dev/null || echo amd64)
+case "$host_arch" in
+  x86_64) host_arch=amd64 ;;
+  aarch64) host_arch=arm64 ;;
+esac
+release_platforms=${RELEASE_PLATFORMS:-linux/$host_arch}
 
 fail() {
   echo "release: $*" >&2
@@ -54,7 +60,7 @@ need sha256sum
 
 mkdir -p "$output_dir"
 
-echo "release: version=$version chart_version=$chart_version image=$image"
+echo "release: version=$version chart_version=$chart_version image=$image platforms=$release_platforms"
 
 echo "release: linting and rendering the chart"
 helm lint "$chart"
@@ -69,11 +75,12 @@ chart_package="$output_dir/skopos-$chart_version.tgz"
 [ -f "$chart_package" ] || fail "helm package did not produce $chart_package"
 
 echo "release: building gateway image"
+# This local image is for SBOM generation and the dry run. The release workflow
+# builds and pushes the multi-arch manifest in the publish job.
 docker build \
   --build-arg "VERSION=$version" \
   -t "$image" \
   "$root"
-image_id=$(docker image inspect --format '{{.Id}}' "$image")
 
 echo "release: generating SBOMs"
 if command -v syft >/dev/null 2>&1; then
@@ -94,7 +101,7 @@ name=skopos
 version=$version
 chart_version=$chart_version
 image=$image
-image_id=$image_id
+image_platforms=$release_platforms
 commit=$(git -C "$root" rev-parse HEAD 2>/dev/null || echo unknown)
 created_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF

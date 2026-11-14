@@ -6,7 +6,8 @@ means creating a new patch tag; published releases are immutable.
 
 ## What a release produces
 
-- `ghcr.io/<owner>/skopos-gateway:<version>` with an immutable digest.
+- `ghcr.io/<owner>/skopos-gateway:<version>` with an immutable digest. The tag
+  is a multi-architecture manifest for `linux/amd64` and `linux/arm64`.
 - `oci://ghcr.io/<owner>/charts/skopos:<version>` with an immutable digest.
 - `skopos-<version>.tgz`: the packaged Helm chart.
 - `skopos-gateway-<version>.spdx.json` and
@@ -47,9 +48,11 @@ git push origin v0.1.0-alpha.2
    tag, release, and image tag do not already exist.
 2. Runs `go run ./tools/repoctl codescan`, `go run ./tools/repoctl osv`,
    `make release-check`, and `go test -race ./...`.
-3. Builds the image, chart, and SBOMs in a read-only job.
-4. Pushes the image, signs it with keyless Sigstore, and attests provenance and
-   SBOM.
+3. Builds the chart and SBOMs in a read-only job and validates the local
+   image build.
+4. Builds the `linux/amd64` and `linux/arm64` image manifests with Buildx,
+   pushes the manifest list, signs it with keyless Sigstore, and attests
+   provenance and SBOM.
 5. Pushes the chart to GHCR OCI, signs it, and attests provenance and SBOM.
 6. Generates `values.release.yaml` with the image digest.
 7. Creates a draft GitHub release, attaches every asset, and publishes it as an
@@ -104,6 +107,22 @@ gh release view v0.1.0-alpha.2 \
 Compare the digest reported by `cosign verify` with the `digest:` line in the
 release's `values.release.yaml`.
 
+Confirm that the tag is a multi-architecture manifest:
+
+```sh
+docker buildx imagetools inspect \
+  ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.2
+```
+
+The digest in `values.release.yaml` and the `cosign verify` output is the
+manifest-list digest, not a single-platform image digest.
+
+The SBOM asset is generated from the build job's local image. Each platform
+image is a scratch image containing one statically linked Go binary plus the CA
+bundle, so the Go module set and SPDX inventory are the same on
+`linux/amd64` and `linux/arm64`; the attestation is attached to the
+multi-architecture manifest digest.
+
 Do not use `--insecure-ignore-tlog`. The release workflow always records
 signatures in the transparency log.
 
@@ -144,7 +163,10 @@ intentionally red until the chart version named in the README is published;
 ## Local dry run
 
 `make release VERSION=0.1.0-alpha.2` builds the image, chart, SBOMs, metadata,
-and checksums locally. It does not push, sign, or create a release.
+and checksums locally. It does not push, sign, or create a release. The local
+image is built for the host architecture for SBOM generation and the dry run;
+the release workflow builds and pushes the `linux/amd64` and `linux/arm64`
+manifest list.
 
 The repository no longer supports key-based signing or manual dispatch of a
 release. Do not add either back.

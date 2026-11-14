@@ -64,7 +64,7 @@ These tools are not linked into the gateway binary:
 | Go | `go.mod` (`1.27.4`) | Build and test; CI reads the version from `go.mod` |
 | Helm | 3.19+ or 4.x | Chart lint and render |
 | govulncheck | v1.9.0 | Vulnerability scan |
-| Docker / Compose | any current release | ClickHouse integration tests, Tempo differential, S3 + RustFS test, OBI e2e |
+| Docker / Compose / Buildx | any current release | Multi-arch release builds, ClickHouse integration tests, Tempo differential, S3 + RustFS test, OBI e2e |
 | actionlint | v1.7.12 | Workflow syntax checks in the required `policy` job |
 | zizmor | v1.32.0 | Workflow security checks in the required `policy` job |
 | go-licenses | v1.6.0 | License allowlist check in the required `policy` job |

@@ -46,7 +46,7 @@ existing Grafana.
 | Durability checkpoint | Alpha | Optional stdlib-only local WAL (`checkpoint.enabled=true`) that receives a Collector fan-out, batches gzip segments to S3, and replays them through the Collector after ClickHouse loss. Replay is at-least-once in transport and deduplicated on read by the `ReplacingMergeTree` schema. See [docs/checkpoint.md](docs/checkpoint.md). |
 | LogQL full-text | Alpha | Stream selectors and body line filters are pushed into ClickHouse; `match(Body, ...)` uses the `idx_body` text index. Go remains the final evaluator. |
 | OpenSSF | Measured, public | The last official Scorecard snapshot reports **7.8**; it predates the release hardening and will be re-run after `v0.1.0-alpha.2`. Best Practices evidence is ready; a maintainer must submit it at bestpractices.dev. See [docs/openssf-scorecard.md](docs/openssf-scorecard.md). |
-| Release tooling | Implemented, first release pending | One annotated `vX.Y.Z` tag releases the image and OCI chart; the workflow verifies the tag is on `main`, then signs, attests, and publishes immutable artifacts. The first compliant release is `v0.1.0-alpha.2`. See [docs/release.md](docs/release.md). |
+| Release tooling | Implemented, first release pending | One annotated `vX.Y.Z` tag releases a `linux/amd64` and `linux/arm64` image and OCI chart; the workflow verifies the tag is on `main`, then signs, attests, and publishes immutable artifacts. The first compliant release is `v0.1.0-alpha.2`. See [docs/release.md](docs/release.md). |
 
 The gateway serves `/healthz`, `/readyz`, `/version`, and the alpha PromQL,
 TraceQL, and LogQL endpoints. Unsupported functions return an explicit error.
