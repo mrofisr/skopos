@@ -104,6 +104,34 @@ clickhouse:
     existingSecret: ""
     accessKeyId: ""
     secretAccessKey: ""
+    # Optional CronJob that applies a bucket lifecycle rule for the backup
+    # prefix. It replaces the backup bucket's existing lifecycle
+    # configuration; use a dedicated bucket or manage lifecycle rules
+    # yourself. The rule targets <prefix>/ and leaves <prefix>_state/ alone.
+    lifecycle:
+      enabled: false
+      schedule: "0 3 * * *"
+      activeDeadlineSeconds: 300
+      startingDeadlineSeconds: 300
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+      retentionDays: 30
+      abortIncompleteMultipartUploadDays: 7
+      image:
+        repository: amazon/aws-cli
+        tag: 2.31.7
+        digest: sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8
+        pullPolicy: IfNotPresent
+    # Optional CronJob that restores the latest backup into a temporary
+    # database, checks that every table is queryable, then drops it. The
+    # backup job writes the latest timestamp to <prefix>_state/<database>.tsv.
+    restoreDrill:
+      enabled: false
+      schedule: "0 4 * * *"
+      activeDeadlineSeconds: 3600
+      startingDeadlineSeconds: 600
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
   persistence:
     size: 50Gi
     storageClass: ""

@@ -1,0 +1,123 @@
+{{- if .Values.clickhouse.backup.lifecycle.enabled }}
+{{- $backup := .Values.clickhouse.backup }}
+{{- $lifecycle := $backup.lifecycle }}
+{{- $prefix := trimSuffix "/" $backup.prefix }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "skopos.clickhouseBackupLifecycle.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-backup-lifecycle
+data:
+  lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": {{ printf "%s-backup-retention" (include "skopos.fullname" .) | toJson }},
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": {{ printf "%s/" $prefix | toJson }}
+          },
+          "Expiration": {
+            "Days": {{ $lifecycle.retentionDays }}
+          },
+          "AbortIncompleteMultipartUpload": {
+            "DaysAfterInitiation": {{ $lifecycle.abortIncompleteMultipartUploadDays }}
+          }
+        }
+      ]
+    }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "skopos.clickhouseBackupLifecycle.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-backup-lifecycle
+spec:
+  schedule: {{ $lifecycle.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $lifecycle.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $lifecycle.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $lifecycle.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "skopos.labels" . | nindent 8 }}
+        app.kubernetes.io/component: clickhouse-backup-lifecycle
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ $lifecycle.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "skopos.labels" . | nindent 12 }}
+            app.kubernetes.io/component: clickhouse-backup-lifecycle
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: lifecycle
+              image: {{ include "skopos.image" (dict "image" $lifecycle.image) | quote }}
+              imagePullPolicy: {{ $lifecycle.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              command:
+                - /bin/sh
+                - -ec
+              args:
+                - |
+                  aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-lifecycle-configuration \
+                    --bucket "$S3_BUCKET" \
+                    --lifecycle-configuration file:///config/lifecycle.json
+                  aws --endpoint-url "$S3_ENDPOINT" s3api get-bucket-lifecycle-configuration \
+                    --bucket "$S3_BUCKET" >/dev/null
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "skopos.clickhouse.backupSecretName" . }}
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "skopos.clickhouse.backupSecretName" . }}
+                      key: secret-access-key
+                - name: AWS_DEFAULT_REGION
+                  value: {{ default "us-east-1" $backup.region | quote }}
+                - name: AWS_S3_ADDRESSING_STYLE
+                  value: path
+                - name: AWS_EC2_METADATA_DISABLED
+                  value: "true"
+                - name: AWS_PAGER
+                  value: ""
+                - name: S3_ENDPOINT
+                  value: {{ trimSuffix "/" $backup.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ trimSuffix "/" $backup.bucket | quote }}
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "skopos.clickhouseBackupLifecycle.fullname" . }}
+            - name: tmp
+              emptyDir: {}
+{{- end }}

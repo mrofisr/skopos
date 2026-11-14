@@ -272,6 +272,10 @@ jobs:
             echo "dashboard ConfigMap must be opt-in" >&2
             exit 1
           fi
+          if grep -q 'skopos-restore-drill\|skopos-backup-lifecycle' /tmp/skopos-default.yaml; then
+            echo "backup automation must be opt-in" >&2
+            exit 1
+          fi
       - name: Render distributed frontend and query
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -446,6 +450,74 @@ jobs:
           grep -q 'kind: CronJob' /tmp/skopos-storage.yaml
           test "$(grep -c 'TO VOLUME' /tmp/skopos-storage.yaml)" -eq 8
           grep -q 'storage_policy = .tiered.' /tmp/skopos-storage.yaml
+      - name: Render restore drill and backup lifecycle
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.enabled=true \
+            --set clickhouse.backup.endpoint=http://rustfs:9000 \
+            --set clickhouse.backup.bucket=skopos-backup \
+            --set clickhouse.backup.accessKeyId=fake \
+            --set clickhouse.backup.secretAccessKey=fake \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            > /tmp/skopos-backup-drill.yaml
+          grep -q 'name: skopos-restore-drill' /tmp/skopos-backup-drill.yaml
+          grep -q 'restore-drill: PASS' /tmp/skopos-backup-drill.yaml
+          grep -q 'backup marker' /tmp/skopos-backup-drill.yaml
+          grep -q 'name: skopos-backup-lifecycle' /tmp/skopos-backup-drill.yaml
+          grep -q 'put-bucket-lifecycle-configuration' /tmp/skopos-backup-drill.yaml
+          grep -q 'skopos-backup-retention' /tmp/skopos-backup-drill.yaml
+      - name: Syntax-check backup automation scripts
+        run: |
+          backup_args="--namespace observability --set clickhouse.backup.enabled=true --set clickhouse.backup.endpoint=http://rustfs:9000 --set clickhouse.backup.bucket=skopos-backup --set clickhouse.backup.accessKeyId=fake --set clickhouse.backup.secretAccessKey=fake"
+          helm template skopos deploy/helm/skopos $backup_args \
+            --show-only templates/backup-cronjob.yaml > /tmp/skopos-backup-cronjob.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-cronjob.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-backup-cronjob.sh
+          bash -n /tmp/skopos-backup-cronjob.sh
+          helm template skopos deploy/helm/skopos $backup_args \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            --show-only templates/restore-drill-cronjob.yaml > /tmp/skopos-restore-drill.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-restore-drill.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-restore-drill.sh
+          bash -n /tmp/skopos-restore-drill.sh
+          helm template skopos deploy/helm/skopos $backup_args \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            --show-only templates/backup-lifecycle.yaml > /tmp/skopos-backup-lifecycle.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-lifecycle.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-backup-lifecycle.sh
+          bash -n /tmp/skopos-backup-lifecycle.sh
+      - name: Reject backup automation without backups
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            > /tmp/skopos-restore-drill-invalid.yaml 2> /tmp/skopos-restore-drill-invalid.err; then
+            echo "expected restore drill without backups to fail" >&2
+            exit 1
+          fi
+          grep -q 'restoreDrill.enabled=true requires clickhouse.backup.enabled=true' /tmp/skopos-restore-drill-invalid.err
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            > /tmp/skopos-lifecycle-invalid.yaml 2> /tmp/skopos-lifecycle-invalid.err; then
+            echo "expected lifecycle without backups to fail" >&2
+            exit 1
+          fi
+          grep -q 'lifecycle.enabled=true requires clickhouse.backup.enabled=true' /tmp/skopos-lifecycle-invalid.err
+      - name: Reject invalid backup lifecycle retention
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.enabled=true \
+            --set clickhouse.backup.endpoint=http://rustfs:9000 \
+            --set clickhouse.backup.bucket=skopos-backup \
+            --set clickhouse.backup.accessKeyId=fake \
+            --set clickhouse.backup.secretAccessKey=fake \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            --set clickhouse.backup.lifecycle.retentionDays=0 \
+            > /tmp/skopos-lifecycle-days-invalid.yaml 2> /tmp/skopos-lifecycle-days-invalid.err; then
+            echo "expected zero lifecycle retention days to fail" >&2
+            exit 1
+          fi
+          grep -q 'retentionDays' /tmp/skopos-lifecycle-days-invalid.err
       - name: Render replay dedup schema and migration
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \

@@ -67,6 +67,14 @@ prefix that is distinct from the live cold tier. A backup is for disaster
 recovery and restore; the gateway does **not** query backups directly. TTL
 deletion is not a backup, and a backup is not a queryable retention tier.
 
+The backup job writes the latest complete backup timestamp to a marker object
+outside the backup prefix. An optional restore-drill CronJob restores that
+backup into a temporary database, compares the source and restored table sets,
+queries every restored table, and drops it. An optional lifecycle CronJob owns
+one S3 lifecycle rule for the backup prefix; because S3 replaces the whole
+lifecycle configuration on PUT, the job is documented as owning the backup
+bucket's lifecycle configuration.
+
 ### D4: Full-text search is pushed down, Go remains the authority
 
 LogQL stream selectors on known columns and all body line filters are rendered
@@ -133,7 +141,7 @@ explicit, documented mode.
   query load justifies it. Do not split PromQL blindly; counter windows,
   lookback, and staleness need boundary handling.
 - Evaluate ClickHouse replication/Keeper or ClickHouse Cloud for HA.
-- Add a restore drill to CI or a scheduled environment; a backup that has never
-  been restored is not a verified backup.
+- Run a full restore into a separate cluster on a schedule; the chart's restore
+  drill only proves the backup on the live ClickHouse.
 - Re-run the full Prometheus compliance tester and Loki benchmark corpus after
   the distributed split.

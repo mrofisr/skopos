@@ -159,6 +159,17 @@ three monitoring assets are disabled by default because they depend on
 Prometheus Operator CRDs or a Grafana dashboard sidecar. The chart validates
 the dashboard JSON at render time and the Go harness parses the shipped files.
 
+### 11. Backup lifecycle and restore drills
+
+The scheduled backup job now writes a latest-backup marker outside the backup
+prefix. An optional restore-drill CronJob reads that marker, restores the
+backup to a temporary database, compares table sets, queries every table, and
+drops the temporary database. An optional lifecycle CronJob applies an S3
+expiration rule to the backup prefix. The lifecycle job is off by default and
+documented as owning the backup bucket's lifecycle configuration because the
+S3 PUT replaces existing rules. The restore drill runs on the live ClickHouse;
+a separate-cluster restore remains a manual disaster-recovery exercise.
+
 ## Consequences
 
 - New installs get smaller and faster storage without losing replay dedup.

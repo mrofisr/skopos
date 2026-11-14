@@ -286,8 +286,9 @@ HTTP drain plus the 15 s final flush. Raise it if you raise `flushTimeout`.
 The service deletes an object after a successful `replay -delete`. Set an S3
 lifecycle expiration as a backstop for objects that are never replayed. Keep it
 longer than the expected recovery horizon (for example, 30 days). The chart
-does not create lifecycle rules: the checkpoint policy is scoped to object
-operations on its prefix, not bucket administration.
+does not create lifecycle rules for the checkpoint prefix; the optional backup
+lifecycle CronJob manages only the backup prefix described in
+[storage.md](storage.md#s3-lifecycle).
 
 ## Replay
 

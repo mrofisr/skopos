@@ -87,6 +87,7 @@ separate, human-reviewed PR per the working rules.
 | ClickHouse | `clickhouse/clickhouse-server` | `26.8.36.3` | `sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7` |
 | OTel Collector contrib | `otel/opentelemetry-collector-contrib` | `0.164.0` | `sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b` |
 | OBI | `otel/ebpf-instrument` | `v1.0.0` | `sha256:a68d70e934260f72540f157ccf4fb4adfa38f11de060d7d905696dad6a3fca02` |
+| Backup lifecycle | `amazon/aws-cli` | `2.31.7` | `sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8` |
 
 Reference implementations are test-only containers, pinned in their harnesses:
 
@@ -97,7 +98,6 @@ Reference implementations are test-only containers, pinned in their harnesses:
 | cerberus reference | `ghcr.io/tsouza/cerberus` | `v1.23.1` | `sha256:e5ced00b1ee85c371295147ed0bce9caa4a5c5554443ee8aabc329d5351dc4a5` |
 | Prometheus reference | `prom/prometheus` | `v3.15.1` | `sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2` |
 | RustFS S3 test | `rustfs/rustfs` | `1.0.4` | `sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2` |
-| AWS CLI test client | `amazon/aws-cli` | `2.31.7` | `sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8` |
 | Alpine test helper | `alpine` | `3.22` | `sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f` |
 
 The Skopos gateway image is built from this repository. The gateway is disabled

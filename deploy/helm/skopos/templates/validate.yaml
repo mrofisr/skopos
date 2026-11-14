@@ -114,3 +114,19 @@
 {{- end }}
 {{- end }}
 {{- end }}
+{{- if .Values.clickhouse.backup.restoreDrill.enabled }}
+{{- if not .Values.clickhouse.backup.enabled }}
+{{- fail "clickhouse.backup.restoreDrill.enabled=true requires clickhouse.backup.enabled=true" }}
+{{- end }}
+{{- end }}
+{{- if .Values.clickhouse.backup.lifecycle.enabled }}
+{{- if not .Values.clickhouse.backup.enabled }}
+{{- fail "clickhouse.backup.lifecycle.enabled=true requires clickhouse.backup.enabled=true" }}
+{{- end }}
+{{- if lt (int .Values.clickhouse.backup.lifecycle.retentionDays) 1 }}
+{{- fail "clickhouse.backup.lifecycle.retentionDays must be at least 1" }}
+{{- end }}
+{{- if lt (int .Values.clickhouse.backup.lifecycle.abortIncompleteMultipartUploadDays) 1 }}
+{{- fail "clickhouse.backup.lifecycle.abortIncompleteMultipartUploadDays must be at least 1" }}
+{{- end }}
+{{- end }}

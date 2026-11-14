@@ -42,7 +42,7 @@ existing Grafana.
 | Basic authentication | Optional | `auth.enabled=true` protects query/version routes with one operator-managed credential; `/healthz` and `/readyz` stay open for probes. Use TLS. |
 | systemd deployment | Alpha | Unit files for single-process and frontend/query split, local schema renderer, and a full operations guide in [docs/systemd.md](docs/systemd.md). |
 | AI SRE context API | Alpha | Optional compact catalog for metrics, services, logs, and traces, plus stdio/HTTP MCP tools. Unknown signals can include ClickHouse observed metadata labeled `known:false`/`observed_only`; observed-only suggestions require human review. Coverage is exposed as JSON and `/metrics`. See [docs/ai-context.md](docs/ai-context.md). |
-| S3 retention and backups | Alpha | Optional ClickHouse tiered storage (hot -> S3 cold, still queryable) and a separate scheduled `BACKUP DATABASE` CronJob. Tested against RustFS 1.0.4. See [docs/storage.md](docs/storage.md). |
+| S3 retention and backups | Alpha | Optional ClickHouse tiered storage (hot -> S3 cold, still queryable), a separate scheduled `BACKUP DATABASE` CronJob, an optional latest-backup restore drill, and a backup lifecycle CronJob. Tested against RustFS 1.0.4. See [docs/storage.md](docs/storage.md). |
 | Durability checkpoint | Alpha | Optional stdlib-only local WAL (`checkpoint.enabled=true`) that receives a Collector fan-out, batches gzip segments to S3, and replays them through the Collector after ClickHouse loss. Replay is at-least-once in transport and deduplicated on read by the `ReplacingMergeTree` schema. See [docs/checkpoint.md](docs/checkpoint.md). |
 | LogQL full-text | Alpha | Stream selectors and body line filters are pushed into ClickHouse; `match(Body, ...)` uses the `idx_body` text index. Go remains the final evaluator. |
 | OpenSSF | Measured, public | The last official Scorecard snapshot reports **7.8**; it predates the release hardening and will be re-run after `v0.1.0-alpha.2`. Best Practices evidence is ready; a maintainer must submit it at bestpractices.dev. See [docs/openssf-scorecard.md](docs/openssf-scorecard.md). |
@@ -98,8 +98,10 @@ accepts telemetry. It only reads from ClickHouse.
   public Service keeps the name `skopos-gateway`.
 - **S3 retention.** Tiered storage moves old ClickHouse parts to an
   S3-compatible cold volume; a separate backup CronJob writes to a different
-  prefix. Backups are for restore, not for serving queries. ClickHouse owns
-  merges/compaction; there is no Skopos compactor.
+  prefix. An optional restore-drill CronJob restores the latest backup into a
+  temporary database and verifies it; an optional lifecycle CronJob expires
+  old backup objects. Backups are for restore, not for serving queries.
+  ClickHouse owns merges/compaction; there is no Skopos compactor.
 
 The detailed decisions are in [ADR 0002](docs/adr/0002-distributed-read-path.md).
 
@@ -206,7 +208,7 @@ make helm-lint            # helm lint
 make helm-template        # render the chart
 make check                # vet + test + fuzz + helm lint
 make e2e-obi              # real privileged OBI e2e (Docker, BTF, tracefs)
-make storage-test         # ClickHouse + RustFS tiered storage/backup test
+make storage-test         # ClickHouse + RustFS storage, backup, restore drill, lifecycle
 make bench                # synthetic compression + latency benchmark
 make scorecard            # OpenSSF Scorecard CLI (requires a GitHub token)
 make release-check        # vet/test/Helm/release script syntax

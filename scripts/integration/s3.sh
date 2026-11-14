@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Real ClickHouse + RustFS test for tiered storage and BACKUP/RESTORE.
+# Real ClickHouse + RustFS test for tiered storage, backup, restore drill, and
+# backup lifecycle.
 #
 # Requires: docker with compose, helm, curl.
 #   PATH=/tmp/opencode/linux-amd64:$PATH ./scripts/integration/s3.sh
@@ -41,6 +42,19 @@ aws_s3() {
   compose run --rm --no-deps --entrypoint aws buckets "${AWS_ARGS[@]}" "$@"
 }
 
+aws_s3_lifecycle() {
+  compose run --rm --no-deps \
+    --user 1000:1000 \
+    -e HOME=/tmp \
+    -e AWS_S3_ADDRESSING_STYLE=path \
+    -e AWS_EC2_METADATA_DISABLED=true \
+    -e AWS_PAGER= \
+    -v /tmp/skopos-s3-lifecycle.json:/config/lifecycle.json:ro \
+    --entrypoint /bin/sh buckets -ec \
+    'aws --endpoint-url http://rustfs:9000 s3api put-bucket-lifecycle-configuration --bucket skopos-backup --lifecycle-configuration file:///config/lifecycle.json
+     aws --endpoint-url http://rustfs:9000 s3api get-bucket-lifecycle-configuration --bucket skopos-backup >/dev/null'
+}
+
 fail() {
   echo "FAIL: $*" >&2
   compose ps >&2 || true
@@ -58,6 +72,12 @@ helm_values=(
   --set clickhouse.storage.cold.prefix=skopos/cold
   --set clickhouse.storage.cold.accessKeyId=unused
   --set clickhouse.storage.cold.secretAccessKey=unused
+  --set clickhouse.backup.enabled=true
+  --set clickhouse.backup.endpoint=http://rustfs:9000
+  --set clickhouse.backup.bucket=skopos-backup
+  --set clickhouse.backup.prefix=skopos/backups
+  --set clickhouse.backup.accessKeyId=unused
+  --set clickhouse.backup.secretAccessKey=unused
 )
 
 echo "==> rendering the chart storage configuration"
@@ -138,10 +158,51 @@ object_count="$(aws_s3 s3 ls "s3://skopos-backup/skopos/backups/otel/${timestamp
 [ "${object_count}" -ge 1 ] || fail "backup object prefix is empty"
 echo "ok: backup wrote ${object_count} object(s) to skopos-backup/skopos/backups/otel/${timestamp}/"
 
+echo "==> writing and reading the latest-backup marker"
+marker="http://rustfs:9000/skopos-backup/skopos/backups_state/otel.tsv"
+ch --query "INSERT INTO FUNCTION s3('${marker}', 'rustfsadmin', 'rustfsadmin', 'CSV', 'database String, timestamp String') SELECT 'otel', '${timestamp}'"
+latest="$(ch --query "SELECT max(timestamp) FROM s3('${marker}', 'rustfsadmin', 'rustfsadmin', 'CSV', 'database String, timestamp String') WHERE database = 'otel'")"
+[ "${latest}" = "${timestamp}" ] || fail "backup marker returned ${latest}, want ${timestamp}"
+echo "ok: backup marker points at ${latest}"
+
+echo "==> running a restore drill into a temporary database"
+restore_db="otel_restore_drill_$(date -u +%Y%m%dT%H%M%SZ)"
+ch --query "RESTORE DATABASE otel AS \`${restore_db}\` FROM S3('${destination}', 'rustfsadmin', 'rustfsadmin')"
+missing="$(ch --query "SELECT count() FROM (SELECT name FROM system.tables WHERE database = 'otel' EXCEPT SELECT name FROM system.tables WHERE database = '${restore_db}')")"
+extra="$(ch --query "SELECT count() FROM (SELECT name FROM system.tables WHERE database = '${restore_db}' EXCEPT SELECT name FROM system.tables WHERE database = 'otel')")"
+[ "${missing}" = "0" ] || fail "restore drill is missing ${missing} table(s)"
+[ "${extra}" = "0" ] || fail "restore drill has ${extra} unexpected table(s)"
+tables="$(ch --query "SELECT name FROM system.tables WHERE database = '${restore_db}' ORDER BY name")"
+while IFS= read -r table; do
+  [ -z "${table}" ] && continue
+  rows="$(ch --query "SELECT count() FROM \`${restore_db}\`.\`${table}\`")"
+  [ "${rows}" -ge 0 ] || fail "restore drill table ${table} is not queryable"
+done <<EOF
+${tables}
+EOF
+ch --query "DROP DATABASE \`${restore_db}\`"
+echo "ok: restore drill ${restore_db} restored and queried $(printf '%s\n' "${tables}" | wc -l) table(s)"
+
+echo "==> rendering and applying the backup lifecycle rule"
+"${HELM_BIN}" "${helm_values[@]}" \
+  --set clickhouse.backup.lifecycle.enabled=true \
+  --show-only templates/backup-lifecycle.yaml \
+  | sed -n '/^  lifecycle.json: |$/,/^---$/p' \
+  | sed '1d;$d' \
+  | sed 's/^    //' \
+  > /tmp/skopos-s3-lifecycle.json
+grep -q 'skopos-backup-retention' /tmp/skopos-s3-lifecycle.json \
+  || fail "rendered lifecycle configuration is missing the retention rule"
+aws_s3_lifecycle
+lifecycle="$(aws_s3 s3api get-bucket-lifecycle-configuration --bucket skopos-backup)"
+printf '%s\n' "${lifecycle}" | grep -q 'skopos-backup-retention' \
+  || fail "backup bucket lifecycle rule was not applied"
+echo "ok: backup bucket lifecycle rule is applied"
+
 echo "==> restoring the backup under a new database name"
 ch --query "RESTORE DATABASE otel AS otel_restore FROM S3('${destination}', 'rustfsadmin', 'rustfsadmin')"
 restored="$(ch --query "SELECT count() FROM otel_restore.otel_logs")"
 [ "${restored}" = "${total}" ] || fail "restored row count ${restored} does not match source ${total}"
 echo "ok: restored otel_restore.otel_logs with ${restored} row(s)"
 
-echo "PASS: tiered storage, cold-part query, idx_body, BACKUP, and RESTORE work against RustFS"
+echo "PASS: tiered storage, cold-part query, idx_body, BACKUP, restore drill, and lifecycle work against RustFS"

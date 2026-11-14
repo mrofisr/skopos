@@ -161,6 +161,14 @@ app.kubernetes.io/component: {{ $component }}
 {{- printf "%s-clickhouse-backup" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "skopos.clickhouseBackupLifecycle.fullname" -}}
+{{- printf "%s-backup-lifecycle" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "skopos.clickhouseRestoreDrill.fullname" -}}
+{{- printf "%s-restore-drill" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
 {{- define "skopos.collector.host" -}}
 {{- include "skopos.collector.fullname" . }}
 {{- end }}

@@ -291,7 +291,9 @@
             "region",
             "existingSecret",
             "accessKeyId",
-            "secretAccessKey"
+            "secretAccessKey",
+            "lifecycle",
+            "restoreDrill"
           ],
           "properties": {
             "enabled": {
@@ -370,6 +372,123 @@
             },
             "secretAccessKey": {
               "type": "string"
+            },
+            "lifecycle": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "schedule",
+                "activeDeadlineSeconds",
+                "startingDeadlineSeconds",
+                "successfulJobsHistoryLimit",
+                "failedJobsHistoryLimit",
+                "retentionDays",
+                "abortIncompleteMultipartUploadDays",
+                "image"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "schedule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "activeDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "startingDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "successfulJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "retentionDays": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "abortIncompleteMultipartUploadDays": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "image": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "repository",
+                    "tag",
+                    "digest",
+                    "pullPolicy"
+                  ],
+                  "properties": {
+                    "repository": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "tag": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "digest": {
+                      "type": "string",
+                      "pattern": "^(|sha256:[a-f0-9]{64})$"
+                    },
+                    "pullPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "Always",
+                        "IfNotPresent",
+                        "Never"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "restoreDrill": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "schedule",
+                "activeDeadlineSeconds",
+                "startingDeadlineSeconds",
+                "successfulJobsHistoryLimit",
+                "failedJobsHistoryLimit"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "schedule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "activeDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "startingDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "successfulJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
             }
           }
         },

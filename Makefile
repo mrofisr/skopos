@@ -24,7 +24,7 @@ help:
 		'helm-template     render the Helm chart' \
 		'e2e-obi           run the real OBI end-to-end harness (Docker, Linux)' \
 		'e2e-grafana       verify Grafana datasources, journeys, and the OBI RED dashboard (Docker)' \
-		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
+		'storage-test      run ClickHouse + RustFS storage, backup, restore drill, and lifecycle test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
 		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
 		'mutation          run mutation testing (PKG=./internal/auth by default)' \

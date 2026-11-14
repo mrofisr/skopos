@@ -34,7 +34,7 @@ budgets, and MCP tools.
 | [Installation and operations](install.md) | Helm chart, ClickHouse, Collector, OBI, Grafana, auth |
 | [Running as systemd](systemd.md) | Single process or frontend/query split without Kubernetes |
 | [Helm chart distribution](chart-repository.md) | OCI chart install, chart versioning, signature verification |
-| [Tiered storage and backups](storage.md) | Hot/cold S3 storage, TTL, `BACKUP`/`RESTORE`, RustFS test |
+| [Tiered storage and backups](storage.md) | Hot/cold S3 storage, TTL, `BACKUP`/`RESTORE`, restore drills, lifecycle, RustFS test |
 | [Durability checkpoint](checkpoint.md) | Recent-window WAL, segment/gzip upload, loss bounds, replay, `checkpoint.*` Helm values |
 | [Release process](release.md) | Tag-only image/OCI chart release, SBOM, keyless signing, attestations, immutable releases |
 

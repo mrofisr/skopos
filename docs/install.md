@@ -393,6 +393,9 @@ The important values are:
 | `clickhouse.storage.cacheSize` | `10Gi` | Local read cache for cold parts, on the ClickHouse PVC. |
 | `clickhouse.backup.enabled` | `false` | Optional CronJob that runs `BACKUP DATABASE` to a separate S3 destination. See [storage.md](storage.md). |
 | `clickhouse.backup.schedule` | `0 2 * * *` | Cron schedule for the full backup. |
+| `clickhouse.backup.lifecycle.enabled` | `false` | Optional CronJob that applies a backup-prefix lifecycle rule. It replaces the bucket's existing lifecycle configuration. |
+| `clickhouse.backup.lifecycle.retentionDays` | `30` | Expire backup objects after this many days. |
+| `clickhouse.backup.restoreDrill.enabled` | `false` | Optional CronJob that restores the latest backup into a temporary database and verifies every table. |
 | `clickhouse.backup.*` | empty | Backup S3 endpoint, bucket, prefix, and credentials. The destination must not overlap the live cold tier. |
 | `checkpoint.enabled` | `false` | Fan out every OTLP signal to the recent-window durability checkpoint. Requires a bucket and credentials; see [checkpoint.md](checkpoint.md). |
 | `collector.sendingQueue.storageSize` | `5Gi` | `emptyDir` size when the queue PVC is disabled. The default is a PVC. |
@@ -494,8 +497,10 @@ tighten `networkPolicy.gateway.allowFrom` to the ingress controller namespace.
 - Tiered storage is optional and off by default. When enabled, cold parts live
   in S3 and remain queryable, while TTL still deletes them at `totalDays`.
   Backups are separate: they are for disaster recovery and must be restored
-  before the gateway can query them. See [storage.md](storage.md) for values,
-  existing-install `ALTER` steps, and restore commands.
+  before the gateway can query them. The optional restore drill restores the
+  latest backup into a temporary database and verifies every table. See
+  [storage.md](storage.md) for values, existing-install `ALTER` steps, restore
+  commands, and lifecycle ownership.
 - The durability checkpoint is optional and off by default. When enabled, it
   uses its own per-replica WAL PVC and S3 prefix, independent of the ClickHouse
   hot and cold volumes. PVC loss loses the unshipped tail; uploaded objects

@@ -168,6 +168,14 @@ catalog for an hour. This does not fail queries; AI SRE answers are marked
 3. If the gap is expected, leave it. Coverage is a documentation signal, not a
    data-loss signal.
 
+## Backup and restore jobs
+
+The optional backup, lifecycle, and restore-drill CronJobs are Kubernetes Jobs,
+not `/metrics` targets. Monitor their Job status with kube-state-metrics or your
+cluster alerting; the chart does not add a PrometheusRule for them. A failed
+restore drill keeps its temporary database for inspection. See
+[storage.md](storage.md#restore-drills).
+
 ## Dashboards
 
 `Skopos Overview` shows:

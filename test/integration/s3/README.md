@@ -1,8 +1,9 @@
-# ClickHouse tiered storage + backup against RustFS
+# ClickHouse tiered storage, backup, restore drill, and lifecycle
 
-This manual integration test proves the chart's tiered-storage configuration
-and `BACKUP DATABASE ... TO S3(...)` path against a real S3-compatible server.
-It is not part of CI because it pulls images and runs containers.
+This manual integration test proves the chart's tiered-storage configuration,
+`BACKUP DATABASE ... TO S3(...)`, the latest-backup marker, restore drill, and
+bucket lifecycle rule against a real S3-compatible server. It needs Docker and
+runs in the storage CI job.
 
 Services:
 
@@ -33,7 +34,14 @@ What it checks:
    used.
 5. Runs `BACKUP DATABASE otel TO S3(...)` into a bucket/prefix distinct from the
    live cold tier and lists the backup objects.
-6. Runs `RESTORE DATABASE otel AS otel_restore FROM S3(...)` and compares row
+6. Writes and reads the latest-backup marker at
+   `skopos/backups_state/otel.tsv`.
+7. Restores the backup into a timestamped `otel_restore_drill_<UTC>` database,
+   compares the source and restored table sets, queries every restored table,
+   and drops the temporary database.
+8. Renders the chart's backup lifecycle configuration, applies it with the
+   pinned AWS CLI image as a non-root user, and verifies the rule on the bucket.
+9. Runs `RESTORE DATABASE otel AS otel_restore FROM S3(...)` and compares row
    counts.
 
 Cleanup is automatic unless kept.
