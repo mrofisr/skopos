@@ -498,6 +498,25 @@ metrics:
     additionalLabels: {}
     # The selector must match the Service labels; empty is rejected.
     selector: {}
+  prometheusRule:
+    # Requires the Prometheus Operator CRDs. Disabled by default.
+    enabled: false
+    # Labels used by the Prometheus ruleSelector.
+    additionalLabels: {}
+    # Base URL for alert runbook links. Set to "" to omit the annotation.
+    runbookURL: https://github.com/jawaracloud/skopos/blob/development/docs/monitoring.md
+    # Extra rules appended to the skopos.rules group.
+    additionalRules: []
+  dashboards:
+    # Requires Grafana's dashboard sidecar or a manual ConfigMap import. The
+    # dashboard JSON lives in deploy/helm/skopos/dashboards/.
+    enabled: false
+    # Sidecar label. Match the Grafana sidecar's folder/label selector.
+    labels:
+      grafana_dashboard: "1"
+    annotations: {}
+    # Optional Grafana folder name for the dashboard sidecar.
+    folder: ""
 
 # Split the read path into a public frontend and an internal query tier. When
 # disabled, the single gateway Deployment/Service above is rendered unchanged.

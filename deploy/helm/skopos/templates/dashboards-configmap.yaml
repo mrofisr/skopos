@@ -1,0 +1,31 @@
+{{- if .Values.metrics.dashboards.enabled }}
+{{- $overview := .Files.Get "dashboards/skopos-overview.json" }}
+{{- $obi := .Files.Get "dashboards/obi-red.json" }}
+{{- $_ := mustFromJson $overview }}
+{{- $_ := mustFromJson $obi }}
+{{- $annotations := dict }}
+{{- if .Values.metrics.dashboards.folder }}
+{{- $_ := set $annotations "grafana_folder" .Values.metrics.dashboards.folder }}
+{{- end }}
+{{- range $key, $value := .Values.metrics.dashboards.annotations }}
+{{- $_ := set $annotations $key $value }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "skopos.fullname" . }}-dashboards
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    {{- with .Values.metrics.dashboards.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  skopos-overview.json: |-
+{{ $overview | indent 4 }}
+  obi-red.json: |-
+{{ $obi | indent 4 }}
+{{- end }}

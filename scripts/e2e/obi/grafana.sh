@@ -204,7 +204,7 @@ expect_failure() {
 case "$mode" in
   verify)
     run_check --journey --loki-journey --tempo-journey \
-      --dashboard "$root/deploy/examples/grafana/dashboards/obi-red.json"
+      --dashboard "$root/deploy/helm/skopos/dashboards/obi-red.json"
     ;;
   stopped)
     echo "grafana: stopping the gateway to prove the health check fails"

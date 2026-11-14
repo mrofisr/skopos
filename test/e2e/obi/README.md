@@ -111,7 +111,7 @@ Tempo datasource. The harness pushes the TraceQL corpus to Tempo over OTLP and
 loads the same spans into ClickHouse.
 
 `repoctl grafana-check --dashboard
-deploy/examples/grafana/dashboards/obi-red.json` runs every panel target
+deploy/helm/skopos/dashboards/obi-red.json` runs every panel target
 through Grafana and requires a non-empty series for each. The dashboard is the
 OBI RED acceptance list: request rate, error rate, and p95 duration from the
 server and client `http_*_request_duration_seconds_*` histograms. A panel whose

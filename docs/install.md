@@ -295,7 +295,7 @@ request gets the head's error shape, `Retry-After: 1`, and increments
 `skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
 are exempt, so probes and scrapes keep working under load.
 
-## Prometheus Operator
+## Prometheus Operator, alerts, and dashboards
 
 `metrics.serviceMonitor.enabled=true` renders a `ServiceMonitor` for `/metrics`
 when the Prometheus Operator CRDs are installed. The selector must match the
@@ -308,6 +308,33 @@ helm upgrade --install skopos ./deploy/helm/skopos \
   --set metrics.serviceMonitor.enabled=true \
   --set-json 'metrics.serviceMonitor.selector={"app.kubernetes.io/name":"skopos"}'
 ```
+
+`metrics.prometheusRule.enabled=true` adds up to seven default alert rules for
+gateway availability, error rate, p99 latency, admission shedding, ClickHouse
+errors, distributed query availability, and semantic-context coverage. Set
+`metrics.prometheusRule.additionalLabels` to match your Prometheus
+`ruleSelector`, and use `metrics.prometheusRule.additionalRules` for extra
+rules. The runbook link in each alert points at
+[monitoring.md](monitoring.md).
+
+`metrics.dashboards.enabled=true` renders a ConfigMap with the `Skopos Overview`
+and `OBI RED` dashboards. It carries the `grafana_dashboard: "1"` label for the
+Grafana dashboard sidecar by default; change `metrics.dashboards.labels` to
+match your sidecar selector. `metrics.dashboards.folder` sets the
+`grafana_folder` annotation.
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set gateway.enabled=true \
+  --set metrics.prometheusRule.enabled=true \
+  --set metrics.dashboards.enabled=true
+```
+
+All three assets need resources that the chart does not install: the Prometheus
+Operator CRDs for the ServiceMonitor and PrometheusRule, and a Grafana dashboard
+sidecar for the ConfigMap. See [monitoring.md](monitoring.md) for the alert
+runbooks, dashboard contents, and enablement details.
 
 ## Basic authentication
 
@@ -401,6 +428,15 @@ The important values are:
 | `*.topologySpreadConstraints` | `[]` | Explicit spread constraints. When empty and replicas > 1, a soft `kubernetes.io/hostname` spread is rendered. |
 | `collector.replicas` | `1` | Collector StatefulSet replicas. Each replica gets its own queue PVC when persistence is enabled. |
 | `collector.sendingQueue.persistence.retentionPolicy` | `Retain` / `Retain` | Keep queue PVCs when a replica is deleted or scaled down; clean them up explicitly after the outage window. |
+| `metrics.serviceMonitor.enabled` | `false` | Render a ServiceMonitor for `/metrics`. Requires Prometheus Operator CRDs and a non-empty `selector`. |
+| `metrics.prometheusRule.enabled` | `false` | Render the default Skopos alert rules. Requires Prometheus Operator CRDs. See [monitoring.md](monitoring.md). |
+| `metrics.prometheusRule.additionalLabels` | `{}` | Labels used by the Prometheus `ruleSelector`. |
+| `metrics.prometheusRule.runbookURL` | GitHub link | Base URL for alert `runbook_url` annotations; empty omits them. |
+| `metrics.prometheusRule.additionalRules` | `[]` | Extra rule objects appended to the `skopos.rules` group. |
+| `metrics.dashboards.enabled` | `false` | Render a ConfigMap with the Skopos Overview and OBI RED dashboards. |
+| `metrics.dashboards.labels` | `grafana_dashboard: "1"` | Labels used by the Grafana dashboard sidecar. |
+| `metrics.dashboards.annotations` | `{}` | Additional sidecar annotations; a `grafana_folder` key overrides `folder`. |
+| `metrics.dashboards.folder` | `""` | Optional `grafana_folder` annotation for the sidecar. |
 | `gateway.image.digest` | `""` | Release images must set this. |
 | `networkPolicy.enabled` | `true` | Component ingress NetworkPolicies. |
 | `networkPolicy.gateway.allowFrom` | `[{namespaceSelector: {}}]` | Namespace/label selectors allowed to reach the gateway. Empty means no ingress. Tighten this to your Grafana namespace. |
@@ -425,6 +461,9 @@ The datasources use the alpha query heads. Supported queries are listed in
 and [logql-support.md](logql-support.md). Unsupported functions return an
 explicit error, so a failing panel is usually a query outside the alpha list,
 not a connection problem.
+
+The chart can also ship the Skopos Overview and OBI RED dashboards through a
+Grafana sidecar; see [monitoring.md](monitoring.md).
 
 ## Ingress example
 

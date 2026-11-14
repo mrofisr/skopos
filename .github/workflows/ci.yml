@@ -262,7 +262,16 @@ jobs:
             --show-only templates/obi-configmap.yaml > /tmp/skopos-obi.yaml
           grep -q 'always_on: {}' /tmp/skopos-obi.yaml
       - name: Render default values
-        run: helm template skopos deploy/helm/skopos --namespace observability > /tmp/skopos-default.yaml
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability > /tmp/skopos-default.yaml
+          if grep -q 'kind: PrometheusRule' /tmp/skopos-default.yaml; then
+            echo "PrometheusRule must be opt-in" >&2
+            exit 1
+          fi
+          if grep -q 'skopos-overview.json' /tmp/skopos-default.yaml; then
+            echo "dashboard ConfigMap must be opt-in" >&2
+            exit 1
+          fi
       - name: Render distributed frontend and query
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -366,6 +375,33 @@ jobs:
             exit 1
           fi
           grep -q 'selector must not be empty' /tmp/skopos-servicemonitor-invalid.err
+      - name: Render alerts and dashboards
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set metrics.prometheusRule.enabled=true \
+            --set metrics.dashboards.enabled=true \
+            --set metrics.dashboards.folder=Skopos \
+            --set-json 'metrics.prometheusRule.additionalRules=[{"alert":"SkoposCustomRule","expr":"vector(1)"}]' \
+            > /tmp/skopos-monitoring.yaml
+          grep -q 'kind: PrometheusRule' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposGatewayDown' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposHighErrorRate' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposCustomRule' /tmp/skopos-monitoring.yaml
+          grep -q 'kind: ConfigMap' /tmp/skopos-monitoring.yaml
+          grep -q 'skopos-overview.json' /tmp/skopos-monitoring.yaml
+          grep -q 'obi-red.json' /tmp/skopos-monitoring.yaml
+          grep -q '"uid": "skopos-overview"' /tmp/skopos-monitoring.yaml
+          grep -q 'grafana_dashboard: "1"' /tmp/skopos-monitoring.yaml
+          grep -q 'grafana_folder: Skopos' /tmp/skopos-monitoring.yaml
+      - name: Render the distributed query alert
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set distributed.enabled=true \
+            --set metrics.prometheusRule.enabled=true \
+            > /tmp/skopos-monitoring-distributed.yaml
+          grep -q 'alert: SkoposQueryDown' /tmp/skopos-monitoring-distributed.yaml
       - name: Render with digest-pinned gateway image
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \

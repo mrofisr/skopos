@@ -11,6 +11,7 @@ import (
 
 // Dashboard is the subset of a Grafana dashboard the acceptance check needs.
 type Dashboard struct {
+	UID    string  `json:"uid"`
 	Title  string  `json:"title"`
 	Panels []Panel `json:"panels"`
 }

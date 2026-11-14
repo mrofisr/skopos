@@ -63,6 +63,7 @@ budgets, and MCP tools.
 | [Benchmarks](benchmarks.md) | Compression, storage cost, and gateway query latency |
 | [Range-query findings](perf/range-query-findings.md) | Why the 6 h range query saturates the gateway, and how to reproduce the profile |
 | [Storage](storage.md) | Retention, cold tier, backup/restore, capacity behavior |
+| [Monitoring and alerts](monitoring.md) | ServiceMonitor, PrometheusRule, alert runbooks, Grafana dashboards |
 | [Durability checkpoint](checkpoint.md) | Loss bounds, local WAL capacity, S3 uploads, replay |
 | [Installation](install.md) | Limits, NetworkPolicy, TTL, disk-full behavior, troubleshooting |
 
@@ -92,9 +93,10 @@ budgets, and MCP tools.
 
 1. [Project README](../README.md)
 2. [Installation](install.md)
-3. [Support matrix](support-matrix.md)
-4. [Storage](storage.md)
-5. [Benchmarks](benchmarks.md)
+3. [Monitoring and alerts](monitoring.md)
+4. [Support matrix](support-matrix.md)
+5. [Storage](storage.md)
+6. [Benchmarks](benchmarks.md)
 
 **systemd / non-Kubernetes operator**
 

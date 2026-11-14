@@ -1572,7 +1572,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "serviceMonitor"
+        "serviceMonitor",
+        "prometheusRule",
+        "dashboards"
       ],
       "properties": {
         "serviceMonitor": {
@@ -1603,6 +1605,67 @@
               "additionalProperties": {
                 "type": "string"
               }
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "additionalLabels",
+            "runbookURL",
+            "additionalRules"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "runbookURL": {
+              "type": "string"
+            },
+            "additionalRules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "labels",
+            "annotations",
+            "folder"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "folder": {
+              "type": "string"
             }
           }
         }

@@ -148,6 +148,17 @@ reloads its certificate every 10 minutes; client-certificate rotation requires
 an OBI restart. The Secret keys are fixed and documented so certificate
 management stays outside the chart.
 
+### 10. Default alerts and dashboards
+
+The chart can render a PrometheusRule with up to seven alerts covering gateway
+and query availability, HTTP error rate, p99 latency, admission shedding,
+ClickHouse query errors, and semantic-context coverage. Each alert is scoped by
+namespace and linked to a runbook in `docs/monitoring.md`. The same values entry
+can render a ConfigMap with the `Skopos Overview` and `OBI RED` dashboards. All
+three monitoring assets are disabled by default because they depend on
+Prometheus Operator CRDs or a Grafana dashboard sidecar. The chart validates
+the dashboard JSON at render time and the Go harness parses the shipped files.
+
 ## Consequences
 
 - New installs get smaller and faster storage without losing replay dedup.
