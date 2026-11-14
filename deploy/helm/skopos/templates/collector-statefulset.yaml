@@ -1,0 +1,149 @@
+{{- if .Values.collector.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "skopos.collector.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  serviceName: {{ include "skopos.collector.headlessName" . }}
+  replicas: {{ .Values.collector.replicas }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  {{- if .Values.collector.sendingQueue.persistence.enabled }}
+  # Keep the per-replica queue volume when a replica is deleted or scaled down
+  # so a short outage does not also delete queued telemetry.
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .Values.collector.sendingQueue.persistence.retentionPolicy.whenDeleted }}
+    whenScaled: {{ .Values.collector.sendingQueue.persistence.retentionPolicy.whenScaled }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skopos.labels" . | nindent 8 }}
+        app.kubernetes.io/component: collector
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/collector-configmap.yaml") . | sha256sum | quote }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.collector.podSecurityContext | nindent 8 }}
+      {{- with .Values.collector.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collector.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collector.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with include "skopos.topologySpread" (dict "root" . "component" "collector" "replicas" .Values.collector.replicas "constraints" .Values.collector.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "skopos.image" (dict "image" .Values.collector.image) | quote }}
+          imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+          args:
+            - --config=/etc/otelcol-contrib/config.yaml
+          securityContext:
+            {{- toYaml .Values.collector.securityContext | nindent 12 }}
+          ports:
+            - name: otlp-grpc
+              containerPort: {{ .Values.collector.service.grpcPort }}
+              protocol: TCP
+            - name: otlp-http
+              containerPort: {{ .Values.collector.service.httpPort }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.collector.service.healthPort }}
+              protocol: TCP
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skopos.clickhouse.secretName" . }}
+                  key: admin-password
+            {{- if .Values.collector.otlpAuth.enabled }}
+            - name: OTLP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skopos.collector.otlpAuthSecretName" . }}
+                  key: {{ .Values.collector.otlpAuth.tokenKey }}
+            {{- end }}
+            {{- with .Values.collector.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: queue
+              mountPath: /var/lib/otelcol/storage
+            {{- if .Values.collector.tls.enabled }}
+            - name: tls
+              mountPath: /etc/otelcol/tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "skopos.collector.fullname" . }}-config
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.collector.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.collector.tls.existingSecret }}
+        {{- end }}
+        {{- if not .Values.collector.sendingQueue.persistence.enabled }}
+        - name: queue
+          emptyDir:
+            sizeLimit: {{ .Values.collector.sendingQueue.storageSize }}
+        {{- end }}
+  {{- if .Values.collector.sendingQueue.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: queue
+        labels:
+          {{- include "skopos.labels" . | nindent 10 }}
+          app.kubernetes.io/component: collector
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.collector.sendingQueue.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.collector.sendingQueue.persistence.size }}
+  {{- end }}
+{{- end }}

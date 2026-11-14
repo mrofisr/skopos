@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 )
 
-// TestEveryParserFunctionIsClassified pins the PromQL surface to the vendored
+// TestEveryParserFunctionIsClassified pins the PromQL surface to the pinned
 // Prometheus parser. A parser upgrade that adds or removes a function fails
 // here until the inventory in functions.go is updated.
 func TestEveryParserFunctionIsClassified(t *testing.T) {

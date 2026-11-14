@@ -10,6 +10,11 @@ metadata:
     app.kubernetes.io/component: query
 spec:
   replicas: {{ .Values.query.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       {{- include "skopos.componentLabels" (dict "root" . "component" "query") | nindent 6 }}
@@ -36,6 +41,10 @@ spec:
       {{- with .Values.query.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with include "skopos.topologySpread" (dict "root" . "component" "query" "replicas" .Values.query.replicaCount "constraints" .Values.query.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
       {{- end }}
       containers:
         - name: query
@@ -128,6 +137,8 @@ spec:
               value: {{ .Values.gateway.config.queueDepth | quote }}
             - name: SKOPOS_QUEUE_WAIT
               value: {{ printf "%ds" (int64 .Values.gateway.config.queueWaitSeconds) | quote }}
+            - name: SKOPOS_POINTS_PER_SLOT
+              value: {{ .Values.gateway.config.pointsPerSlot | quote }}
             {{- end }}
             - name: SKOPOS_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}

@@ -3,7 +3,7 @@ package prom
 // supportedFunctions is the closed set of PromQL functions the evaluator
 // implements. The behavior is wired in evalCall; the inventory test checks
 // that every name here still evaluates and that every other function in the
-// vendored parser table fails explicitly.
+// pinned parser table fails explicitly.
 var supportedFunctions = map[string]struct{}{
 	"abs":                {},
 	"absent":             {},

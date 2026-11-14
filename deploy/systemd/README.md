@@ -15,7 +15,7 @@ security, upgrade, and troubleshooting guide.
 | `gateway.env.example` | Single-process environment file. |
 | `query.env.example` | Query-worker environment file. |
 | `frontend.env.example` | Frontend environment file. |
-| `render-schema.sh` | Render the chart's local-only ClickHouse DDL. |
+| `../../scripts/deploy/render-schema.sh` | Render the chart's local-only ClickHouse DDL. |
 
 The default listener is loopback only. Terminate TLS at a reverse proxy and use
 the optional Basic auth when exposing the API.

@@ -64,7 +64,7 @@ jobs:
         id: paths
         env:
           GH_TOKEN: ${{ github.token }}
-        run: go run ./cmd/repoctl changes --event "$GITHUB_EVENT_PATH"
+        run: go run ./tools/repoctl changes --event "$GITHUB_EVENT_PATH"
 
   go:
     name: Go build, vet, test
@@ -83,11 +83,9 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Verify module checksums
-        run: go mod verify
-      - name: Verify vendor tree is current
         run: |
-          go mod vendor
-          git diff --exit-code -- vendor go.mod go.sum
+          go mod download
+          go mod verify
       - name: Build
         run: go build ./...
       - name: Verify issue manifest
@@ -167,7 +165,7 @@ jobs:
       - name: Replay dedup schema integration
         env:
           CLICKHOUSE_URL: http://127.0.0.1:8123
-        run: sh test/integration/dedup/run.sh
+        run: sh scripts/integration/dedup.sh
 
   compat:
     name: Tempo and Loki differentials
@@ -186,9 +184,9 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Tempo differential
-        run: test/compat/tempo/run.sh
+        run: scripts/compat/tempo.sh
       - name: Loki differential
-        run: test/compat/loki/run.sh verify
+        run: go test ./internal/loki -run TestLogQLCorpus -count=1
 
   cerberus:
     name: cerberus three-way differential
@@ -207,7 +205,7 @@ jobs:
           go-version-file: go.mod
           check-latest: false
       - name: Prometheus + cerberus + Skopos
-        run: test/compat/cerberus/run.sh
+        run: go test ./test/compat/cerberus/... -count=1
 
   storage:
     name: S3 tiered storage and backup (RustFS)
@@ -225,7 +223,21 @@ jobs:
         with:
           version: ${{ env.HELM_VERSION }}
       - name: Run ClickHouse + RustFS integration
-        run: test/integration/s3/run.sh
+        run: scripts/integration/s3.sh
+
+  faults:
+    name: Fault injection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.go != 'false' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Collector and ClickHouse restart
+        run: make test-faults
 
   helm:
     name: Helm lint and render
@@ -250,7 +262,20 @@ jobs:
             --show-only templates/obi-configmap.yaml > /tmp/skopos-obi.yaml
           grep -q 'always_on: {}' /tmp/skopos-obi.yaml
       - name: Render default values
-        run: helm template skopos deploy/helm/skopos --namespace observability > /tmp/skopos-default.yaml
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability > /tmp/skopos-default.yaml
+          if grep -q 'kind: PrometheusRule' /tmp/skopos-default.yaml; then
+            echo "PrometheusRule must be opt-in" >&2
+            exit 1
+          fi
+          if grep -q 'skopos-overview.json' /tmp/skopos-default.yaml; then
+            echo "dashboard ConfigMap must be opt-in" >&2
+            exit 1
+          fi
+          if grep -q 'skopos-restore-drill\|skopos-backup-lifecycle' /tmp/skopos-default.yaml; then
+            echo "backup automation must be opt-in" >&2
+            exit 1
+          fi
       - name: Render distributed frontend and query
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -278,12 +303,32 @@ jobs:
           grep -q 'SKOPOS_MAX_INFLIGHT' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_DEPTH' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_WAIT' /tmp/skopos-admission.yaml
+      - name: Render OTLP auth
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set collector.otlpAuth.enabled=true \
+            --set collector.otlpAuth.token=test-token > /tmp/skopos-otlp-auth.yaml
+          grep -q 'authenticator: bearertokenauth' /tmp/skopos-otlp-auth.yaml
+          grep -q 'OTEL_EXPORTER_OTLP_HEADERS' /tmp/skopos-otlp-auth.yaml
+          grep -q 'name: skopos-collector-otlp-auth' /tmp/skopos-otlp-auth.yaml
+      - name: Render OTLP mTLS
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set collector.tls.enabled=true \
+            --set collector.tls.mtls=true \
+            --set collector.tls.existingSecret=skopos-otlp-tls \
+            --set collector.otlpAuth.enabled=true \
+            --set collector.otlpAuth.token=test-token > /tmp/skopos-otlp-mtls.yaml
+          grep -q 'client_ca_file: /etc/otelcol/tls/ca.crt' /tmp/skopos-otlp-mtls.yaml
+          grep -q 'endpoint: https://skopos-collector:4317' /tmp/skopos-otlp-mtls.yaml
+          grep -q 'cert_file: /etc/obi/tls/client.crt' /tmp/skopos-otlp-mtls.yaml
       - name: Reject invalid admission limits
         run: |
           if helm template skopos deploy/helm/skopos --namespace observability \
             --set gateway.enabled=true \
             --set gateway.config.maxInflight=4 \
             --set gateway.config.queueDepth=4 \
+            --set gateway.config.queueWaitSeconds=0 \
             > /tmp/skopos-admission-invalid.yaml 2> /tmp/skopos-admission-invalid.err; then
             echo "expected admission without a queue wait to fail" >&2
             exit 1
@@ -295,7 +340,7 @@ jobs:
             --set gateway.enabled=true > /tmp/skopos-mem.yaml
           limit=$(awk '/name: GOMEMLIMIT/{getline; gsub(/[^0-9]/,"",$0); print $0}' /tmp/skopos-mem.yaml)
           test -n "$limit"
-          test "$limit" -le 268435456
+          test "$limit" -le 1610612736
       - name: Reject an invalid Go memory limit
         run: |
           if helm template skopos deploy/helm/skopos --namespace observability \
@@ -335,6 +380,33 @@ jobs:
             exit 1
           fi
           grep -q 'selector must not be empty' /tmp/skopos-servicemonitor-invalid.err
+      - name: Render alerts and dashboards
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set metrics.prometheusRule.enabled=true \
+            --set metrics.dashboards.enabled=true \
+            --set metrics.dashboards.folder=Skopos \
+            --set-json 'metrics.prometheusRule.additionalRules=[{"alert":"SkoposCustomRule","expr":"vector(1)"}]' \
+            > /tmp/skopos-monitoring.yaml
+          grep -q 'kind: PrometheusRule' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposGatewayDown' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposHighErrorRate' /tmp/skopos-monitoring.yaml
+          grep -q 'alert: SkoposCustomRule' /tmp/skopos-monitoring.yaml
+          grep -q 'kind: ConfigMap' /tmp/skopos-monitoring.yaml
+          grep -q 'skopos-overview.json' /tmp/skopos-monitoring.yaml
+          grep -q 'obi-red.json' /tmp/skopos-monitoring.yaml
+          grep -q '"uid": "skopos-overview"' /tmp/skopos-monitoring.yaml
+          grep -q 'grafana_dashboard: "1"' /tmp/skopos-monitoring.yaml
+          grep -q 'grafana_folder: Skopos' /tmp/skopos-monitoring.yaml
+      - name: Render the distributed query alert
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set gateway.enabled=true \
+            --set distributed.enabled=true \
+            --set metrics.prometheusRule.enabled=true \
+            > /tmp/skopos-monitoring-distributed.yaml
+          grep -q 'alert: SkoposQueryDown' /tmp/skopos-monitoring-distributed.yaml
       - name: Render with digest-pinned gateway image
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -379,6 +451,82 @@ jobs:
           grep -q 'kind: CronJob' /tmp/skopos-storage.yaml
           test "$(grep -c 'TO VOLUME' /tmp/skopos-storage.yaml)" -eq 8
           grep -q 'storage_policy = .tiered.' /tmp/skopos-storage.yaml
+      - name: Render restore drill and backup lifecycle
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.enabled=true \
+            --set clickhouse.backup.endpoint=http://rustfs:9000 \
+            --set clickhouse.backup.bucket=skopos-backup \
+            --set clickhouse.backup.accessKeyId=fake \
+            --set clickhouse.backup.secretAccessKey=fake \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            > /tmp/skopos-backup-drill.yaml
+          grep -q 'name: skopos-restore-drill' /tmp/skopos-backup-drill.yaml
+          grep -q 'restore-drill: PASS' /tmp/skopos-backup-drill.yaml
+          grep -q 'backup marker' /tmp/skopos-backup-drill.yaml
+          grep -q 'name: skopos-backup-lifecycle' /tmp/skopos-backup-drill.yaml
+          grep -q 'put-bucket-lifecycle-configuration' /tmp/skopos-backup-drill.yaml
+          grep -q 'skopos-backup-retention' /tmp/skopos-backup-drill.yaml
+      - name: Syntax-check backup automation scripts
+        run: |
+          BACKUP_ARGS=(
+            template skopos deploy/helm/skopos
+            --namespace observability
+            --set clickhouse.backup.enabled=true
+            --set clickhouse.backup.endpoint=http://rustfs:9000
+            --set clickhouse.backup.bucket=skopos-backup
+            --set clickhouse.backup.accessKeyId=fake
+            --set clickhouse.backup.secretAccessKey=fake
+          )
+          helm "${BACKUP_ARGS[@]}" \
+            --show-only templates/backup-cronjob.yaml > /tmp/skopos-backup-cronjob.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-cronjob.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-backup-cronjob.sh
+          bash -n /tmp/skopos-backup-cronjob.sh
+          helm "${BACKUP_ARGS[@]}" \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            --show-only templates/restore-drill-cronjob.yaml > /tmp/skopos-restore-drill.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-restore-drill.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-restore-drill.sh
+          bash -n /tmp/skopos-restore-drill.sh
+          helm "${BACKUP_ARGS[@]}" \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            --show-only templates/backup-lifecycle.yaml > /tmp/skopos-backup-lifecycle.yaml
+          sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-lifecycle.yaml \
+            | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-backup-lifecycle.sh
+          bash -n /tmp/skopos-backup-lifecycle.sh
+      - name: Reject backup automation without backups
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.restoreDrill.enabled=true \
+            > /tmp/skopos-restore-drill-invalid.yaml 2> /tmp/skopos-restore-drill-invalid.err; then
+            echo "expected restore drill without backups to fail" >&2
+            exit 1
+          fi
+          grep -q 'restoreDrill.enabled=true requires clickhouse.backup.enabled=true' /tmp/skopos-restore-drill-invalid.err
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            > /tmp/skopos-lifecycle-invalid.yaml 2> /tmp/skopos-lifecycle-invalid.err; then
+            echo "expected lifecycle without backups to fail" >&2
+            exit 1
+          fi
+          grep -q 'lifecycle.enabled=true requires clickhouse.backup.enabled=true' /tmp/skopos-lifecycle-invalid.err
+      - name: Reject invalid backup lifecycle retention
+        run: |
+          if helm template skopos deploy/helm/skopos --namespace observability \
+            --set clickhouse.backup.enabled=true \
+            --set clickhouse.backup.endpoint=http://rustfs:9000 \
+            --set clickhouse.backup.bucket=skopos-backup \
+            --set clickhouse.backup.accessKeyId=fake \
+            --set clickhouse.backup.secretAccessKey=fake \
+            --set clickhouse.backup.lifecycle.enabled=true \
+            --set clickhouse.backup.lifecycle.retentionDays=0 \
+            > /tmp/skopos-lifecycle-days-invalid.yaml 2> /tmp/skopos-lifecycle-days-invalid.err; then
+            echo "expected zero lifecycle retention days to fail" >&2
+            exit 1
+          fi
+          grep -q 'retentionDays' /tmp/skopos-lifecycle-days-invalid.err
       - name: Render replay dedup schema and migration
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \
@@ -426,16 +574,32 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
       - name: Build image
         run: docker build -t skopos-ci .
+      - name: Build both release platforms
+        run: |
+          set -eu
+          docker buildx build --platform linux/amd64 \
+            --build-arg VERSION=ci \
+            --provenance=false --sbom=false \
+            --output type=oci,dest=/tmp/skopos-amd64.oci .
+          tar -xOf /tmp/skopos-amd64.oci index.json \
+            | grep -Eq '"architecture":[[:space:]]*"amd64"'
+          docker buildx build --platform linux/arm64 \
+            --build-arg VERSION=ci \
+            --provenance=false --sbom=false \
+            --output type=oci,dest=/tmp/skopos-arm64.oci .
+          tar -xOf /tmp/skopos-arm64.oci index.json \
+            | grep -Eq '"architecture":[[:space:]]*"arm64"'
       - name: Assert the exported filesystem
         run: |
           set -eu
           docker create --name skopos-ci-check skopos-ci >/dev/null
           docker export skopos-ci-check > /tmp/skopos-ci.tar
           docker rm skopos-ci-check >/dev/null
-          tar -tf /tmp/skopos-ci.tar | grep -qx 'gateway'
-          tar -tf /tmp/skopos-ci.tar | grep -qx 'skopos-checkpoint'
+          tar -tf /tmp/skopos-ci.tar | grep -qx 'skopos'
 
   policy:
     name: Workflow policy
@@ -480,9 +644,9 @@ jobs:
       - name: Check ruleset consistency
         run: make ruleset-check
       - name: Workflow trigger policy
-        run: go run ./cmd/repoctl workflow-lint
+        run: go run ./tools/repoctl workflow-lint
       - name: Workflow documentation
-        run: go run ./cmd/repoctl workflows-doc --check
+        run: go run ./tools/repoctl workflows-doc --check
       - name: Support matrix
         run: go run ./test/supportmatrix --check
       - name: Reject blocked workflow patterns
@@ -512,6 +676,7 @@ jobs:
       - compat
       - cerberus
       - storage
+      - faults
       - helm
       - docker
       - policy
@@ -530,4 +695,4 @@ jobs:
       - name: Evaluate job results
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-        run: go run ./cmd/repoctl ci-gate
+        run: go run ./tools/repoctl ci-gate

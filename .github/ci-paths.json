@@ -10,22 +10,25 @@
       "**/*.go",
       "**/go.mod",
       "**/go.sum",
-      "vendor/**",
       "Makefile",
       "test/quality/**",
       "docs/alpha-exit-plan.md",
       "issues/**",
       "test/bench/**",
       "test/e2e/**",
+      "scripts/bench/**",
+      "scripts/e2e/**",
       "**/testdata/**"
     ],
     "integration": [
       "test/integration/**",
+      "scripts/integration/**",
       "deploy/helm/skopos/files/**"
     ],
     "compat": [
       "test/compat/**",
       "test/corpus/**",
+      "scripts/compat/**",
       "docs/logql-upstream-baseline.md",
       "docs/promql-support.md"
     ],
@@ -35,7 +38,8 @@
     ],
     "storage": [
       "deploy/**",
-      "test/integration/s3/**"
+      "test/integration/s3/**",
+      "scripts/integration/s3.sh"
     ],
     "helm": [
       "deploy/**"
@@ -44,7 +48,8 @@
       ".github/**",
       "docs/security/**",
       "docs/openssf-scorecard.md",
-      "docs/**"
+      "docs/**",
+      "scripts/**"
     ],
     "docker": [
       "Dockerfile",
@@ -84,6 +89,9 @@
     "docker": [
       "go",
       "docker"
+    ],
+    "faults": [
+      "go"
     ]
   }
 }

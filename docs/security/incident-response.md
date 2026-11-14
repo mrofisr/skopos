@@ -65,7 +65,7 @@ maintained by the repository admin listed in `.github/CODEOWNERS`.
    subjects.
 4. Rotate registry credentials if they exist. The release path uses
    `GITHUB_TOKEN` and OIDC, so there are no long-lived signing keys to rotate.
-5. Re-run `scripts/verify-release.sh` against the last known-good release.
+5. Re-run `scripts/release/verify-release.sh` against the last known-good release.
 6. Publish a new release only after the registry and signing path are verified.
 
 ## After the incident

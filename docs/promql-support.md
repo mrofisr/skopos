@@ -188,7 +188,7 @@ statements. See [install.md](install.md#admission-limits).
 
 ## Tests
 
-- A function inventory test compares the vendored `parser.Functions` table
+- A function inventory test compares the pinned `parser.Functions` table
   with the closed classes in `internal/prom/functions.go`: supported,
   evaluator-rejected, and parser-disabled experimental functions. A parser
   upgrade that adds or removes a function fails the test until it is
@@ -202,7 +202,7 @@ statements. See [install.md](install.md#admission-limits).
   `label_replace`/`label_join`, `histogram_quantile` edge cases, `sort` NaN
   ordering, summary expansion, and the exponential-histogram error path.
 - A differential oracle at `test/compat/prometheus`. It is a separate Go module
-  so the main module's vendor tree is unchanged. It loads one deterministic
+  so the main module's dependency set is unchanged. It loads one deterministic
   series set into both engines and compares instant and range results for every
   function and operator claimed above: exact label sets and timestamps, with a
   1e-9 relative tolerance on values. Run it with:
@@ -225,7 +225,7 @@ statements. See [install.md](install.md#admission-limits).
   Run it with:
 
   ```sh
-  test/compat/prometheus/compliance.sh
+  scripts/compat/prometheus-compliance.sh
   ```
 
   The last full run (2026-11-07) executed 2,243 eval cases: **687 passed**,
@@ -288,7 +288,8 @@ statements. See [install.md](install.md#admission-limits).
   `test/compat/prometheus/compliance/exceptions.json`; the run report contains
   a per-case detail table. The gate fails if any failing case does not match a
   category, so an undocumented failure cannot pass silently.
-  `compliance.sh --files selectors.test,operators.test` runs a reduced subset.
+  `scripts/compat/prometheus-compliance.sh --files selectors.test,operators.test`
+  runs a reduced subset.
 
 - Integration tests against ClickHouse 26.8 for instant queries, range queries,
   histogram quantile, summary expansion, exponential-histogram errors,

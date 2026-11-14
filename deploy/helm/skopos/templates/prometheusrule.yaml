@@ -1,0 +1,110 @@
+{{- if .Values.metrics.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "skopos.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: skopos.rules
+      rules:
+        {{- if .Values.gateway.enabled }}
+        - alert: SkoposGatewayDown
+          expr: absent_over_time(skopos_build_info{namespace="{{ .Release.Namespace }}", job="{{ include "skopos.gateway.fullname" . }}"}[10m])
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Skopos gateway metrics are absent
+            description: Prometheus has not scraped the Skopos gateway service for 10 minutes. Check the gateway pods, Service endpoints, ServiceMonitor selector, and NetworkPolicy.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposgatewaydown" . | quote }}
+            {{- end }}
+        {{- end }}
+        {{- if and .Values.gateway.enabled .Values.distributed.enabled }}
+        - alert: SkoposQueryDown
+          expr: absent_over_time(skopos_build_info{namespace="{{ .Release.Namespace }}", job="{{ include "skopos.query.fullname" . }}"}[10m])
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Skopos query metrics are absent
+            description: Prometheus has not scraped the Skopos query service for 10 minutes. Query traffic from the frontend will fail. Check the query pods, readiness probes, and the ServiceMonitor selector.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposquerydown" . | quote }}
+            {{- end }}
+        {{- end }}
+        - alert: SkoposHighErrorRate
+          expr: |
+            sum by (head) (rate(skopos_http_requests_total{namespace="{{ .Release.Namespace }}", code=~"5.."}[5m]))
+            /
+            sum by (head) (rate(skopos_http_requests_total{namespace="{{ .Release.Namespace }}"}[5m]))
+            > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Skopos HTTP 5xx rate is above 5 percent
+            description: More than 5 percent of requests have returned 5xx for 10 minutes. Check the gateway logs, skopos_clickhouse_queries_total{result="error"}, admission pressure, and unsupported-query counters.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposhigherrorrate" . | quote }}
+            {{- end }}
+        - alert: SkoposHighLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le, head) (rate(skopos_http_request_duration_seconds_bucket{namespace="{{ .Release.Namespace }}"}[5m]))
+            ) > 5
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Skopos HTTP p99 latency is above 5 seconds
+            description: The gateway p99 has exceeded 5 seconds for 15 minutes. Check ClickHouse query latency, range size, and admission queueing before raising limits.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposhighlatency" . | quote }}
+            {{- end }}
+        - alert: SkoposAdmissionShedding
+          expr: sum by (head) (rate(skopos_admission_rejected_total{namespace="{{ .Release.Namespace }}"}[5m])) > 0.1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Skopos admission limiter is rejecting requests
+            description: More than 0.1 requests per second have been rejected for 15 minutes. This is deliberate backpressure; add replicas or inspect slow ClickHouse queries before increasing maxInflight.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposadmissionshedding" . | quote }}
+            {{- end }}
+        - alert: SkoposClickHouseErrorRate
+          expr: |
+            sum by (head) (rate(skopos_clickhouse_queries_total{namespace="{{ .Release.Namespace }}", result="error"}[5m]))
+            /
+            sum by (head) (rate(skopos_clickhouse_queries_total{namespace="{{ .Release.Namespace }}"}[5m]))
+            > 0.05
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Skopos ClickHouse query error rate is above 5 percent
+            description: More than 5 percent of ClickHouse queries have failed for 10 minutes. Check ClickHouse health, disk and memory pressure, query limits, and the gateway logs.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposclickhouseerrorrate" . | quote }}
+            {{- end }}
+        - alert: SkoposLowContextCoverage
+          expr: max by (signal) (skopos_context_low_coverage{namespace="{{ .Release.Namespace }}"}) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: Skopos semantic-context coverage is below 80 percent
+            description: At least one signal has observed metrics without enough documented catalog entries for an hour. Add catalog entries or accept that AI SRE answers will be labeled known:false.
+            {{- with .Values.metrics.prometheusRule.runbookURL }}
+            runbook_url: {{ printf "%s#skoposlowcontextcoverage" . | quote }}
+            {{- end }}
+        {{- with .Values.metrics.prometheusRule.additionalRules }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

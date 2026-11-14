@@ -72,6 +72,48 @@ func TestQueryFallsBackWithoutFinalOnMergeTree(t *testing.T) {
 	if strings.Contains(bodies[1], " FINAL") {
 		t.Fatalf("fallback request still has FINAL: %q", bodies[1])
 	}
+	if _, err := c.Query(context.Background(), "SELECT 1 FROM `otel`.`otel_logs` FINAL WHERE 2", nil); err != nil {
+		t.Fatalf("second Query: %v", err)
+	}
+	if len(bodies) != 3 || strings.Contains(bodies[2], " FINAL") {
+		t.Fatalf("cached fallback did not skip FINAL: %#v", bodies)
+	}
+}
+
+func TestNoFinalCacheExpires(t *testing.T) {
+	var calls int32
+	var bodies []string
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(body))
+		if atomic.AddInt32(&calls, 1)%2 == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"exception":"Code: 181. DB::Exception: Storage MergeTree doesn't support FINAL. (ILLEGAL_FINAL)"}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"meta":[],"data":[],"rows":0}`)
+	}), func(cfg *Config) {
+		cfg.Now = func() time.Time { return now }
+	})
+
+	if _, err := c.Query(context.Background(), "SELECT 1 FROM `otel`.`otel_logs` FINAL WHERE 1", nil); err != nil {
+		t.Fatalf("Query: %v", err)
+	}
+	now = now.Add(noFinalTTL + time.Second)
+	if _, err := c.Query(context.Background(), "SELECT 1 FROM `otel`.`otel_logs` FINAL WHERE 2", nil); err != nil {
+		t.Fatalf("Query after expiry: %v", err)
+	}
+	if len(bodies) != 4 {
+		t.Fatalf("requests = %d, want 4", len(bodies))
+	}
+	if !strings.Contains(bodies[2], " FINAL") {
+		t.Fatalf("query after cache expiry did not try FINAL: %q", bodies[2])
+	}
+	if strings.Contains(bodies[3], " FINAL") {
+		t.Fatalf("second fallback still has FINAL: %q", bodies[3])
+	}
 }
 
 func TestQueryDoesNotRetryOtherErrors(t *testing.T) {

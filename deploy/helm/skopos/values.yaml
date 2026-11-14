@@ -43,6 +43,11 @@ clickhouse:
     metricsHistogram: otel_metrics_histogram
     metricsExponentialHistogram: otel_metrics_exponential_histogram
     metricsSummary: otel_metrics_summary
+  dedup:
+    # Full replay dedup for logs and metrics: ReplacingMergeTree plus a
+    # 16-byte full-row hash. Set false for the fast profile: MergeTree, no row
+    # hash, at-least-once replay. Trace identity dedup is always on.
+    enabled: true
   ttl:
     tracesDays: 7
     logsDays: 7
@@ -99,6 +104,34 @@ clickhouse:
     existingSecret: ""
     accessKeyId: ""
     secretAccessKey: ""
+    # Optional CronJob that applies a bucket lifecycle rule for the backup
+    # prefix. It replaces the backup bucket's existing lifecycle
+    # configuration; use a dedicated bucket or manage lifecycle rules
+    # yourself. The rule targets <prefix>/ and leaves <prefix>_state/ alone.
+    lifecycle:
+      enabled: false
+      schedule: "0 3 * * *"
+      activeDeadlineSeconds: 300
+      startingDeadlineSeconds: 300
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+      retentionDays: 30
+      abortIncompleteMultipartUploadDays: 7
+      image:
+        repository: amazon/aws-cli
+        tag: 2.31.7
+        digest: sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8
+        pullPolicy: IfNotPresent
+    # Optional CronJob that restores the latest backup into a temporary
+    # database, checks that every table is queryable, then drops it. The
+    # backup job writes the latest timestamp to <prefix>_state/<database>.tsv.
+    restoreDrill:
+      enabled: false
+      schedule: "0 4 * * *"
+      activeDeadlineSeconds: 3600
+      startingDeadlineSeconds: 600
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
   persistence:
     size: 50Gi
     storageClass: ""
@@ -151,6 +184,8 @@ collector:
     tag: 0.164.0
     digest: sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
     pullPolicy: IfNotPresent
+  # StatefulSet replicas. Each replica gets its own disk-backed queue PVC when
+  # sendingQueue.persistence.enabled=true.
   replicas: 1
   service:
     type: ClusterIP
@@ -162,11 +197,47 @@ collector:
     queueSize: 50000
     batchMinSize: 5000
     batchFlushTimeout: 5s
-    # File-backed queue for the checkpoint exporter, mounted as an emptyDir.
-    # It survives Collector container restarts but not pod deletion. The
-    # checkpoint WAL is the durable layer; this queue only covers a checkpoint
-    # or S3 outage. Used only when checkpoint.enabled=true.
-    storageSize: 1Gi
+    # Disk-backed queue shared by the ClickHouse and checkpoint exporters.
+    # Each Collector replica gets its own PVC, so queued batches survive
+    # restarts and rescheduling without multiple writers sharing a volume.
+    # The checkpoint WAL remains the durable S3 layer.
+    storageSize: 5Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+      retentionPolicy:
+        # Retain queue PVCs when a replica is deleted or scaled down. This keeps
+        # queued telemetry available for inspection or manual replay; clean them
+        # up explicitly after the outage window.
+        whenDeleted: Retain
+        whenScaled: Retain
+  memoryLimiter:
+    # Keep the Collector below its 1Gi limit and apply backpressure before the
+    # kernel OOM killer can drop in-flight telemetry.
+    checkInterval: 1s
+    limitMiB: 700
+    spikeLimitMiB: 100
+  otlpAuth:
+    # Require a bearer token on the OTLP gRPC/HTTP receivers. OBI reads the
+    # matching OTEL_EXPORTER_OTLP_HEADERS value from the same Secret. Prefer
+    # existingSecret; inline token is rendered into a Secret but also appears
+    # in Helm values. Bearer tokens are only as safe as the transport: use
+    # TLS at the ingress or mTLS for untrusted networks.
+    enabled: false
+    existingSecret: ""
+    token: ""
+    tokenKey: token
+    headersKey: otlp-headers
+  tls:
+    # Server TLS for the OTLP gRPC/HTTP receivers. The Secret must contain
+    # tls.crt, tls.key, and ca.crt. For mTLS it must also contain client.crt
+    # and client.key for OBI. The server certificate must include the
+    # Collector service DNS name in its SANs.
+    enabled: false
+    existingSecret: ""
+    mtls: false
+    minVersion: "1.2"
   resources:
     requests:
       cpu: 100m
@@ -186,6 +257,14 @@ collector:
     capabilities:
       drop:
         - ALL
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Optional recent-window durability checkpoint. When enabled, the Collector
@@ -195,8 +274,8 @@ collector:
 # backup, a data lake, or a query path; see docs/checkpoint.md.
 checkpoint:
   enabled: false
-  # Reuses gateway.image: the Skopos image contains both /gateway and
-  # /skopos-checkpoint. Pin gateway.image.digest for release installs.
+  # Reuses gateway.image: the Skopos image contains one /skopos binary and
+  # SKOPOS_MODE selects the role. Pin gateway.image.digest for release installs.
   replicas: 1
   service:
     type: ClusterIP
@@ -283,6 +362,11 @@ checkpoint:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 obi:
@@ -298,6 +382,12 @@ obi:
   rbac:
     create: true
   hostPID: true
+  batch:
+    # Larger batches reduce gRPC/send overhead under load. The queue bounds
+    # memory while the Collector is catching up.
+    scheduleDelayMs: 5000
+    maxExportBatchSize: 2048
+    maxQueueSize: 8192
   tolerations:
     - operator: Exists
   resources:
@@ -369,11 +459,15 @@ gateway:
     maxResponseBytes: 67108864
     readinessTimeout: 2s
     maxRequestBytes: 1048576
-    # Admission limits. Zero maxInflight disables admission. queueDepth and
-    # queueWaitSeconds must be set together and require maxInflight.
-    maxInflight: 0
-    queueDepth: 0
-    queueWaitSeconds: 0
+    # Admission limits, per query head. The chart enables a conservative
+    # default so a burst is rejected with 429/503 + Retry-After instead of
+    # growing gateway memory. Set maxInflight to 0 to disable admission.
+    maxInflight: 16
+    queueDepth: 32
+    queueWaitSeconds: 2
+    # Range requests consume ceil(points / pointsPerSlot) units; instant
+    # requests consume one. Set 0 to disable cost weighting.
+    pointsPerSlot: 100
     # Cache metric discovery, table emptiness, and metadata.
     metadataTTL: 30s
     # Expose the auth-protected /debug/pprof routes. Off by default.
@@ -385,10 +479,10 @@ gateway:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 1536Mi
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 65532
@@ -416,6 +510,11 @@ gateway:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Metrics
@@ -427,6 +526,25 @@ metrics:
     additionalLabels: {}
     # The selector must match the Service labels; empty is rejected.
     selector: {}
+  prometheusRule:
+    # Requires the Prometheus Operator CRDs. Disabled by default.
+    enabled: false
+    # Labels used by the Prometheus ruleSelector.
+    additionalLabels: {}
+    # Base URL for alert runbook links. Set to "" to omit the annotation.
+    runbookURL: https://github.com/jawaracloud/skopos/blob/development/docs/monitoring.md
+    # Extra rules appended to the skopos.rules group.
+    additionalRules: []
+  dashboards:
+    # Requires Grafana's dashboard sidecar or a manual ConfigMap import. The
+    # dashboard JSON lives in deploy/helm/skopos/dashboards/.
+    enabled: false
+    # Sidecar label. Match the Grafana sidecar's folder/label selector.
+    labels:
+      grafana_dashboard: "1"
+    annotations: {}
+    # Optional Grafana folder name for the dashboard sidecar.
+    folder: ""
 
 # Split the read path into a public frontend and an internal query tier. When
 # disabled, the single gateway Deployment/Service above is rendered unchanged.
@@ -458,6 +576,11 @@ frontend:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Internal query worker tier (used only when distributed.enabled=true). Worker
@@ -470,14 +593,19 @@ query:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 1536Mi
   podAnnotations: {}
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 networkPolicy:

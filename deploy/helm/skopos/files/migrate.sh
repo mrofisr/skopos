@@ -24,6 +24,12 @@ metrics_exponential_histogram='{{ .Values.clickhouse.tables.metricsExponentialHi
 metrics_summary='{{ .Values.clickhouse.tables.metricsSummary }}'
 trace_id_ts="${traces}_trace_id_ts"
 trace_id_ts_mv="${traces}_trace_id_ts_mv"
+dedup_enabled='{{ .Values.clickhouse.dedup.enabled }}'
+
+if [ "$dedup_enabled" != 'true' ]; then
+  echo "migrate: dedup disabled (fast profile); schema applied, no engine migration"
+  exit 0
+fi
 
 legacy_suffix='__skopos_pre_dedup'
 

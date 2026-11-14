@@ -34,9 +34,8 @@ TTL/delete behavior and does not require any S3 credentials.
 
 ## Replay deduplication
 
-The signal tables use `ReplacingMergeTree` so replaying the checkpoint is
-idempotent in ClickHouse:
-
+In the default reliable profile, the signal tables use `ReplacingMergeTree` so
+replaying the checkpoint is idempotent in ClickHouse:
 - `otel_traces` ends its sort key with the OTel span identity
   `(TraceId, SpanId)`.
 - `otel_logs` and the metric tables add a 128-bit materialized
@@ -52,6 +51,17 @@ idempotent in ClickHouse:
 There is no OTel record id for a log or metric point. Two byte-identical rows
 are therefore the same row and collapse to one; distinct rows keep distinct
 hashes.
+
+The opt-in fast profile (`clickhouse.dedup.enabled=false`) switches logs and
+metric tables to `MergeTree` and omits `_skopos_row_hash`. It keeps trace
+identity dedup and the durable Collector queue, but replay is at-least-once:
+a checkpoint replay can duplicate log and metric rows. The default remains the
+reliable profile. The gateway client caches `ILLEGAL_FINAL` per table for one
+minute, so fast-mode reads skip `FINAL` after the first query.
+
+Switching an existing full install to fast does not rewrite existing hash
+tables; rebuild them or reinstall to reclaim the space. Switching fast to full
+is migrated automatically by the init Job.
 
 The ClickHouse init Job runs `schema.sql` and then `migrate.sh`. On a fresh
 install both are no-ops beyond creating the current tables. On an upgrade the
@@ -236,10 +246,10 @@ ALTER TABLE otel.otel_logs
 ALTER TABLE otel.otel_logs MATERIALIZE INDEX idx_body;
 ```
 
-`idx_body` serves case-sensitive `match(Body, ...)` and token search. The
-existing `idx_lower_body lower(Body)` index remains for case-insensitive
-predicates. Neither index changes query results; they only let ClickHouse skip
-granules.
+`idx_body` serves case-sensitive `match(Body, ...)` and token search. It is the
+default body index; it changes no query result, only lets ClickHouse skip
+granules. For case-insensitive `lower(Body)` SQL outside LogQL, add a separate
+`idx_lower_body lower(Body)` index manually.
 
 ### Query behavior
 
@@ -269,11 +279,20 @@ clickhouse:
     existingSecret: skopos-backup-credentials
     accessKeyId: ""
     secretAccessKey: ""
+    lifecycle:
+      enabled: true
+      schedule: "0 3 * * *"
+      retentionDays: 30
+      abortIncompleteMultipartUploadDays: 7
+    restoreDrill:
+      enabled: true
+      schedule: "0 4 * * *"
+      activeDeadlineSeconds: 3600
 ```
 
 The backup image defaults to the pinned ClickHouse image and runs
 `clickhouse-client`; override `clickhouse.backup.image.*` only if you need a
-different pinned build.
+different pinned build. The restore drill uses the same image.
 
 The CronJob:
 
@@ -290,14 +309,51 @@ The CronJob:
 - is disabled by default, so normal CI and a default install need no S3
   credentials.
 
+After a successful `BACKUP DATABASE`, the job writes a small marker object at
+`<endpoint>/<bucket>/<prefix>_state/<database>.tsv` containing the database
+name and the UTC timestamp of the latest complete backup. The restore drill
+reads this marker instead of trying to list the bucket. The marker is outside
+the `<prefix>/` lifecycle filter, so backup retention cannot delete it. The
+backup credentials therefore need `GetObject` and `PutObject` on both
+`<prefix>/` and `<prefix>_state/`.
+
 The bucket must already exist. The chart refuses to render if the backup
 endpoint/bucket/prefix overlaps the live cold tier, because a restore into that
 location could collide with live parts. Use a different bucket or a
 non-overlapping prefix such as `skopos/backups` versus `skopos/cold`.
 
-Each run is a full database backup. The chart does not prune old backups; use
-the bucket's lifecycle rules or an external retention policy. For large
-databases, schedule backups outside peak hours and monitor the Job deadline.
+Each run is a full database backup. Old backups are removed by the optional
+lifecycle job below, or by an external retention policy. For large databases,
+schedule backups outside peak hours and monitor the Job deadline.
+
+### S3 lifecycle
+
+`clickhouse.backup.lifecycle.enabled=true` adds a daily CronJob that applies a
+bucket lifecycle rule to `<prefix>/`:
+
+- objects expire after `retentionDays` (default `30`);
+- incomplete multipart uploads abort after
+  `abortIncompleteMultipartUploadDays` (default `7`).
+
+The job uses the backup credentials, the pinned `amazon/aws-cli` image, a
+read-only root filesystem, and a non-root user. It runs
+`put-bucket-lifecycle-configuration` and then reads the configuration back to
+verify it. Set `clickhouse.backup.region` when the endpoint requires a region;
+the job defaults to `us-east-1`.
+
+**The job owns the backup bucket's lifecycle configuration.** S3's PUT
+operation replaces every existing rule. Use a dedicated backup bucket, or leave
+`lifecycle.enabled=false` and manage the bucket lifecycle yourself. The
+credentials need `s3:PutLifecycleConfiguration` and
+`s3:GetLifecycleConfiguration` on the bucket in addition to object access. If
+versioning is enabled, add a noncurrent-version expiration rule yourself; this
+chart rule only expires current objects.
+
+The lifecycle job is separate from ClickHouse's own TTL and cold-tier movement.
+It only removes backup objects; it never touches live cold parts or the
+durability checkpoint. Disabling `lifecycle.enabled` stops the CronJob but does
+not remove a rule already applied to the bucket; remove it with
+`aws s3api delete-bucket-lifecycle` or your bucket management tool.
 
 ### Restore
 
@@ -325,14 +381,20 @@ SELECT min(Timestamp), max(Timestamp) FROM otel_restore.otel_logs;
 ```
 
 The restored tables keep the backup's storage policy. Restore on a ClickHouse
-with the same `tiered` configuration mounted, or override the policy if you are
-restoring to a local-only server:
+with the same `tiered` configuration mounted. A backup taken from a local-only
+configuration can be overridden with `SETTINGS storage_policy = 'default'`:
 
 ```sql
 RESTORE DATABASE otel AS otel_restore
 FROM S3(...)
 SETTINGS storage_policy = 'default';
 ```
+
+Do not use that override for a backup whose tables have a
+`TTL ... TO VOLUME 'cold'` rule unless the target also defines the `cold`
+volume; the TTL expression is restored with the table and ClickHouse fails with
+`No such volume 'cold'`. The automated restore drill therefore restores with
+the backup's original policy on the same ClickHouse configuration.
 
 Do not restore over the live `otel` database while the gateway is serving it.
 After verification, either point the chart at the restored database
@@ -341,19 +403,56 @@ tables) or copy/rename tables during a maintenance window. If you restore into
 a non-empty table, ClickHouse requires `allow_non_empty_tables = 1`, which can
 duplicate rows; prefer a clean database.
 
+### Restore drills
+
+`clickhouse.backup.restoreDrill.enabled=true` adds a scheduled CronJob that
+proves the latest backup is restorable:
+
+1. Read the latest backup timestamp from
+   `<prefix>_state/<database>.tsv`.
+2. Restore the database into
+   `<database>_restore_drill_<UTC timestamp>`.
+3. Compare the source and restored table sets; a missing or extra table fails
+   the drill.
+4. Run `SELECT count()` on every restored table, so a corrupt or unreadable
+   part fails the drill.
+5. Drop the temporary database and exit `0`.
+
+The timestamped name avoids dropping a database that the operator created. On
+failure the temporary database is left in place for inspection; drop it
+manually. The next run uses a new name and is not blocked by the failed
+database. The drill uses the same ClickHouse admin Secret and backup
+credentials as the backup job. It restores with the backup's original storage
+policy, so it must run against a ClickHouse with the same storage configuration
+as the backup. The default schedule is daily at `04:00` UTC, after the default
+`02:00` backup.
+
+The drill is not a substitute for a manual disaster-recovery exercise: it runs
+on the live ClickHouse, not a separate cluster, and it does not prove that the
+gateway can be repointed after a total host loss. It does prove that the backup
+objects are complete enough to restore and query. A drill restores a full copy,
+so size the PVC for roughly the backup size plus the live data, or run the
+drill against a separate cluster during off-peak hours.
+
+The chart keeps the last three successful and three failed drill Jobs for
+inspection by default. Kubernetes Job failures are the signal; the chart does
+not push a separate Prometheus metric for the drill.
+
 ## Test harness
 
 `test/integration/s3` runs a real ClickHouse + RustFS test:
 
 ```sh
-PATH=/tmp/opencode/linux-amd64:$PATH ./test/integration/s3/run.sh
+PATH=/tmp/opencode/linux-amd64:$PATH ./scripts/integration/s3.sh
 ```
 
 It renders the chart's tiered schema, applies all tables, inserts hot and old
 log rows, forces TTL, asserts the old part is on the cold disk and still
 queryable, checks `idx_body` in `EXPLAIN indexes = 1`, runs `BACKUP DATABASE`
-into a separate bucket/prefix, lists the objects, and restores to
-`otel_restore`. See the harness README for details.
+into a separate bucket/prefix, writes and reads the latest-backup marker,
+restores into a temporary database and queries every restored table, applies
+the rendered lifecycle rule as a non-root AWS CLI container, and finally
+restores to `otel_restore`. See the harness README for details.
 
 ## Limitations
 
@@ -364,9 +463,12 @@ into a separate bucket/prefix, lists the objects, and restores to
 - `ttl_only_drop_parts = 1` means the delete rule drops whole parts; mixed-age
   parts may survive longer than `totalDays` until a merge separates them.
 - Cold reads depend on S3 availability and add request cost/latency.
-- Backups are full logical copies, not incremental, and are not verified by
-  the chart after upload. Monitor the CronJob and periodically practice a
-  restore.
-- The chart does not create S3 buckets, IAM policies, or lifecycle rules.
+- Backups are full logical copies, not incremental. The optional restore drill
+  verifies the latest backup on the live ClickHouse; it does not replace a
+  manual restore into a separate cluster. Keep monitoring the backup and drill
+  Jobs.
+- The chart does not create S3 buckets or IAM policies. The optional lifecycle
+  CronJob manages one bucket lifecycle rule; it replaces the bucket's existing
+  lifecycle configuration.
 - No external compactor: ClickHouse merges and compacts hot and cold parts
   itself. S3 object layout is ClickHouse-managed; do not edit it manually.

@@ -23,21 +23,35 @@ data:
         - batch:
             exporter:
               otlp_grpc:
-                endpoint: http://{{ include "skopos.collector.host" . }}:{{ .Values.collector.service.grpcPort }}
+                endpoint: {{ if .Values.collector.tls.enabled }}https{{ else }}http{{ end }}://{{ include "skopos.collector.host" . }}:{{ .Values.collector.service.grpcPort }}
                 tls:
-                  insecure: true
-            schedule_delay: 5000
-            max_export_batch_size: 512
-            max_queue_size: 2048
+                  insecure: {{ not .Values.collector.tls.enabled }}
+                  {{- if .Values.collector.tls.enabled }}
+                  ca_file: /etc/obi/tls/ca.crt
+                  {{- if .Values.collector.tls.mtls }}
+                  cert_file: /etc/obi/tls/client.crt
+                  key_file: /etc/obi/tls/client.key
+                  {{- end }}
+                  {{- end }}
+            schedule_delay: {{ .Values.obi.batch.scheduleDelayMs }}
+            max_export_batch_size: {{ .Values.obi.batch.maxExportBatchSize }}
+            max_queue_size: {{ .Values.obi.batch.maxQueueSize }}
 
     meter_provider:
       readers:
         - periodic:
             exporter:
               otlp_grpc:
-                endpoint: http://{{ include "skopos.collector.host" . }}:{{ .Values.collector.service.grpcPort }}
+                endpoint: {{ if .Values.collector.tls.enabled }}https{{ else }}http{{ end }}://{{ include "skopos.collector.host" . }}:{{ .Values.collector.service.grpcPort }}
                 tls:
-                  insecure: true
+                  insecure: {{ not .Values.collector.tls.enabled }}
+                  {{- if .Values.collector.tls.enabled }}
+                  ca_file: /etc/obi/tls/ca.crt
+                  {{- if .Values.collector.tls.mtls }}
+                  cert_file: /etc/obi/tls/client.crt
+                  key_file: /etc/obi/tls/client.key
+                  {{- end }}
+                  {{- end }}
             interval: 30000
 
     extensions:
@@ -62,8 +76,7 @@ data:
                 process:
                   exe_path_glob:
                     - "*/clickhouse"
-                    - "*/skopos-gateway"
-                    - "*/gateway"
+                    - "*/skopos"
             {{- if .Values.obi.discovery.excludeSystemNamespaces }}
             - action: exclude
               name: exclude-system-namespaces

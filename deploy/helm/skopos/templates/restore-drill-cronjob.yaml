@@ -1,0 +1,149 @@
+{{- if .Values.clickhouse.backup.restoreDrill.enabled }}
+{{- $backup := .Values.clickhouse.backup }}
+{{- $drill := $backup.restoreDrill }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "skopos.clickhouseRestoreDrill.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-restore-drill
+spec:
+  schedule: {{ $drill.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $drill.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $drill.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $drill.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "skopos.labels" . | nindent 8 }}
+        app.kubernetes.io/component: clickhouse-restore-drill
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ $drill.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "skopos.labels" . | nindent 12 }}
+            app.kubernetes.io/component: clickhouse-restore-drill
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restore-drill
+              image: {{ include "skopos.image" (dict "image" $backup.image) | quote }}
+              imagePullPolicy: {{ $backup.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              command:
+                - /bin/bash
+                - -ec
+              args:
+                - |
+                  export HOME=/tmp
+
+                  sql_escape() {
+                    local value="$1"
+                    value="${value//\\/\\\\}"
+                    value="${value//\'/\'\'}"
+                    printf '%s' "$value"
+                  }
+
+                  query() {
+                    clickhouse-client \
+                      --host "$CLICKHOUSE_HOST" \
+                      --port "$CLICKHOUSE_PORT" \
+                      --user "$CLICKHOUSE_ADMIN_USER" \
+                      --password "$CLICKHOUSE_ADMIN_PASSWORD" \
+                      --query "$1"
+                  }
+
+                  marker="${S3_ENDPOINT%/}/${S3_BUCKET}/${S3_PREFIX}_state/${SKOPOS_DATABASE}.tsv"
+                  latest="$(query "SELECT max(timestamp) FROM s3('$(sql_escape "$marker")', '$(sql_escape "$S3_ACCESS_KEY_ID")', '$(sql_escape "$S3_SECRET_ACCESS_KEY")', 'CSV', 'database String, timestamp String') WHERE database = '$(sql_escape "$SKOPOS_DATABASE")'" 2>/tmp/marker.err || true)"
+
+                  if [ -z "$latest" ]; then
+                    echo "restore-drill: no backup marker at ${marker}; run the backup job first" >&2
+                    cat /tmp/marker.err >&2 || true
+                    exit 1
+                  fi
+                  case "$latest" in
+                    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
+                    *)
+                      echo "restore-drill: invalid backup timestamp ${latest}" >&2
+                      exit 1
+                      ;;
+                  esac
+
+                  restore_db="${SKOPOS_DATABASE}_restore_drill_$(date -u +%Y%m%dT%H%M%SZ)"
+                  destination="${S3_ENDPOINT%/}/${S3_BUCKET}/${S3_PREFIX}/${SKOPOS_DATABASE}/${latest}"
+                  echo "restore-drill: restoring ${destination} as ${restore_db}"
+
+                  query "RESTORE DATABASE \`${SKOPOS_DATABASE}\` AS \`${restore_db}\` FROM S3('$(sql_escape "$destination")', '$(sql_escape "$S3_ACCESS_KEY_ID")', '$(sql_escape "$S3_SECRET_ACCESS_KEY")')"
+
+                  missing="$(query "SELECT count() FROM (SELECT name FROM system.tables WHERE database = '$(sql_escape "$SKOPOS_DATABASE")' EXCEPT SELECT name FROM system.tables WHERE database = '$(sql_escape "$restore_db")')")"
+                  extra="$(query "SELECT count() FROM (SELECT name FROM system.tables WHERE database = '$(sql_escape "$restore_db")' EXCEPT SELECT name FROM system.tables WHERE database = '$(sql_escape "$SKOPOS_DATABASE")')")"
+                  if [ "$missing" != "0" ] || [ "$extra" != "0" ]; then
+                    echo "restore-drill: table set mismatch (missing=${missing} extra=${extra})" >&2
+                    exit 1
+                  fi
+
+                  tables="$(query "SELECT name FROM system.tables WHERE database = '$(sql_escape "$restore_db")' ORDER BY name")"
+                  while IFS= read -r table; do
+                    [ -z "$table" ] && continue
+                    count="$(query "SELECT count() FROM \`${restore_db}\`.\`${table}\`")"
+                    echo "restore-drill: ${table}: ${count} rows"
+                  done <<EOF
+                  ${tables}
+                  EOF
+
+                  query "DROP DATABASE \`${restore_db}\`"
+                  echo "restore-drill: PASS (backup ${latest})"
+              env:
+                - name: TZ
+                  value: UTC
+                - name: CLICKHOUSE_HOST
+                  value: {{ include "skopos.clickhouse.host" . | quote }}
+                - name: CLICKHOUSE_PORT
+                  value: {{ .Values.clickhouse.service.nativePort | int64 | quote }}
+                - name: CLICKHOUSE_ADMIN_USER
+                  value: {{ .Values.clickhouse.auth.adminUser | quote }}
+                - name: CLICKHOUSE_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "skopos.clickhouse.secretName" . }}
+                      key: admin-password
+                - name: SKOPOS_DATABASE
+                  value: {{ .Values.clickhouse.database | quote }}
+                - name: S3_ENDPOINT
+                  value: {{ $backup.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ trimSuffix "/" $backup.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ trimSuffix "/" $backup.prefix | quote }}
+                - name: S3_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "skopos.clickhouse.backupSecretName" . }}
+                      key: access-key-id
+                - name: S3_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "skopos.clickhouse.backupSecretName" . }}
+                      key: secret-access-key
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}

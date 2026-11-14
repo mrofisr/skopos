@@ -324,8 +324,9 @@ they must not silently overwrite catalog data.
 
 ## MCP server
 
-`cmd/skopos-mcp` is a stdio MCP server for AI SRE agents. It calls the gateway
-over HTTP and exposes compact context plus query tools:
+`internal/app/mcp` is an MCP server for AI SRE agents, selected with
+`SKOPOS_MODE=mcp`. It calls the gateway over HTTP and exposes compact context
+plus query tools:
 
 ```text
 list_metrics
@@ -346,8 +347,12 @@ search_traces
 Build and run:
 
 ```sh
-make mcp
-SKOPOS_GATEWAY_URL=http://127.0.0.1:8080   SKOPOS_AUTH_USERNAME=viewer   SKOPOS_AUTH_PASSWORD=change-me   ./bin/skopos-mcp
+make build
+SKOPOS_MODE=mcp \
+SKOPOS_GATEWAY_URL=http://127.0.0.1:8080 \
+SKOPOS_AUTH_USERNAME=viewer \
+SKOPOS_AUTH_PASSWORD=change-me \
+./bin/skopos
 ```
 
 The server speaks newline-delimited JSON-RPC 2.0 on stdin/stdout, supports the
@@ -361,11 +366,12 @@ model context.
 Set `SKOPOS_MCP_HTTP_ADDR` to run the same tools over HTTP instead of stdio:
 
 ```sh
+SKOPOS_MODE=mcp \
 SKOPOS_GATEWAY_URL=http://127.0.0.1:8080 \
 SKOPOS_MCP_HTTP_ADDR=127.0.0.1:8090 \
 SKOPOS_MCP_HTTP_USERNAME=mcp \
 SKOPOS_MCP_HTTP_PASSWORD=change-me \
-./bin/skopos-mcp
+./bin/skopos
 ```
 
 ```text

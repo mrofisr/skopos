@@ -6,7 +6,8 @@ means creating a new patch tag; published releases are immutable.
 
 ## What a release produces
 
-- `ghcr.io/<owner>/skopos-gateway:<version>` with an immutable digest.
+- `ghcr.io/<owner>/skopos-gateway:<version>` with an immutable digest. The tag
+  is a multi-architecture manifest for `linux/amd64` and `linux/arm64`.
 - `oci://ghcr.io/<owner>/charts/skopos:<version>` with an immutable digest.
 - `skopos-<version>.tgz`: the packaged Helm chart.
 - `skopos-gateway-<version>.spdx.json` and
@@ -26,30 +27,32 @@ means creating a new patch tag; published releases are immutable.
 3. Merge the version bump through a pull request with all required checks.
 4. Confirm that the commit is on `main` and CI is green.
 5. Confirm that there are no open high or critical code-scanning alerts. The
-   release preflight runs `go run ./cmd/repoctl codescan`, which fails closed
+   release preflight runs `go run ./tools/repoctl codescan`, which fails closed
    on API errors and names every blocking alert.
 6. Confirm that `docs/security/osv-exceptions.yaml` is empty or that every
    exception has a reason and an unexpired date. The release preflight runs
-   `go run ./cmd/repoctl osv`.
+   `go run ./tools/repoctl osv`.
 
 ## Create the release
 
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.1.0-alpha.2 -m "Skopos v0.1.0-alpha.2"
-git push origin v0.1.0-alpha.2
+git tag -a v0.1.0-alpha.3 -m "Skopos v0.1.0-alpha.3"
+git push origin v0.1.0-alpha.3
 ```
 
 `.github/workflows/release.yml` then:
 
 1. Verifies that the tag is annotated, is an ancestor of `main`, and that the
    tag, release, and image tag do not already exist.
-2. Runs `go run ./cmd/repoctl codescan`, `go run ./cmd/repoctl osv`,
+2. Runs `go run ./tools/repoctl codescan`, `go run ./tools/repoctl osv`,
    `make release-check`, and `go test -race ./...`.
-3. Builds the image, chart, and SBOMs in a read-only job.
-4. Pushes the image, signs it with keyless Sigstore, and attests provenance and
-   SBOM.
+3. Builds the chart and SBOMs in a read-only job and validates the local
+   image build.
+4. Builds the `linux/amd64` and `linux/arm64` image manifests with Buildx,
+   pushes the manifest list, signs it with keyless Sigstore, and attests
+   provenance and SBOM.
 5. Pushes the chart to GHCR OCI, signs it, and attests provenance and SBOM.
 6. Generates `values.release.yaml` with the image digest.
 7. Creates a draft GitHub release, attaches every asset, and publishes it as an
@@ -61,7 +64,7 @@ created.
 ## Verify a release
 
 ```sh
-make release-verify TAG=v0.1.0-alpha.2
+make release-verify TAG=v0.1.0-alpha.3
 ```
 
 The verifier downloads `values.release.yaml` from the published release and
@@ -79,30 +82,46 @@ checks that:
 
 It then renders the chart with the downloaded values. Every missing or
 mismatched artifact fails the command. `VERSION=...` and a positional version
-remain accepted by `scripts/verify-release.sh`.
+remain accepted by `scripts/release/verify-release.sh`.
 
 Or manually:
 
 ```sh
-cosign verify ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.2 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.2' \
+cosign verify ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3 \
+  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.2 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.2' \
+cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.3 \
+  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.2 \
+gh attestation verify oci://ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3 \
   --repo jawaracloud/skopos \
   --signer-workflow jawaracloud/skopos/.github/workflows/release.yml
 
-gh release view v0.1.0-alpha.2 \
+gh release view v0.1.0-alpha.3 \
   --repo jawaracloud/skopos \
   --json assets
 ```
 
 Compare the digest reported by `cosign verify` with the `digest:` line in the
 release's `values.release.yaml`.
+
+Confirm that the tag is a multi-architecture manifest:
+
+```sh
+docker buildx imagetools inspect \
+  ghcr.io/jawaracloud/skopos-gateway:0.1.0-alpha.3
+```
+
+The digest in `values.release.yaml` and the `cosign verify` output is the
+manifest-list digest, not a single-platform image digest.
+
+The SBOM asset is generated from the build job's local image. Each platform
+image is a scratch image containing one statically linked Go binary plus the CA
+bundle, so the Go module set and SPDX inventory are the same on
+`linux/amd64` and `linux/arm64`; the attestation is attached to the
+multi-architecture manifest digest.
 
 Do not use `--insecure-ignore-tlog`. The release workflow always records
 signatures in the transparency log.
@@ -114,7 +133,7 @@ The gateway is disabled by default. A release install uses the attached
 
 ```sh
 helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.2 \
+  --version 0.1.0-alpha.3 \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace
@@ -128,7 +147,7 @@ before installing when your policy requires it.
 `make quickstart-test` is the EC5 evidence command. It runs the shell block
 tagged `quickstart` in the README verbatim against the published chart:
 
-1. `go run ./cmd/repoctl quickstart` extracts the tagged block and requires exactly one
+1. `go run ./tools/repoctl quickstart` extracts the tagged block and requires exactly one
    `oci://` chart reference and one strict-SemVer `--version`.
 2. It runs `helm show chart <ref> --version <version>` and fails before creating
    a cluster when the chart version is not in the registry.
@@ -143,8 +162,11 @@ intentionally red until the chart version named in the README is published;
 
 ## Local dry run
 
-`make release VERSION=0.1.0-alpha.2` builds the image, chart, SBOMs, metadata,
-and checksums locally. It does not push, sign, or create a release.
+`make release VERSION=0.1.0-alpha.3` builds the image, chart, SBOMs, metadata,
+and checksums locally. It does not push, sign, or create a release. The local
+image is built for the host architecture for SBOM generation and the dry run;
+the release workflow builds and pushes the `linux/amd64` and `linux/arm64`
+manifest list.
 
 The repository no longer supports key-based signing or manual dispatch of a
 release. Do not add either back.

@@ -1,0 +1,19 @@
+name: skopos-faults
+
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+    # Host networking keeps the disposable harness independent of Docker
+    # bridge/host-gateway firewall rules. Linux only; CI uses Linux.
+    network_mode: host
+    # The named queue volume is root-owned in this disposable harness; the
+    # production chart uses fsGroup 10001 on the StatefulSet PVC.
+    user: "0:0"
+    command:
+      - --config=/etc/otelcol/config.yaml
+    volumes:
+      - ./collector.yaml:/etc/otelcol/config.yaml:ro
+      - collector-queue:/var/lib/otelcol/storage
+
+volumes:
+  collector-queue:

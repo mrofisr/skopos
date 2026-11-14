@@ -35,7 +35,7 @@ services:
     volumes:
       - ../e2e/obi/.render/schema.sql:/schema/schema.sql:ro
       - ../e2e/obi/.render/migrate.sh:/schema/migrate.sh:ro
-      - ../e2e/obi/init-clickhouse.sh:/init/init-clickhouse.sh:ro
+      - ../../scripts/e2e/obi/init-clickhouse.sh:/init/init-clickhouse.sh:ro
     restart: "no"
 
   gateway:
@@ -55,6 +55,11 @@ services:
       SKOPOS_CLICKHOUSE_PASSWORD: ${SKOPOS_BENCH_GATEWAY_PASSWORD:-skopos-bench-password}
       SKOPOS_LOG_LEVEL: warn
       SKOPOS_PROFILE: ${SKOPOS_BENCH_PROFILE:-false}
+      # Mirror the chart's admission defaults so the gate exercises them.
+      SKOPOS_MAX_INFLIGHT: ${SKOPOS_BENCH_MAX_INFLIGHT:-16}
+      SKOPOS_QUEUE_DEPTH: ${SKOPOS_BENCH_QUEUE_DEPTH:-32}
+      SKOPOS_QUEUE_WAIT: ${SKOPOS_BENCH_QUEUE_WAIT:-2s}
+      SKOPOS_POINTS_PER_SLOT: ${SKOPOS_BENCH_POINTS_PER_SLOT:-100}
     ports:
       - "${SKOPOS_BENCH_GATEWAY_PORT:-28082}:8080"
 

@@ -115,9 +115,10 @@ ALTER TABLE <database>.<logs_table> MATERIALIZE INDEX idx_body;
 ClickHouse uses this index only when it can extract complete tokens from the
 pattern (for example a phrase or anchored literal words); an unanchored
 `match(Body, 'timeout')` is a substring regex and may still scan. `position`
-substring filters are exact but do not use the text index at all.
-`idx_lower_body` is not used by LogQL because `|=`, `|~`, and their negations
-are case-sensitive.
+substring filters are exact but do not use the text index at all. LogQL does
+not need a case-insensitive body index because `|=`, `|~`, and their negations
+are case-sensitive; add `idx_lower_body lower(Body)` manually if you run
+case-insensitive SQL outside the gateway.
 
 Pushdown reduces rows read, but the gateway still applies the full selector,
 parser stages, label filters, and metric aggregation in Go, and still enforces
@@ -307,11 +308,11 @@ Other limits:
   byte-identical responses, including rows with invalid UTF-8; an EXPLAIN test
   also checks `idx_body` usage for a tokenizable `match` predicate.
 - Deterministic corpus: `test/corpus/logql/corpus.json`, checked by
-  `internal/loki.TestLogQLCorpus` and by the real-Loki differential harness.
-- Differential harness: `test/compat/loki/run.sh verify` (Docker + Python 3);
-  see `test/compat/loki/README.md` for the optional seeded-gateway comparison.
-- Upstream corpus: `test/compat/loki/upstream.sh` pins Loki 3.5.7 by tag,
+  `internal/loki.TestLogQLCorpus`. The expectations were recorded from a real
+  `grafana/loki:3.5.7` before the Docker harness was retired; see
+  `test/corpus/logql/README.md`.
+- Upstream corpus: `scripts/compat/loki-upstream.sh` pins Loki 3.5.7 by tag,
   commit, and archive SHA-256 and regenerates
-  `test/compat/loki/upstream/corpus.json` from `pkg/logql/bench`.
-  `test/compat/loki/upstream-run.sh` starts Loki plus the ClickHouse gateway,
-  seeds both, and writes the baseline report with `--report`.
+  `test/compat/loki/upstream/corpus.json` from `pkg/logql/bench`. Run
+  `scripts/compat/loki-upstream.sh verify` to diff the committed copy;
+  `refresh` rewrites it.

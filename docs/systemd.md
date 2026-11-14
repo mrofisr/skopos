@@ -41,7 +41,7 @@ deploy/systemd/
   gateway.env.example
   query.env.example
   frontend.env.example
-  render-schema.sh             local-only ClickHouse DDL renderer
+  ../scripts/deploy/render-schema.sh  local-only ClickHouse DDL renderer
 ```
 
 ## Prerequisites
@@ -55,10 +55,10 @@ deploy/systemd/
 
 ```sh
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags "-s -w -X main.version=$(git describe --tags --always)" \
-  -o /tmp/skopos-gateway ./cmd/gateway
+  -ldflags "-s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(git describe --tags --always)" \
+  -o /tmp/skopos ./cmd/skopos
 
-sudo install -m 0755 /tmp/skopos-gateway /usr/local/bin/skopos-gateway
+sudo install -m 0755 /tmp/skopos /usr/local/bin/skopos
 sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin skopos || true
 sudo install -d -m 0750 -o root -g skopos /etc/skopos
 ```
@@ -68,7 +68,7 @@ sudo install -d -m 0750 -o root -g skopos /etc/skopos
 Render the chart's local-only schema:
 
 ```sh
-./deploy/systemd/render-schema.sh /tmp/skopos-schema.sql
+./scripts/deploy/render-schema.sh /tmp/skopos-schema.sql
 clickhouse-client --multiquery < /tmp/skopos-schema.sql
 ```
 
@@ -198,7 +198,7 @@ proxy authenticate.
 Upgrade:
 
 ```sh
-sudo install -m 0755 ./skopos-gateway /usr/local/bin/skopos-gateway
+sudo install -m 0755 ./skopos /usr/local/bin/skopos
 sudo systemctl restart skopos-gateway
 ```
 

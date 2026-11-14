@@ -9,7 +9,8 @@ recorded here before it lands.
 M0-M2 used only the Go standard library. M3-M5 add two provider-official
 dependencies and the official protobuf runtime, plus their permissive
 transitive modules.
-`go.mod`, `go.sum`, and `vendor/` are committed. Builds use the vendored tree.
+`go.mod` and `go.sum` are committed. Builds use the module graph; the module
+cache or a module proxy supplies the source.
 
 | Module | Version | License | Owner | Why |
 | --- | --- | --- | --- | --- |
@@ -43,17 +44,16 @@ updated from v0.60.0 to v0.62.0 on 2026-11-07 to fix `GO-2026-6860` and
 graphs stay clean.
 
 LogQL and TraceQL parsers are written in-house without copying code from Loki
-or Tempo (both AGPL-3.0). No AGPL dependency is linked or vendored.
+or Tempo (both AGPL-3.0). No AGPL dependency is linked or copied.
 
 The PromQL differential oracle under `test/compat/prometheus/` is a separate
 test-only Go module. It imports the official Prometheus engine and storage
 helpers but is not linked into the gateway binary and does not change the main
-module's `vendor/` tree. Its dependencies are pinned in that module's
+module's dependency set. Its dependencies are pinned in that module's
 `go.mod`/`go.sum`.
 
-Dependency changes require a separate, human-reviewed PR. The `vendor/` tree is
-regenerated with `go mod vendor`; CI runs `go mod verify` and verifies the
-vendor diff.
+Dependency changes require a separate, human-reviewed PR. `go.sum` is
+regenerated with `go mod tidy`; CI runs `go mod download` and `go mod verify`.
 
 ## CI and development tools
 
@@ -61,14 +61,14 @@ These tools are not linked into the gateway binary:
 
 | Tool | Version | Purpose |
 | --- | --- | --- |
-| Go | `go.mod` (`1.27.3`) | Build and test; CI reads the version from `go.mod` |
+| Go | `go.mod` (`1.27.4`) | Build and test; CI reads the version from `go.mod` |
 | Helm | 3.19+ or 4.x | Chart lint and render |
 | govulncheck | v1.9.0 | Vulnerability scan |
-| Docker / Compose | any current release | ClickHouse integration tests, Loki/Tempo/cerberus harnesses, S3 + RustFS test, OBI e2e |
+| Docker / Compose / Buildx | any current release | Multi-arch release builds, ClickHouse integration tests, Tempo differential, S3 + RustFS test, OBI e2e |
 | actionlint | v1.7.12 | Workflow syntax checks in the required `policy` job |
 | zizmor | v1.32.0 | Workflow security checks in the required `policy` job |
 | go-licenses | v1.6.0 | License allowlist check in the required `policy` job |
-| OpenSSF Scorecard CLI | v5.6.0 | Scorecard scan via `scripts/scorecard.sh`; checksum-verified, not linked into the gateway |
+| OpenSSF Scorecard CLI | v5.6.0 | Scorecard scan via `scripts/scorecard/scorecard.sh`; checksum-verified, not linked into the gateway |
 | gitleaks | v8.30.1 | Local secret scan during the OpenSSF pass; not a CI dependency |
 | gremlins | v0.6.0 | Mutation testing via `make mutation`; pinned in the separate `internal/tools` module |
 
@@ -87,6 +87,7 @@ separate, human-reviewed PR per the working rules.
 | ClickHouse | `clickhouse/clickhouse-server` | `26.8.36.3` | `sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7` |
 | OTel Collector contrib | `otel/opentelemetry-collector-contrib` | `0.164.0` | `sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b` |
 | OBI | `otel/ebpf-instrument` | `v1.0.0` | `sha256:a68d70e934260f72540f157ccf4fb4adfa38f11de060d7d905696dad6a3fca02` |
+| Backup lifecycle | `amazon/aws-cli` | `2.31.7` | `sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8` |
 
 Reference implementations are test-only containers, pinned in their harnesses:
 
@@ -97,7 +98,6 @@ Reference implementations are test-only containers, pinned in their harnesses:
 | cerberus reference | `ghcr.io/tsouza/cerberus` | `v1.23.1` | `sha256:e5ced00b1ee85c371295147ed0bce9caa4a5c5554443ee8aabc329d5351dc4a5` |
 | Prometheus reference | `prom/prometheus` | `v3.15.1` | `sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2` |
 | RustFS S3 test | `rustfs/rustfs` | `1.0.4` | `sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2` |
-| AWS CLI test client | `amazon/aws-cli` | `2.31.7` | `sha256:8173c3c7c71e25b0824025b90a85df6e24c696f646498dca9dd370ea446e4fc8` |
 | Alpine test helper | `alpine` | `3.22` | `sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f` |
 
 The Skopos gateway image is built from this repository. The gateway is disabled
@@ -118,21 +118,21 @@ owns schema changes.
 
 ## Release security
 
-The release path is implemented in `scripts/release.sh`,
-`scripts/verify-release.sh`, and `.github/workflows/release.yml`:
+The release path is implemented in `scripts/release/release.sh`,
+`scripts/release/verify-release.sh`, and `.github/workflows/release.yml`:
 
 - One annotated `vX.Y.Z` tag releases both the image and chart.
 - The tag must be an ancestor of `main`; the workflow refuses to overwrite an
   existing image tag or GitHub release.
-- `scripts/release.sh` builds the image, chart, SBOMs, checksums, and metadata
+- `scripts/release/release.sh` builds the image, chart, SBOMs, checksums, and metadata
   only. It never pushes or signs.
 - Every image and chart is signed with keyless Sigstore using the GitHub Actions
   OIDC identity and the transparency log. There are no long-lived signing keys.
 - GitHub artifact attestations cover provenance and SBOMs.
 - GitHub releases are created as drafts, fully populated, then published as
   immutable releases.
-- `make release-check` runs vet, tests, Helm lint/render, module checksum
-  verification, and vendor drift checks before publishing.
+- `make release-check` runs vet, tests, Helm lint/render, and module checksum
+  verification before publishing.
 - `govulncheck`, the SQL fuzz gate, the PromQL/Loki/Tempo differentials, the
   S3/RustFS integration test, and the Helm render matrix are blocking CI gates.
 - The official OpenSSF Scorecard action runs weekly, on pushes to `main`, and on

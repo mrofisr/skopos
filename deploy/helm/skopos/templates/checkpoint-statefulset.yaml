@@ -45,13 +45,18 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with include "skopos.topologySpread" (dict "root" . "component" "checkpoint" "replicas" .Values.checkpoint.replicas "constraints" .Values.checkpoint.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
+      {{- end }}
       containers:
         - name: checkpoint
-          # The Skopos image entrypoint is /gateway; run the checkpoint binary.
+          # The Skopos image entrypoint is /skopos; SKOPOS_MODE selects the
+          # checkpoint role.
           image: {{ include "skopos.image" (dict "image" .Values.gateway.image) | quote }}
           imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
           command:
-            - /skopos-checkpoint
+            - /skopos
           args:
             - serve
           securityContext:
@@ -61,6 +66,8 @@ spec:
               containerPort: {{ .Values.checkpoint.service.port }}
               protocol: TCP
           env:
+            - name: SKOPOS_MODE
+              value: "checkpoint"
             - name: SKOPOS_CHECKPOINT_LISTEN_ADDR
               value: ":{{ .Values.checkpoint.service.port }}"
             - name: SKOPOS_CHECKPOINT_DIR

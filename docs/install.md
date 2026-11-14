@@ -5,7 +5,7 @@
 > per-language support lists. Do not expose this installation to the internet.
 
 For a non-Kubernetes host, see [Running Skopos as a systemd
-service](systemd.md). The systemd path uses the same gateway binary and
+service](systemd.md). The systemd path uses the same `skopos` binary and
 ClickHouse schema, but manages the unit and schema directly.
 
 ## Prerequisites
@@ -44,7 +44,7 @@ Published releases use the OCI chart and the attached digest-pinned values:
 
 ```sh
 helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.2 \
+  --version 0.1.0-alpha.3 \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace
@@ -119,20 +119,165 @@ single-binary deployment. `SKOPOS_MODE=worker` is an explicit alias for
 `SKOPOS_MODE=query`; both register the three query heads. ClickHouse remains
 the backend and owns merges/compaction; this is not a ClickHouse HA topology.
 
+### Availability guardrails
+
+The chart adds these by default:
+
+- **PodDisruptionBudget** for gateway, frontend, query, Collector, and
+  checkpoint (`maxUnavailable: 1`). Set `minAvailable` to override it.
+- **Soft hostname topology spread** for any component with more than one
+  replica. Set explicit `topologySpreadConstraints` to override it.
+- **Rolling updates** for stateless components (`maxUnavailable: 0`,
+  `maxSurge: 1`). The Collector StatefulSet updates one replica at a time and
+  each replica owns its queue PVC.
+- **Collector StatefulSet**: each Collector replica gets its own
+  `ReadWriteOnce` queue PVC. `collector.sendingQueue.persistence.enabled=false`
+  uses a per-pod emptyDir instead. Scaling from the old Deployment to this
+  StatefulSet requires deleting the old Deployment after draining its queue;
+  the chart fails the upgrade with that instruction instead of running both
+  workloads. `make test-faults` proves the queue survives a backend outage and
+  a Collector restart. The old `skopos-collector-queue` PVC is not reused; delete it
+  after the new StatefulSet is healthy.
+- ClickHouse is still a single replica. These guardrails do not make it HA.
+
+#### One-time Collector StatefulSet migration
+
+If you are upgrading from a release where the Collector was a Deployment:
+
+1. Wait until the Collector queue is drained (`otelcol_exporter_queue_size`
+   returns to zero).
+2. Delete the old Deployment:
+   ```sh
+   kubectl -n observability delete deployment skopos-collector
+   ```
+3. Run the Helm upgrade. The StatefulSet creates a queue PVC per replica.
+4. Delete the old `skopos-collector-queue` PVC after the new StatefulSet is
+   healthy; it is not reused.
+
+The chart fails the upgrade before step 2 instead of running both workloads.
+
+## OTLP authentication
+
+OTLP ingress auth is **off by default**. Enable a static bearer token for the
+Collector's gRPC and HTTP receivers:
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.otlpAuth.enabled=true \
+  --set collector.otlpAuth.token='change-me'
+```
+
+For production, create the Secret yourself and pass its name. It must contain
+the token key (`token` by default) and a full header key (`otlp-headers` by
+default):
+
+```sh
+kubectl -n observability create secret generic skopos-otlp-auth \
+  --from-literal=token='change-me' \
+  --from-literal=otlp-headers='Authorization=Bearer change-me'
+
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.otlpAuth.enabled=true \
+  --set collector.otlpAuth.existingSecret=skopos-otlp-auth
+```
+
+The chart sets `OTLP_AUTH_TOKEN` on the Collector and
+`OTEL_EXPORTER_OTLP_HEADERS` on OBI, so OBI keeps sending after auth is enabled.
+External senders must add the same header:
+
+```sh
+curl -X POST http://skopos-collector:4318/v1/logs \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer change-me' \
+  --data-binary @logs.json
+```
+
+For OTLP/gRPC, send `authorization: Bearer change-me` as request metadata.
+Without the token the Collector returns **401**.
+
+The token is an environment variable, so rotate it by updating the Secret and
+restarting the Collector and OBI pods. The token protects only the Collector
+ingress; it does not protect the checkpoint endpoint or ClickHouse. Bearer
+tokens over plaintext are visible to anything that can sniff the network — use
+TLS at the ingress or mTLS for untrusted networks.
+
+### TLS and mTLS
+
+TLS is also off by default. The Secret must contain:
+
+| Key | Purpose |
+| --- | --- |
+| `tls.crt` | Collector server certificate |
+| `tls.key` | Collector server private key |
+| `ca.crt` | CA used to verify the server (and clients for mTLS) |
+| `client.crt` | OBI client certificate, required for mTLS |
+| `client.key` | OBI client private key, required for mTLS |
+
+The server certificate's SANs must include the Collector service DNS name,
+for example `skopos-collector` and
+`skopos-collector.observability.svc`.
+
+```sh
+kubectl -n observability create secret generic skopos-otlp-tls \
+  --from-file=tls.crt=server.crt \
+  --from-file=tls.key=server.key \
+  --from-file=ca.crt=ca.crt \
+  --from-file=client.crt=client.crt \
+  --from-file=client.key=client.key
+
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.tls.enabled=true \
+  --set collector.tls.existingSecret=skopos-otlp-tls \
+  --set collector.tls.mtls=true
+```
+
+With TLS enabled, OBI switches to `https://skopos-collector:4317`, trusts
+`ca.crt`, and presents the client certificate when `mtls=true`. External
+senders must do the same:
+
+```sh
+curl -X POST https://skopos-collector:4318/v1/logs \
+  --cacert ca.crt \
+  --cert client.crt --key client.key \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer change-me' \
+  --data-binary @logs.json
+```
+
+Without a client certificate, the TLS handshake fails. With a client
+certificate but no token, the Collector returns **401**. The server reloads its
+certificate every 10 minutes; restart OBI after rotating the client
+certificate.
+
+TLS-only (without `mtls`) still encrypts traffic and verifies the server, but
+does not authenticate clients. mTLS is the recommended setting for untrusted
+networks.
+
 ## Admission limits
 
-Admission is disabled by default. Set `gateway.config.maxInflight` to bound
-concurrent requests per query head; `gateway.config.queueDepth` and
+Admission is enabled by default in the chart: **16 in-flight requests per query
+head, 32 queued, 2-second wait**. Set `gateway.config.maxInflight` to change
+the cap, or to `0` to disable admission. `gateway.config.queueDepth` and
 `gateway.config.queueWaitSeconds` add a bounded FIFO wait queue and must be set
 together. The chart rejects a queue without an in-flight cap.
+
+Range requests consume budget in proportion to their evaluated points:
+`ceil(points / gateway.config.pointsPerSlot)` units, with a minimum of one.
+Instant queries cost one unit. The default `pointsPerSlot: 100` means a 6-hour
+range at a 60-second step costs four units, so a few ranges cannot starve
+instant queries. Set `pointsPerSlot: 0` to disable cost weighting.
 
 ```sh
 helm upgrade --install skopos ./deploy/helm/skopos \
   --namespace observability \
   --set gateway.enabled=true \
   --set gateway.config.maxInflight=16 \
-  --set gateway.config.queueDepth=16 \
-  --set gateway.config.queueWaitSeconds=2
+  --set gateway.config.queueDepth=32 \
+  --set gateway.config.queueWaitSeconds=2 \
+  --set gateway.config.pointsPerSlot=100
 ```
 
 The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
@@ -140,7 +285,8 @@ The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
 sets `GOMEMLIMIT` to 90% of `gateway.resources.limits.memory`, or to
 `gateway.goMemLimit` when set; omit both to leave `GOMEMLIMIT` unset. At
 startup the gateway warns when `maxInflight x maxResponseBytes` exceeds the
-Go memory limit.
+Go memory limit. The gateway and query workers default to **128Mi request /
+1.5Gi limit**; the bench gate enforces a 1.5Gi peak.
 
 `gateway.config.metadataTTL` (default `30s`, environment
 `SKOPOS_METADATA_TTL`) caches metric-to-table discovery, per-table emptiness,
@@ -149,7 +295,7 @@ request gets the head's error shape, `Retry-After: 1`, and increments
 `skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
 are exempt, so probes and scrapes keep working under load.
 
-## Prometheus Operator
+## Prometheus Operator, alerts, and dashboards
 
 `metrics.serviceMonitor.enabled=true` renders a `ServiceMonitor` for `/metrics`
 when the Prometheus Operator CRDs are installed. The selector must match the
@@ -162,6 +308,33 @@ helm upgrade --install skopos ./deploy/helm/skopos \
   --set metrics.serviceMonitor.enabled=true \
   --set-json 'metrics.serviceMonitor.selector={"app.kubernetes.io/name":"skopos"}'
 ```
+
+`metrics.prometheusRule.enabled=true` adds up to seven default alert rules for
+gateway availability, error rate, p99 latency, admission shedding, ClickHouse
+errors, distributed query availability, and semantic-context coverage. Set
+`metrics.prometheusRule.additionalLabels` to match your Prometheus
+`ruleSelector`, and use `metrics.prometheusRule.additionalRules` for extra
+rules. The runbook link in each alert points at
+[monitoring.md](monitoring.md).
+
+`metrics.dashboards.enabled=true` renders a ConfigMap with the `Skopos Overview`
+and `OBI RED` dashboards. It carries the `grafana_dashboard: "1"` label for the
+Grafana dashboard sidecar by default; change `metrics.dashboards.labels` to
+match your sidecar selector. `metrics.dashboards.folder` sets the
+`grafana_folder` annotation.
+
+```sh
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set gateway.enabled=true \
+  --set metrics.prometheusRule.enabled=true \
+  --set metrics.dashboards.enabled=true
+```
+
+All three assets need resources that the chart does not install: the Prometheus
+Operator CRDs for the ServiceMonitor and PrometheusRule, and a Grafana dashboard
+sidecar for the ConfigMap. See [monitoring.md](monitoring.md) for the alert
+runbooks, dashboard contents, and enablement details.
 
 ## Basic authentication
 
@@ -206,6 +379,7 @@ The important values are:
 | --- | --- | --- |
 | `clickhouse.database` | `otel` | Database name. Validated as an SQL identifier. |
 | `clickhouse.tables.*` | `otel_*` | Table names used by the DDL, Collector, and gateway. Validated as SQL identifiers. The gateway parses them now; the M3–M5 query heads consume them. |
+| `clickhouse.dedup.enabled` | `true` | Full replay dedup for logs and metrics (`ReplacingMergeTree` + 16-byte row hash). Set `false` for the fast profile: `MergeTree`, no row hash, at-least-once replay. Trace identity dedup stays on. |
 | `clickhouse.ttl.tracesDays` | `7` | Trace and trace-lookup TTL in days. |
 | `clickhouse.ttl.logsDays` | `7` | Log TTL in days. |
 | `clickhouse.ttl.metricsDays` | `30` | Metrics TTL in days. |
@@ -219,9 +393,22 @@ The important values are:
 | `clickhouse.storage.cacheSize` | `10Gi` | Local read cache for cold parts, on the ClickHouse PVC. |
 | `clickhouse.backup.enabled` | `false` | Optional CronJob that runs `BACKUP DATABASE` to a separate S3 destination. See [storage.md](storage.md). |
 | `clickhouse.backup.schedule` | `0 2 * * *` | Cron schedule for the full backup. |
+| `clickhouse.backup.lifecycle.enabled` | `false` | Optional CronJob that applies a backup-prefix lifecycle rule. It replaces the bucket's existing lifecycle configuration. |
+| `clickhouse.backup.lifecycle.retentionDays` | `30` | Expire backup objects after this many days. |
+| `clickhouse.backup.restoreDrill.enabled` | `false` | Optional CronJob that restores the latest backup into a temporary database and verifies every table. |
 | `clickhouse.backup.*` | empty | Backup S3 endpoint, bucket, prefix, and credentials. The destination must not overlap the live cold tier. |
 | `checkpoint.enabled` | `false` | Fan out every OTLP signal to the recent-window durability checkpoint. Requires a bucket and credentials; see [checkpoint.md](checkpoint.md). |
-| `collector.sendingQueue.storageSize` | `1Gi` | `emptyDir` size for the checkpoint exporter's file-backed queue. Survives Collector container restarts, not pod deletion. |
+| `collector.sendingQueue.storageSize` | `5Gi` | `emptyDir` size when the queue PVC is disabled. The default is a PVC. |
+| `collector.sendingQueue.persistence.enabled` | `true` | Give each Collector replica its own PVC for the disk-backed queue. Queued batches survive restarts and pod rescheduling. |
+| `collector.sendingQueue.persistence.size` | `5Gi` | Queue PVC size. Resize it with the StorageClass if ClickHouse outages last longer than the buffer. |
+| `collector.memoryLimiter.limitMiB`, `spikeLimitMiB` | `700`, `100` | Keep the Collector below its memory limit and apply backpressure before the OOM killer. Lower these with a smaller Collector memory limit. |
+| `collector.otlpAuth.enabled` | `false` | Require a bearer token on OTLP/gRPC and OTLP/HTTP ingress. |
+| `collector.otlpAuth.existingSecret` | `""` | Secret with `token` and `otlp-headers` keys (names configurable). Preferred over inline tokens. |
+| `collector.otlpAuth.token` | `""` | Inline token, rendered into a Secret. The chart also creates the `otlp-headers` value for OBI. |
+| `collector.tls.enabled` | `false` | Serve OTLP over TLS. Requires `collector.tls.existingSecret` with `tls.crt`, `tls.key`, and `ca.crt`. |
+| `collector.tls.mtls` | `false` | Require a client certificate signed by `ca.crt`; OBI uses `client.crt`/`client.key`. |
+| `collector.tls.minVersion` | `1.2` | Minimum TLS version (`1.2` or `1.3`). |
+| `obi.batch.maxExportBatchSize`, `maxQueueSize` | `2048`, `8192` | OBI's OTLP batch and in-memory queue. Larger values reduce overhead and absorb short Collector stalls. |
 | `checkpoint.persistence.size` | `2Gi` | Per-replica WAL PVC. Keep it above `checkpoint.maxLocalBytes` plus filesystem reserve. |
 | `checkpoint.sealBytes`, `sealInterval` | `8388608`, `15s` | Seal the active segment on size or age. The unshipped window is bounded by `max(sealBytes, arrival_rate * sealInterval)`. |
 | `checkpoint.maxLocalBytes` | `1073741824` | Local budget; the receiver returns `503` with `Retry-After` above it. |
@@ -240,6 +427,19 @@ The important values are:
 | `frontend.config.queryTimeout` | `30s` | Per-request proxy timeout. |
 | `frontend.config.readinessTimeout` | `1s` | Frontend probe timeout for query `/readyz`. |
 | `query.replicaCount` | `1` | Internal query worker replicas when distributed. |
+| `*.podDisruptionBudget.enabled` | `true` | PDB for gateway/frontend/query/collector/checkpoint. `maxUnavailable` defaults to 1; set `minAvailable` to override. |
+| `*.topologySpreadConstraints` | `[]` | Explicit spread constraints. When empty and replicas > 1, a soft `kubernetes.io/hostname` spread is rendered. |
+| `collector.replicas` | `1` | Collector StatefulSet replicas. Each replica gets its own queue PVC when persistence is enabled. |
+| `collector.sendingQueue.persistence.retentionPolicy` | `Retain` / `Retain` | Keep queue PVCs when a replica is deleted or scaled down; clean them up explicitly after the outage window. |
+| `metrics.serviceMonitor.enabled` | `false` | Render a ServiceMonitor for `/metrics`. Requires Prometheus Operator CRDs and a non-empty `selector`. |
+| `metrics.prometheusRule.enabled` | `false` | Render the default Skopos alert rules. Requires Prometheus Operator CRDs. See [monitoring.md](monitoring.md). |
+| `metrics.prometheusRule.additionalLabels` | `{}` | Labels used by the Prometheus `ruleSelector`. |
+| `metrics.prometheusRule.runbookURL` | GitHub link | Base URL for alert `runbook_url` annotations; empty omits them. |
+| `metrics.prometheusRule.additionalRules` | `[]` | Extra rule objects appended to the `skopos.rules` group. |
+| `metrics.dashboards.enabled` | `false` | Render a ConfigMap with the Skopos Overview and OBI RED dashboards. |
+| `metrics.dashboards.labels` | `grafana_dashboard: "1"` | Labels used by the Grafana dashboard sidecar. |
+| `metrics.dashboards.annotations` | `{}` | Additional sidecar annotations; a `grafana_folder` key overrides `folder`. |
+| `metrics.dashboards.folder` | `""` | Optional `grafana_folder` annotation for the sidecar. |
 | `gateway.image.digest` | `""` | Release images must set this. |
 | `networkPolicy.enabled` | `true` | Component ingress NetworkPolicies. |
 | `networkPolicy.gateway.allowFrom` | `[{namespaceSelector: {}}]` | Namespace/label selectors allowed to reach the gateway. Empty means no ingress. Tighten this to your Grafana namespace. |
@@ -265,6 +465,9 @@ and [logql-support.md](logql-support.md). Unsupported functions return an
 explicit error, so a failing panel is usually a query outside the alpha list,
 not a connection problem.
 
+The chart can also ship the Skopos Overview and OBI RED dashboards through a
+Grafana sidecar; see [monitoring.md](monitoring.md).
+
 ## Ingress example
 
 `deploy/examples/kubernetes/ingress.example.yaml` is a starting point for an
@@ -283,18 +486,21 @@ tighten `networkPolicy.gateway.allowFrom` to the ingress controller namespace.
 - The PVC is a single `ReadWriteOnce` volume. ClickHouse single-node does not
   replicate. A lost PVC loses telemetry.
 - When the disk fills, ClickHouse rejects inserts with errors such as
-  `NOT_ENOUGH_SPACE` or `TOO_MANY_PARTS`. The Collector retries according to
-  `retry_on_failure` and its sending queue, then drops data when the queue is
-  full. The gateway remains readable but queries may fail. Increase the PVC (if
-  the StorageClass supports expansion), lower TTL, or add storage; do not delete
-  the ClickHouse data directory while the pod is running.
+  `NOT_ENOUGH_SPACE` or `TOO_MANY_PARTS`. The Collector retries against its
+  disk-backed queue and applies backpressure until the queue fills; after that
+  OBI drops from its own bounded in-memory queue. The gateway remains readable
+  but queries may fail. Increase the PVC (if the StorageClass supports
+  expansion), lower TTL, or add storage; do not delete the ClickHouse data
+  directory while the pod is running.
 - The chart does not set a Prometheus alert for disk usage. Use your cluster's
   PVC alerts.
 - Tiered storage is optional and off by default. When enabled, cold parts live
   in S3 and remain queryable, while TTL still deletes them at `totalDays`.
   Backups are separate: they are for disaster recovery and must be restored
-  before the gateway can query them. See [storage.md](storage.md) for values,
-  existing-install `ALTER` steps, and restore commands.
+  before the gateway can query them. The optional restore drill restores the
+  latest backup into a temporary database and verifies every table. See
+  [storage.md](storage.md) for values, existing-install `ALTER` steps, restore
+  commands, and lifecycle ownership.
 - The durability checkpoint is optional and off by default. When enabled, it
   uses its own per-replica WAL PVC and S3 prefix, independent of the ClickHouse
   hot and cold volumes. PVC loss loses the unshipped tail; uploaded objects

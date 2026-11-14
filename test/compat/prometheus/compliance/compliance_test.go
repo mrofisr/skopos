@@ -20,7 +20,7 @@ import (
 func TestOfficialPromQLCompliance(t *testing.T) {
 	dir := os.Getenv("PROMETHEUS_COMPLIANCE_TESTDATA")
 	if dir == "" {
-		t.Skip("PROMETHEUS_COMPLIANCE_TESTDATA is not set; run test/compat/prometheus/compliance.sh")
+		t.Skip("PROMETHEUS_COMPLIANCE_TESTDATA is not set; run scripts/compat/prometheus-compliance.sh")
 	}
 	files, err := filepath.Glob(filepath.Join(dir, "*.test"))
 	if err != nil {

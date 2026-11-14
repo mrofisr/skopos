@@ -29,7 +29,7 @@ func TestGrafanaComposeServiceIsPinnedAndUnprivileged(t *testing.T) {
 
 func TestSeedServiceRunsBeforeGrafana(t *testing.T) {
 	block := composeService(t, "seed")
-	if !strings.Contains(block, "./seed.sh:/seed/seed.sh:ro") {
+	if !strings.Contains(block, "scripts/e2e/obi/seed.sh:/seed/seed.sh:ro") {
 		t.Error("seed service does not mount seed.sh")
 	}
 	if !strings.Contains(block, "service_completed_successfully") {

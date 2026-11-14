@@ -2,17 +2,14 @@
 
 This document is the human-readable map of the repository. The normative rules
 are in [ADR 0004](adr/0004-repository-layout-and-language-policy.md) and
-[AGENTS.md](../AGENTS.md). `internal/archtest` enforces the layout, and a
-future ticket (RS-38) will generate the directory table so this file cannot
-drift.
+[AGENTS.md](../AGENTS.md). `internal/archtest` enforces the layout.
 
-## Target layout
+## Layout
 
 ```text
-cmd/                              binaries, shipped or developer
-  gateway/                        shipped: HTTP gateway (composition root pending RS-31)
-  skopos-checkpoint/              shipped, frozen
-  skopos-mcp/                     shipped, frozen
+cmd/
+  skopos/                         the single shipped binary: wiring only
+tools/
   repoctl/                        the one developer tool
     internal/                     tool-private packages
       changes/                    changed-path to CI job mapping (WF-03)
@@ -28,10 +25,13 @@ cmd/                              binaries, shipped or developer
       quickstart/                 README quickstart doc-test (AX-54)
       releaseverify/              release signature and digest verification (AX-53)
       ruleset/                    ruleset-to-workflow consistency (AX-52)
+      sbom/                       CycloneDX fallback inventory for releases
       workflowlint/               workflow trigger and timeout policy (WF-08)
       workflowsdoc/               generated docs/workflows.md (WF-11)
 internal/                         product libraries
-  app/                            composition roots (RS-31)
+  app/                            mode dispatch and composition roots
+  appenv/                         injected process environment
+  version/                        link-time build version
   auth/ chclient/ config/ frontend/ httpapi/ loki/ metrics/ plan/ prom/ sqlgen/ tempo/
   checkpoint/ semctx/             frozen product packages
   archtest/                       tests that enforce this layout
@@ -40,32 +40,41 @@ test/                             black-box harnesses, build-tagged Go
   bench/ compat/ e2e/ integration/ grafana/
 test/quality/                     coverage floor, layout violations, quality data
 scripts/                          thin orchestration of external tools only
-deploy/ docs/ vendor/
+  bench/ compat/ deploy/ e2e/ integration/ quality/ quickstart/ release/ scorecard/
+deploy/ docs/
 AGENTS.md CONTRIBUTING.md
 ```
+
+`SKOPOS_MODE` selects the role of the single binary: `all` (default),
+`gateway` (alias for `all`), `query`, `worker` (legacy alias for `query`),
+`frontend`, `mcp`, or `checkpoint`. The mode implementations live under
+`internal/app/<mode>` and receive an `appenv.Env`, so `cmd/skopos/main.go`
+contains only signal wiring and the call to `app.Main`.
 
 ## Rules at a glance
 
 | Rule | Enforced by |
 | --- | --- |
-| `cmd/` contains only `gateway`, `skopos-checkpoint`, `skopos-mcp`, and `repoctl` | `TestCmdContainsOnlyAllowedBinaries` |
+| `cmd/` contains only `skopos` | `TestCmdContainsOnlyAllowedBinaries` |
 | Repository tooling does not live in `internal/` | `TestNoRepoToolingInInternal` |
 | `repoctl` imports only allowlisted product packages | `TestRepoctlImportsOnlyAllowedProductPackages` |
 | No `util`, `common`, `helpers`, `misc`, or `types` packages | `TestNoUtilPackages` |
-| No new Python | `TestNoPythonFiles` |
-| `repoctl`'s `main` stays small | `TestRepoctlMainIsSmall` |
+| No Python source | `TestNoPythonFiles` |
+| Shell scripts live under `scripts/`, except the Helm `migrate.sh` asset | `TestShellScriptsAreCentralized` |
+| Every `cmd/*/main.go` stays under 50 lines | `TestMainIsSmall` |
 
 Known violations are listed in
 [`test/quality/layout-violations.txt`](../test/quality/layout-violations.txt).
 The list is a ratchet: a new violation fails, and a listed violation that no
-longer exists also fails, which forces the list to shrink.
+longer exists also fails, which forces the list to shrink. It is currently
+empty.
 
 ## Tool migration
 
-The nine tooling binaries below have been consolidated into `repoctl`. Each
-move was a pure refactor: the rule engine moves under `cmd/repoctl/internal/`,
-its tests move with it, and the Makefile, workflows, and docs call
-`go run ./cmd/repoctl <command>`.
+The nine former `cmd/skopos-*` tooling binaries have been consolidated into
+`tools/repoctl`. Each move was a pure refactor: the rule engine moved under
+`tools/repoctl/internal/`, its tests moved with it, and the Makefile,
+workflows, and docs call `go run ./tools/repoctl <command>`.
 
 | Old binary | New command | Status |
 | --- | --- | --- |
@@ -88,5 +97,5 @@ separate modules because they pin reference implementations:
 - `test/e2e/obi/app` (OBI demo application)
 
 `internal/tools` is a third module. It pins developer tools such as the
-mutation tester (gremlins) and is not vendored because nothing in it is
-shipped.
+mutation tester (gremlins) and is kept out of the root module's dependency
+graph because nothing in it is shipped.

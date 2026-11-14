@@ -4,6 +4,24 @@
 {{- if and .Values.checkpoint.enabled (not .Values.collector.enabled) }}
 {{- fail "checkpoint.enabled=true requires collector.enabled=true" }}
 {{- end }}
+{{- if .Values.collector.enabled }}
+{{- $oldCollector := lookup "apps/v1" "Deployment" .Release.Namespace (include "skopos.collector.fullname" .) }}
+{{- if and $oldCollector $oldCollector.metadata $oldCollector.metadata.name }}
+{{- fail (printf "collector is now a StatefulSet; drain the queue, delete the old Deployment %q, then rerun the upgrade" (include "skopos.collector.fullname" .)) }}
+{{- end }}
+{{- if .Values.collector.otlpAuth.enabled }}
+{{- $auth := .Values.collector.otlpAuth }}
+{{- if and $auth.existingSecret $auth.token }}
+{{- fail "set either collector.otlpAuth.existingSecret or collector.otlpAuth.token, not both" }}
+{{- end }}
+{{- if and (not $auth.existingSecret) (not $auth.token) }}
+{{- fail "collector.otlpAuth.enabled=true requires collector.otlpAuth.existingSecret or collector.otlpAuth.token" }}
+{{- end }}
+{{- end }}
+{{- if and .Values.collector.tls.enabled (not .Values.collector.tls.existingSecret) }}
+{{- fail "collector.tls.enabled=true requires collector.tls.existingSecret with tls.crt, tls.key, and ca.crt (plus client.crt/client.key for mTLS)" }}
+{{- end }}
+{{- end }}
 {{- if .Values.checkpoint.enabled }}
 {{- $checkpoint := .Values.checkpoint }}
 {{- $s3 := $checkpoint.s3 }}
@@ -94,5 +112,21 @@
 {{- fail "clickhouse.backup destination overlaps the live cold tier; use a different bucket or non-overlapping prefix" }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.clickhouse.backup.restoreDrill.enabled }}
+{{- if not .Values.clickhouse.backup.enabled }}
+{{- fail "clickhouse.backup.restoreDrill.enabled=true requires clickhouse.backup.enabled=true" }}
+{{- end }}
+{{- end }}
+{{- if .Values.clickhouse.backup.lifecycle.enabled }}
+{{- if not .Values.clickhouse.backup.enabled }}
+{{- fail "clickhouse.backup.lifecycle.enabled=true requires clickhouse.backup.enabled=true" }}
+{{- end }}
+{{- if lt (int .Values.clickhouse.backup.lifecycle.retentionDays) 1 }}
+{{- fail "clickhouse.backup.lifecycle.retentionDays must be at least 1" }}
+{{- end }}
+{{- if lt (int .Values.clickhouse.backup.lifecycle.abortIncompleteMultipartUploadDays) 1 }}
+{{- fail "clickhouse.backup.lifecycle.abortIncompleteMultipartUploadDays must be at least 1" }}
 {{- end }}
 {{- end }}

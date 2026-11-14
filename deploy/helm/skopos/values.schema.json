@@ -65,6 +65,7 @@
         "image",
         "database",
         "tables",
+        "dedup",
         "ttl",
         "storage",
         "backup",
@@ -155,6 +156,18 @@
             "metricsSummary": {
               "type": "string",
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        },
+        "dedup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
             }
           }
         },
@@ -278,7 +291,9 @@
             "region",
             "existingSecret",
             "accessKeyId",
-            "secretAccessKey"
+            "secretAccessKey",
+            "lifecycle",
+            "restoreDrill"
           ],
           "properties": {
             "enabled": {
@@ -357,6 +372,123 @@
             },
             "secretAccessKey": {
               "type": "string"
+            },
+            "lifecycle": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "schedule",
+                "activeDeadlineSeconds",
+                "startingDeadlineSeconds",
+                "successfulJobsHistoryLimit",
+                "failedJobsHistoryLimit",
+                "retentionDays",
+                "abortIncompleteMultipartUploadDays",
+                "image"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "schedule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "activeDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "startingDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "successfulJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "retentionDays": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "abortIncompleteMultipartUploadDays": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "image": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "repository",
+                    "tag",
+                    "digest",
+                    "pullPolicy"
+                  ],
+                  "properties": {
+                    "repository": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "tag": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "digest": {
+                      "type": "string",
+                      "pattern": "^(|sha256:[a-f0-9]{64})$"
+                    },
+                    "pullPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "Always",
+                        "IfNotPresent",
+                        "Never"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "restoreDrill": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "schedule",
+                "activeDeadlineSeconds",
+                "startingDeadlineSeconds",
+                "successfulJobsHistoryLimit",
+                "failedJobsHistoryLimit"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "schedule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "activeDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "startingDeadlineSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "successfulJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedJobsHistoryLimit": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
             }
           }
         },
@@ -510,6 +642,9 @@
         "replicas",
         "service",
         "sendingQueue",
+        "memoryLimiter",
+        "otlpAuth",
+        "tls",
         "resources",
         "podSecurityContext",
         "securityContext",
@@ -596,7 +731,8 @@
             "queueSize",
             "batchMinSize",
             "batchFlushTimeout",
-            "storageSize"
+            "storageSize",
+            "persistence"
           ],
           "properties": {
             "numConsumers": {
@@ -618,6 +754,133 @@
             "storageSize": {
               "type": "string",
               "minLength": 1
+            },
+            "persistence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "size",
+                "storageClass",
+                "retentionPolicy"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "storageClass": {
+                  "type": "string"
+                },
+                "retentionPolicy": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "whenDeleted",
+                    "whenScaled"
+                  ],
+                  "properties": {
+                    "whenDeleted": {
+                      "type": "string",
+                      "enum": [
+                        "Retain",
+                        "Delete"
+                      ]
+                    },
+                    "whenScaled": {
+                      "type": "string",
+                      "enum": [
+                        "Retain",
+                        "Delete"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "memoryLimiter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "checkInterval",
+            "limitMiB",
+            "spikeLimitMiB"
+          ],
+          "properties": {
+            "checkInterval": {
+              "type": "string",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            "limitMiB": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "spikeLimitMiB": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "otlpAuth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "existingSecret",
+            "token",
+            "tokenKey",
+            "headersKey"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "token": {
+              "type": "string"
+            },
+            "tokenKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "headersKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "existingSecret",
+            "mtls",
+            "minVersion"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "mtls": {
+              "type": "boolean"
+            },
+            "minVersion": {
+              "type": "string",
+              "enum": [
+                "1.2",
+                "1.3"
+              ]
             }
           }
         },
@@ -639,6 +902,54 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "additionalProperties": true
         }
       }
     },
@@ -867,6 +1178,37 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
         }
       }
     },
@@ -879,6 +1221,7 @@
         "serviceAccount",
         "rbac",
         "hostPID",
+        "batch",
         "tolerations",
         "resources",
         "securityContext",
@@ -963,6 +1306,29 @@
         },
         "hostPID": {
           "type": "boolean"
+        },
+        "batch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleDelayMs",
+            "maxExportBatchSize",
+            "maxQueueSize"
+          ],
+          "properties": {
+            "scheduleDelayMs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxExportBatchSize": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxQueueSize": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
         "tolerations": {
           "type": "array",
@@ -1107,6 +1473,7 @@
           "type": "string",
           "enum": [
             "all",
+            "gateway",
             "query",
             "worker",
             "frontend"
@@ -1203,6 +1570,10 @@
               "type": "integer",
               "minimum": 0
             },
+            "pointsPerSlot": {
+              "type": "integer",
+              "minimum": 0
+            },
             "metadataTTL": {
               "type": "string",
               "pattern": "^[0-9]+(ms|s|m|h)$"
@@ -1282,6 +1653,37 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
         }
       }
     },
@@ -1289,7 +1691,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "serviceMonitor"
+        "serviceMonitor",
+        "prometheusRule",
+        "dashboards"
       ],
       "properties": {
         "serviceMonitor": {
@@ -1320,6 +1724,67 @@
               "additionalProperties": {
                 "type": "string"
               }
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "additionalLabels",
+            "runbookURL",
+            "additionalRules"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "runbookURL": {
+              "type": "string"
+            },
+            "additionalRules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "labels",
+            "annotations",
+            "folder"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "folder": {
+              "type": "string"
             }
           }
         }
@@ -1428,6 +1893,37 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
         }
       }
     },
@@ -1502,6 +1998,37 @@
           "items": {
             "type": "object",
             "additionalProperties": true
+          }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
           }
         }
       }

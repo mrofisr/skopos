@@ -2,8 +2,8 @@ apiVersion: v2
 name: skopos
 description: Alpha OSS observability stack using OBI, OpenTelemetry Collector, ClickHouse, and a Prometheus/Loki/Tempo-compatible query gateway.
 type: application
-version: 0.1.0-alpha.2
-appVersion: "0.1.0-alpha.2"
+version: 0.1.0-alpha.3
+appVersion: "0.1.0-alpha.3"
 kubeVersion: ">=1.27.0-0"
 home: https://github.com/jawaracloud/skopos
 sources:

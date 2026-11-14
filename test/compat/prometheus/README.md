@@ -3,7 +3,7 @@
 This is a separate Go module. It links the official Prometheus `promql` engine
 and compares it with `github.com/jawaracloud/skopos/internal/prom` over one
 deterministic series set. Keeping it out of the main module means the gateway's
-`vendor/` tree and dependency set do not change.
+dependency set does not change.
 
 ## Run
 
@@ -45,21 +45,21 @@ official evaluator and public storage interfaces.
 
 ## Official PromQL compliance suite
 
-`compliance.sh` runs the unmodified upstream Prometheus PromQL test scripts
-against the same `internal/prom` evaluator used by the gateway. It fetches and
-verifies the pinned Prometheus 3.15.1 source archive, then runs the adapter in
-`compliance/` and classifies every failure against
-`compliance/exceptions.json`. The gate fails on any failure that is not an
-explicitly documented unsupported feature.
+`scripts/compat/prometheus-compliance.sh` runs the unmodified upstream
+Prometheus PromQL test scripts against the same `internal/prom` evaluator used
+by the gateway. It fetches and verifies the pinned Prometheus 3.15.1 source
+archive, then runs the adapter in `compliance/` and classifies every failure
+against `compliance/exceptions.json`. The gate fails on any failure that is not
+an explicitly documented unsupported feature.
 
 ```sh
-./compliance.sh
-./compliance.sh --files selectors.test,operators.test  # reduced scope
-./compliance.sh --report /tmp/promql-compliance.md      # custom report
+scripts/compat/prometheus-compliance.sh
+scripts/compat/prometheus-compliance.sh --files selectors.test,operators.test  # reduced scope
+scripts/compat/prometheus-compliance.sh --report /tmp/promql-compliance.md    # custom report
 ```
 
 Pin details live in `compliance/PROVENANCE.md` and at the top of
-`compliance.sh`. The latest published result is in
+`scripts/compat/prometheus-compliance.sh`. The latest published result is in
 [`docs/promql-support.md`](../../../docs/promql-support.md#tests). A normal
 `go test ./...` skips the compliance test when
 `PROMETHEUS_COMPLIANCE_TESTDATA` is not set.

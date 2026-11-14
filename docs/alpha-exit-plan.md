@@ -41,8 +41,8 @@ Reference scale is today's benchmark: about 560 series, 2.66M rows, a 4 vCPU /
 
 Frozen until exit, apart from bug and security fixes and logged exceptions:
 
-- AI context and MCP (`internal/semctx`, `cmd/skopos-mcp`)
-- The checkpoint WAL (`internal/checkpoint`, `cmd/skopos-checkpoint`)
+- AI context and MCP (`internal/semctx`, `internal/app/mcp`)
+- The checkpoint WAL (`internal/checkpoint`, `internal/app/checkpoint`)
 - systemd (`deploy/systemd`)
 
 The read-path FINAL work is not on that list. It is deferred on data and size
@@ -76,7 +76,7 @@ failed, stale, or wrong-commit artifact.
 | EC2 Correct or explicit error | 0 divergences from the reference engines on the supported subset (PromQL oracle, official compliance suite, LogQL upstream baseline, TraceQL corpus, three-way run). Every construct in the inventories either matches the reference or returns an explicit error, never an empty 200. | `make compat-all` | AX-45 to AX-49 |
 | EC3 Survives concurrency (safety, not speed) | At the reference scale, 30 clients for 60 s: 0 dropped connections, 0 unclassified 5xx, every rejection is a deliberate 429 or 503 with Retry-After, no OOMKill, gateway peak memory under its limit. Latency is recorded and published but not gated. | `make bench-gate` | AX-20 to AX-25, AX-30 to AX-39 |
 | EC4 Observable | `/metrics` exposes request rate, errors and duration per head, in-flight and rejected counts, ClickHouse queries, rows read and duration, and an unsupported-query counter. The contract test passes in single and distributed modes. | `make metrics-contract` | AX-10 to AX-14 |
-| EC5 Releasable and verifiable | Signed image and chart with SBOM and provenance verify from a clean machine. README quickstart commands run verbatim against the published chart. 0 open high code-scanning alerts. OSV clean or covered by dated exceptions. | `make release-verify TAG=...` and `make quickstart-test` | AX-50 to AX-55 |
+| EC5 Releasable and verifiable | Signed image and chart with SBOM and provenance verify from a clean machine. README quickstart commands run verbatim against the published chart. 0 open high code-scanning alerts. OSV clean or covered by dated exceptions. | `make release-evidence TAG=...` | AX-50 to AX-55 |
 | EC6 Strict gates are live | Coverage ratchet enforced in CI, PR traceability and red-first checks required, and the mutation harness runs nightly. Mutation is advisory for alpha except for `internal/auth` and `internal/sqlgen` once their pilot is stable. | `make quality-report` | AX-01 to AX-06 |
 | EC7 Scope discipline | Every open `phase:alpha-exit` issue maps to exactly one EC and is closed, frozen paths are untouched apart from logged exceptions, and the aggregate check is 7/7. | `make alpha-exit-check` | AX-05, AX-60, AX-61 |
 
@@ -205,8 +205,8 @@ exempt).
 
 - Rule: a PR body must contain `Closes #N` or `Refs #N` for an issue labelled
   `phase:alpha-exit`, unless the commit type is fix, deps, docs, security or
-  ci. A PR touching a frozen path (`internal/semctx`, `cmd/skopos-mcp`,
-  `internal/checkpoint`, `cmd/skopos-checkpoint`, `deploy/systemd`) needs the
+  ci. A PR touching a frozen path (`internal/semctx`, `internal/app/mcp`,
+  `internal/checkpoint`, `internal/app/checkpoint`, `deploy/systemd`) needs the
   label `frozen-exception` and a one-line reason.
 - Red tests: a table test with eight fixtures (valid, missing reference, closed
   issue, non-alpha issue, exempt type, frozen path without label, frozen path
@@ -302,9 +302,10 @@ by: AX-10.
 
 **AX-20 Timeout invariants.** Blocked by: none.
 
-- Today `WriteTimeout` is a hard-coded 30 s in `cmd/gateway/main.go`, while the
-  query timeout and the ClickHouse max execution time are configurable; the
-  benchmark shows heavy requests dropped as connection resets at 30 s.
+- Today `WriteTimeout` is a hard-coded 30 s in `internal/app/gateway/run.go`,
+  while the query timeout and the ClickHouse max execution time are
+  configurable; the benchmark shows heavy requests dropped as connection resets
+  at 30 s.
 - Derive `WriteTimeout = QueryTimeout + 5 s` and refuse to start when
   `MaxExecutionTime > QueryTimeout`.
 - Red tests: `TestServerTimeouts_DerivedFromQueryTimeout`,
@@ -534,7 +535,7 @@ by: AX-11, AX-12.
 
 **AX-45 PromQL function inventory.** Blocked by: none.
 
-- A test iterates every function in the vendored Prometheus parser's function
+- A test iterates every function in the pinned Prometheus parser's function
   table and classifies each as supported or explicit-error. Upgrading
   Prometheus to a version that adds a function fails the test until it is
   classified.
@@ -586,7 +587,7 @@ AX-48.
 
 **AX-50 Code-scanning gate.** Blocked by: none.
 
-- `scripts/check-code-scanning.sh` fails when any open alert is high or
+- `go run ./tools/repoctl codescan` fails when any open alert is high or
   critical; the release workflow calls it.
 - Red tests: stubbed API fixtures: 0 alerts passes, 1 high fails, an API error
   fails closed.
@@ -622,7 +623,7 @@ AX-48.
 - Red tests: it fails today, which is the point; a malformed version string
   fails with a clear message.
 
-**AX-55 Cut alpha.2 (parent #36).** Blocked by: AX-50, AX-51, AX-53, AX-54.
+**AX-55 Cut alpha.2 (parent #36) (owner:human).** Blocked by: AX-50, AX-51, AX-53, AX-54.
 
 - Preconditions: `development` is promoted to `main`, the release workflow is
   re-enabled by the maintainer, and the maintainer approves publication.
@@ -652,6 +653,25 @@ command.
   review (B-08). The maintainer signs off.
 - Done when: AX-60 prints 7/7 on a clean checkout of the exit commit, linked in
   #37.
+
+**AX-62 Tickets in the to-tickets format (parent #37).** Blocked by: none.
+
+- Bodies follow the to-tickets template: a Parent section when a ticket has one,
+  What to build, Acceptance criteria as checkboxes, and Blocked by. Labels carry
+  the phase, EC, type, and owner.
+- Red tests: `TestRenderBodyUsesToTicketsSections`,
+  `TestAcceptanceItemsBecomeCheckboxes`, `TestOwnerMarkerSetsOwnerLabel`,
+  `TestLintLiveReadsOnlyTheBlockedBySection`, `TestSyncIgnoresCheckboxState`,
+  `TestSyncSkipsBodiesOfClosedIssues`, `TestSyncAddsAndRemovesNativeBlockedBy`,
+  `TestClientAddBlockedBy`.
+- Edge and negative: a ticket with no description says what it builds by its
+  title; blocker text that names no AX ticket is kept as written; a stale native
+  edge to a managed ticket is removed while a human-made edge stays; a tick made
+  on GitHub survives a sync whose plan text is unchanged; an edge to a ticket
+  created in the same run waits for the next sync.
+- Done when: `make issues-manifest-check` and `make issues-lint` pass, the dry
+  run of `make issues-sync` changes nothing on #25 to #37, and the open AX
+  tickets carry the new bodies and native edges.
 
 ## 7. Post-alpha tickets
 
@@ -758,8 +778,21 @@ The issue manifest is generated from this document. `make issues-manifest`
 writes `issues/alpha-exit.json`; CI fails when the checked-in manifest is stale.
 `make issues-sync` has a dry-run mode and is idempotent; `make issues-lint`
 validates the manifest, and its live mode runs on a schedule and inside
-`alpha-exit-check`, not on every fork PR. Every AX ticket body uses the template
-in section 4 and links back to this document.
+`alpha-exit-check`, not on every fork PR.
+
+Every AX ticket body uses the to-tickets issue template in
+[docs/agents/issue-tracker.md](agents/issue-tracker.md): a `Parent` section when
+the ticket has one, `What to build` from its description bullets, `Acceptance
+criteria` with one checkbox per Red tests, Edge and negative, or Done when item,
+and `Blocked by`. Blocking is recorded as native blocked-by edges and in that
+section. The sync rewrites the bodies of open tickets only. It ignores checkbox
+ticks made on GitHub, so a tick survives until the plan text changes. Closed
+tickets keep the body they had when they closed.
+
+The `owner:human` label comes from the `(owner:human)` marker on a ticket
+heading, so the manifest declares it and the sync keeps it. Triage roles map onto
+these labels as [docs/agents/triage-labels.md](agents/triage-labels.md) describes.
+No open ticket carries `ready-for-agent` today.
 
 Existing labels `ready-for-agent` stay only on tickets that an agent can
 actually complete. They are removed from every ticket in #38 to #47, which are

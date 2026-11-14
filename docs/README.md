@@ -34,7 +34,7 @@ budgets, and MCP tools.
 | [Installation and operations](install.md) | Helm chart, ClickHouse, Collector, OBI, Grafana, auth |
 | [Running as systemd](systemd.md) | Single process or frontend/query split without Kubernetes |
 | [Helm chart distribution](chart-repository.md) | OCI chart install, chart versioning, signature verification |
-| [Tiered storage and backups](storage.md) | Hot/cold S3 storage, TTL, `BACKUP`/`RESTORE`, RustFS test |
+| [Tiered storage and backups](storage.md) | Hot/cold S3 storage, TTL, `BACKUP`/`RESTORE`, restore drills, lifecycle, RustFS test |
 | [Durability checkpoint](checkpoint.md) | Recent-window WAL, segment/gzip upload, loss bounds, replay, `checkpoint.*` Helm values |
 | [Release process](release.md) | Tag-only image/OCI chart release, SBOM, keyless signing, attestations, immutable releases |
 
@@ -63,6 +63,7 @@ budgets, and MCP tools.
 | [Benchmarks](benchmarks.md) | Compression, storage cost, and gateway query latency |
 | [Range-query findings](perf/range-query-findings.md) | Why the 6 h range query saturates the gateway, and how to reproduce the profile |
 | [Storage](storage.md) | Retention, cold tier, backup/restore, capacity behavior |
+| [Monitoring and alerts](monitoring.md) | ServiceMonitor, PrometheusRule, alert runbooks, Grafana dashboards |
 | [Durability checkpoint](checkpoint.md) | Loss bounds, local WAL capacity, S3 uploads, replay |
 | [Installation](install.md) | Limits, NetworkPolicy, TTL, disk-full behavior, troubleshooting |
 
@@ -73,7 +74,8 @@ budgets, and MCP tools.
 | [ADR 0001](adr/0001-observability-stack.md) | OBI + Collector + ClickHouse + compatible gateway, scope and decisions |
 | [ADR 0002](adr/0002-distributed-read-path.md) | Distributed frontend/query split, S3 retention, full-text, no compactor |
 | [ADR 0003](adr/0003-replay-deduplication.md) | ReplacingMergeTree replay dedup, row hashes, FINAL, online migration |
-| [ADR 0004](adr/0004-repository-layout-and-language-policy.md) | One `repoctl` tool, tool-private packages, Go for logic, Python migration order |
+| [ADR 0004](adr/0004-repository-layout-and-language-policy.md) | One shipped binary, one `repoctl` tool, Go for logic, no Python, scripts under `scripts/` |
+| [ADR 0005](adr/0005-obi-wrapper-speed-and-durability.md) | ZSTD(3), body-index pruning, durable Collector queue, OBI batching, dedup trade-off |
 | [Dependency policy](dependencies.md) | Go modules, pinned images, reference test containers, supply chain |
 
 ## Security and project process
@@ -91,9 +93,10 @@ budgets, and MCP tools.
 
 1. [Project README](../README.md)
 2. [Installation](install.md)
-3. [Support matrix](support-matrix.md)
-4. [Storage](storage.md)
-5. [Benchmarks](benchmarks.md)
+3. [Monitoring and alerts](monitoring.md)
+4. [Support matrix](support-matrix.md)
+5. [Storage](storage.md)
+6. [Benchmarks](benchmarks.md)
 
 **systemd / non-Kubernetes operator**
 
@@ -118,16 +121,17 @@ budgets, and MCP tools.
 ## Source layout
 
 ```text
-cmd/gateway/           gateway and query-worker binary
-cmd/skopos-mcp/        stdio/HTTP MCP server for AI SRE agents
-cmd/skopos-checkpoint/ OTLP durability checkpoint and replay binary
+cmd/skopos/            the single binary; SKOPOS_MODE selects the role
+internal/app/          mode dispatch and composition roots (gateway, mcp, checkpoint)
 internal/              query heads, SQL emitter, ClickHouse client, context, auth
 internal/checkpoint/   stdlib WAL, SigV4 S3 client, gzip uploader, replay
-deploy/helm/       Helm chart
-deploy/systemd/    systemd units and env examples
-deploy/examples/   Grafana, Kubernetes, and context catalog examples
-test/              corpora, differential harnesses, e2e, benchmarks
-docs/              this documentation set
+tools/repoctl/         the one developer tool
+scripts/               thin orchestration of external tools
+deploy/helm/           Helm chart
+deploy/systemd/        systemd units and env examples
+deploy/examples/       Grafana, Kubernetes, and context catalog examples
+test/                  corpora, differential harnesses, e2e, benchmarks
+docs/                  this documentation set
 ```
 
 The latest systemd and AI context docs are on the `development` branch until

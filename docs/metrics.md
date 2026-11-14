@@ -11,6 +11,7 @@ scrape to a query worker. Basic auth applies when it is enabled.
 | `skopos_http_requests_total` | `head`, `route`, `code` | Requests by query head, `ServeMux` pattern, and status code. |
 | `skopos_http_request_duration_seconds` | `head`, `route` | Request duration histogram. |
 | `skopos_http_in_flight` | `head` | Requests currently being served. |
+| `skopos_admission_rejected_total` | `head` | Requests rejected by the admission limiter. |
 | `skopos_unsupported_queries_total` | `head`, `feature` | Queries rejected as unsupported. |
 
 `head` is one of `prom`, `loki`, `tempo`, `context`, or `gateway`. The route is
@@ -52,5 +53,7 @@ The registry also merges the semantic-context gauges:
 
 `skopos_build_info{version}` is always present and set to 1.
 
-ClickHouse accounting metrics and the optional ServiceMonitor are follow-up
-tickets (AX-12 to AX-14).
+The optional ServiceMonitor, default PrometheusRule alerts, and Grafana
+dashboards are described in [monitoring.md](monitoring.md). They are off by
+default because they need the Prometheus Operator CRDs or a Grafana dashboard
+sidecar.

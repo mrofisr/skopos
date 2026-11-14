@@ -116,8 +116,8 @@ is recorded in
 | `build_floss_tools` | Met | The Go toolchain, Make, and Helm are FLOSS. Docker is only needed for the optional image/release path, not for the Go build. |
 | `test` | Met | `go test ./...`, `make test`, and the test seams documented in `CONTRIBUTING.md`. |
 | `test_invocation` | Met | Standard `go test ./...` and a `make test` wrapper. |
-| `test_most` | Partial | `go test -cover ./...` on 2026-11-07: `auth` 100.0, `httpapi` 91.1, `frontend` 87.3, `semctx` 85.5, `checkpoint` 85.0, `config` 81.3, `loki` 76.5, `chclient` 73.9, `tempo` 73.6, `prom` 67.0, `sqlgen` 66.6, `plan` 31.1, `cmd/gateway` 46.3; small test helpers are lower or have no statements. There is no coverage gate. This is a suggested criterion, not a must. |
-| `test_continuous_integration` | Met | `.github/workflows/ci.yml` runs unit, race, fuzz, ClickHouse integration, PromQL oracle, Tempo/Loki differentials, cerberus, and Helm renders. |
+| `test_most` | Partial | `go test -cover ./...` on 2026-11-07: `auth` 100.0, `httpapi` 91.1, `frontend` 87.3, `semctx` 85.5, `checkpoint` 85.0, `config` 81.3, `loki` 76.5, `chclient` 73.9, `tempo` 73.6, `prom` 67.0, `sqlgen` 66.6, `plan` 31.1, `internal/app/gateway` 46.3; small test helpers are lower or have no statements. There is no coverage gate. This is a suggested criterion, not a must. |
+| `test_continuous_integration` | Met | `.github/workflows/ci.yml` runs unit, race, fuzz, ClickHouse integration, PromQL oracle, the Tempo differential and LogQL corpus, the cerberus seed tests, and Helm renders. |
 | `test_policy` | Met | `CONTRIBUTING.md` rules 1–4 require tests first, exact values, no silent skips, and no guessing. The PR template repeats the test requirement. |
 | `tests_are_added` | Met | Recent changes add tests: `1276021` adds LogQL pushdown tests, `860f6bd` adds frontend tests, `902a989` adds the cerberus gate. Use `git show --stat <commit>` to inspect. |
 | `tests_documented_added` | Met | `CONTRIBUTING.md` "Test seams" and "Development loop"; `.github/pull_request_template.md`. |

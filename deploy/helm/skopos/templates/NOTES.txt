@@ -28,7 +28,7 @@ Durability checkpoint:
   Replay after ClickHouse loss (at-least-once transport, deduplicated on
   read; run one replay at a time):
 
-    kubectl -n {{ .Release.Namespace }} exec -it {{ include "skopos.checkpoint.fullname" . }}-0 -- /skopos-checkpoint replay
+    kubectl -n {{ .Release.Namespace }} exec -it {{ include "skopos.checkpoint.fullname" . }}-0 -- /skopos replay
 
   Add -delete to remove each object after its records are accepted. See
   docs/checkpoint.md for loss bounds and S3 permissions.

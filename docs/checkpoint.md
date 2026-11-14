@@ -18,7 +18,7 @@ AWS SDK, MinIO client, or compression module is linked.
 | Failure | What protects the data |
 | --- | --- |
 | Checkpoint process crash or restart | `active.wal` is recovered and sealed on open; sealed segments remain until uploaded. |
-| Collector or checkpoint pod restart | The checkpoint's PVC and WAL survive pod rescheduling. The Collector's file-backed queue survives a container restart; it is an `emptyDir`, so a deleted Collector pod loses queued batches. |
+| Collector or checkpoint pod restart | The checkpoint's PVC and WAL survive pod rescheduling. The Collector's file-backed queue uses a per-replica PVC by default, so queued batches survive container restarts and pod rescheduling. |
 | ClickHouse committed data, then lost it | Objects in S3 are replayed through the Collector into ClickHouse. |
 | S3 outage | Segments accumulate locally up to `MaxLocalBytes`; the receiver returns `503` with `Retry-After` instead of dropping. |
 | Node loss before an upload | Segments already PUT to S3 are safe. The unsealed or unuploaded tail can be lost. A persistent volume preserves the WAL across pod rescheduling, but it does not replace the S3 PUT as the crash-consistency point. |
@@ -36,7 +36,7 @@ WAL lives on a persistent volume.
 
 ```text
                     ┌─────────────────────────────┐
-OTel Collector ────▶│ skopos-checkpoint (serve)   │
+OTel Collector ────▶│ skopos (mode=checkpoint)    │
   otlphttp/checkpoint│  OTLP/HTTP ─▶ active.wal   │
                     │                   │         │
                     │                   ▼         │
@@ -45,7 +45,7 @@ OTel Collector ────▶│ skopos-checkpoint (serve)   │
                     │                   ▼         │
                     └──────────────────▶ S3 ◀──────┘
                                           │
-skopos-checkpoint replay ──OTLP/HTTP──▶ Collector ──▶ ClickHouse
+skopos replay ─────OTLP/HTTP──▶ Collector ──▶ ClickHouse
 ```
 
 The Collector fans out each signal to its ClickHouse exporter and to
@@ -235,15 +235,17 @@ and the `upload_failures` field from `/stats`.
 Size the checkpoint's local volume above `MaxLocalBytes` plus the filesystem
 reserve. A persistent volume preserves its WAL across pod restarts and
 rescheduling. If the checkpoint directory is an `emptyDir`, a pod restart loses
-the unshipped window by design. The Collector's file queue is a separate
-buffer; the chart uses an `emptyDir` for it and a PVC for the checkpoint.
+the unshipped window by design. The Collector's file queue is a separate buffer; the chart gives each
+Collector replica its own PVC and the checkpoint its own PVC. Queue PVCs are
+retained on scale-down/delete by default.
 
 ### Helm wiring
 
 The chart renders the exporter, the `file_storage` extension, and the queue
 volume above when `checkpoint.enabled=true`. It does not create the S3 bucket.
-The Collector queue is an `emptyDir`: it survives a Collector container restart
-but not pod deletion. The checkpoint's PVC and WAL are the durable layer.
+The Collector queue is a per-replica PVC by default: it survives a Collector
+container restart and pod rescheduling. The checkpoint's PVC and WAL remain
+the durable S3 layer.
 
 ```yaml
 checkpoint:
@@ -284,17 +286,19 @@ HTTP drain plus the 15 s final flush. Raise it if you raise `flushTimeout`.
 The service deletes an object after a successful `replay -delete`. Set an S3
 lifecycle expiration as a backstop for objects that are never replayed. Keep it
 longer than the expected recovery horizon (for example, 30 days). The chart
-does not create lifecycle rules: the checkpoint policy is scoped to object
-operations on its prefix, not bucket administration.
+does not create lifecycle rules for the checkpoint prefix; the optional backup
+lifecycle CronJob manages only the backup prefix described in
+[storage.md](storage.md#s3-lifecycle).
 
 ## Replay
 
 ```sh
+SKOPOS_MODE=checkpoint \
 SKOPOS_CHECKPOINT_S3_ENDPOINT=http://rustfs:9000 \
 SKOPOS_CHECKPOINT_S3_BUCKET=skopos-checkpoint \
 SKOPOS_CHECKPOINT_S3_PREFIX=skopos/checkpoint \
 SKOPOS_CHECKPOINT_FORWARD_URL=http://otel-collector:4318 \
-skopos-checkpoint replay
+skopos replay
 ```
 
 Objects are listed lexicographically (date, then segment time), decompressed,
@@ -307,7 +311,7 @@ In a chart install, run replay from a checkpoint pod so the
 
 ```sh
 kubectl -n observability exec -it skopos-checkpoint-0 -- \
-  /skopos-checkpoint replay
+  /skopos replay
 ```
 
 Add `-delete` to the command to remove each object after its records are
@@ -365,7 +369,7 @@ flush completes.
 ## Verification
 
 ```sh
-go test ./internal/checkpoint ./cmd/skopos-checkpoint
+go test ./internal/checkpoint ./internal/app/checkpoint
 go test -race ./internal/checkpoint
 go test -run='^$' -fuzz=FuzzDecodeRecords -fuzztime=30s ./internal/checkpoint
 go test -bench=. ./internal/checkpoint
@@ -377,7 +381,7 @@ round-trips, corruption, torn tails, backpressure, local recovery, and replay.
 The replay-dedup schema is exercised against a real ClickHouse by:
 
 ```sh
-CLICKHOUSE_URL=http://127.0.0.1:8123 sh test/integration/dedup/run.sh
+CLICKHOUSE_URL=http://127.0.0.1:8123 sh scripts/integration/dedup.sh
 ```
 
 ## Deliberate limits and follow-ups

@@ -2,7 +2,7 @@
   "description": "Deterministic LogQL corpus for the Skopos Loki head. Expected values were produced by grafana/loki:3.5.7 from the entries below, with Loki's synthesized detected_level label removed because Skopos does not synthesize it.",
   "reference": {
     "image": "grafana/loki:3.5.7",
-    "command": "test/compat/loki/run.sh verify",
+    "command": "go test ./internal/loki -run TestLogQLCorpus -count=1",
     "normalization": "drop detected_level and stats; sort streams, series, and samples"
   },
   "entries": [

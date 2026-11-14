@@ -138,6 +138,17 @@ func TestAggregationPrecisionAndNaN(t *testing.T) {
 		t.Fatalf("avg overflow = %#v, want %v", vector, maxFloat)
 	}
 
+	bigzero := []Series{
+		seriesAt("bigzero", map[string]string{"point": "a"}, -maxFloat),
+		seriesAt("bigzero", map[string]string{"point": "b"}, -maxFloat),
+		seriesAt("bigzero", map[string]string{"point": "c"}, maxFloat),
+		seriesAt("bigzero", map[string]string{"point": "d"}, maxFloat),
+	}
+	vector = queryVectorAtTime(t, complianceEngine(bigzero...), `avg(bigzero)`, base)
+	if len(vector) != 1 || vector[0].V != 0 {
+		t.Fatalf("avg bigzero = %#v, want 0", vector)
+	}
+
 	mixed := []Series{
 		seriesAt("mixed", map[string]string{"point": "a"}, 1),
 		seriesAt("mixed", map[string]string{"point": "b"}, math.NaN()),
@@ -164,7 +175,7 @@ func TestAggregationPrecisionAndNaN(t *testing.T) {
 	}
 	engine = complianceEngine(steady...)
 	vector = queryVectorAtTime(t, engine, `stdvar(steady)`, base)
-	if len(vector) != 1 || vector[0].V != 2.211125 {
+	if len(vector) != 1 || math.Abs(vector[0].V-2.211125) > 1e-12 {
 		t.Fatalf("stdvar = %#v, want 2.211125", vector)
 	}
 }

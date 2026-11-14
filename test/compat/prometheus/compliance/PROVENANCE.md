@@ -19,6 +19,6 @@ The Go module `github.com/prometheus/prometheus` is pinned to `v0.315.1` in
 3.15.1, so the harness and the test scripts come from the same tag.
 
 The fixed variables are defined at the top of
-`test/compat/prometheus/compliance.sh`. Update all of them together when
+`scripts/compat/prometheus-compliance.sh`. Update all of them together when
 bumping the suite; `compliance.sh` refuses to use a cached checkout whose
 `VERSION` does not match the pinned release.

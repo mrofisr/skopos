@@ -3,20 +3,20 @@ SHELL := /bin/sh
 GO ?= go
 HELM ?= helm
 GOVULNCHECK ?= govulncheck
-VERSION ?= 0.1.0-alpha.2
-LDFLAGS := -s -w -X main.version=$(VERSION)
+VERSION ?= 0.1.0-alpha.3
+BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
+LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mcp checkpoint mutation mutation-gate alpha-exit-check test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana compat-cerberus storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana grafana-journeys compat-all metrics-contract quality-report release-evidence storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
-		'build             build the gateway binary' \
-		'mcp               build the stdio MCP server' \
-		'checkpoint        build the S3 durability checkpoint service' \
+		'build             build the single skopos binary' \
 		'test              run unit tests' \
 		'test-race         run unit tests with the race detector' \
 		'test-integration  run integration tests (requires CLICKHOUSE_URL)' \
+		'test-faults       run the Docker Collector/ClickHouse restart test' \
 		'fuzz              run the SQL emitter fuzz target for 30s' \
 		'vet               run go vet' \
 		'vuln              run govulncheck' \
@@ -24,16 +24,20 @@ help:
 		'helm-template     render the Helm chart' \
 		'e2e-obi           run the real OBI end-to-end harness (Docker, Linux)' \
 		'e2e-grafana       verify Grafana datasources, journeys, and the OBI RED dashboard (Docker)' \
-		'compat-cerberus   run the cerberus three-way differential' \
-		'storage-test      run ClickHouse + RustFS tiered storage and backup test' \
+		'grafana-journeys  run the Grafana journeys and record EC1 evidence' \
+		'compat-all        run the reference compatibility corpora and record EC2 evidence' \
+		'metrics-contract  run the metrics contract and record EC4 evidence' \
+		'quality-report    run local EC6 gates and record evidence' \
+		'release-evidence  verify a published release and quickstart, record EC5 evidence' \
+		'storage-test      run ClickHouse + RustFS storage, backup, restore drill, and lifecycle test' \
 		'bench             run the ClickHouse compression and gateway latency benchmark' \
-		'bench-gate        run the concurrent safety gate (no transport errors, valid shedding)' \
+		'bench-gate        run the concurrent safety gate and record EC3 evidence' \
 		'mutation          run mutation testing (PKG=./internal/auth by default)' \
-		'alpha-exit-check  aggregate the EC evidence and fail closed' \
+		'alpha-exit-check  verify EC1-6, record EC7, and aggregate all evidence' \
 		'profile-range     capture pprof and metrics for the 6h range query' \
 		'release           build and package release artifacts (VERSION=...)' \
 		'release-dry-run   same as release; the release workflow publishes' \
-		'release-check     release preflight: vet, tests, Helm, vendor, script syntax' \
+		'release-check     release preflight: vet, tests, Helm, modules, script syntax' \
 		'release-verify    verify a published release (TAG=vX.Y.Z): signatures, attestations, SBOMs, digest' \
 		'verify-release    alias for release-verify' \
 		'scorecard         run pinned OpenSSF Scorecard (needs GITHUB_AUTH_TOKEN)' \
@@ -51,15 +55,7 @@ help:
 
 build:
 	mkdir -p bin
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/gateway ./cmd/gateway
-
-mcp:
-	mkdir -p bin
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/skopos-mcp ./cmd/skopos-mcp
-
-checkpoint:
-	mkdir -p bin
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/skopos-checkpoint ./cmd/skopos-checkpoint
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/skopos ./cmd/skopos
 
 test:
 	$(GO) test ./...
@@ -89,28 +85,54 @@ helm-template:
 check: vet test helm-lint fuzz ruleset-check
 
 e2e-obi:
-	./test/e2e/obi/run.sh
+	./scripts/e2e/obi/run.sh
 
 e2e-grafana:
-	./test/e2e/obi/grafana.sh
+	./scripts/e2e/obi/grafana.sh
 
-compat-cerberus:
-	./test/compat/cerberus/run.sh
+grafana-journeys:
+	rm -f test/quality/evidence/ec-1.json
+	./scripts/e2e/obi/grafana.sh
+	$(GO) run ./tools/repoctl evidence record --ec 1 --command "make grafana-journeys"
+
+compat-all:
+	rm -f test/quality/evidence/ec-2.json
+	./scripts/compat/all.sh
+	$(GO) run ./tools/repoctl evidence record --ec 2 --command "make compat-all"
+
+metrics-contract:
+	$(GO) run ./tools/repoctl evidence run --ec 4 --command "make metrics-contract" -- $(GO) test ./internal/metrics -run '^TestMetricsContract$$' -count=1
+
+quality-report:
+	rm -f test/quality/evidence/ec-6.json
+	./scripts/quality/report.sh
+	$(GO) run ./tools/repoctl evidence record --ec 6 --command "make quality-report"
+
+release-evidence:
+	@test -n "$(TAG)" || (echo "TAG is required" >&2; exit 1)
+	rm -f test/quality/evidence/ec-5.json
+	TAG=$(TAG) ./scripts/release/evidence.sh
+	$(GO) run ./tools/repoctl evidence record --ec 5 --command "make release-evidence TAG=$(TAG)"
 
 storage-test:
-	./test/integration/s3/run.sh
+	./scripts/integration/s3.sh
 
 quickstart-test:
-	./scripts/quickstart-test.sh
+	./scripts/quickstart/quickstart-test.sh
 
 bench:
-	./test/bench/run.sh
+	./scripts/bench/run.sh
 
 bench-gate:
-	SKOPOS_BENCH_GATE=1 ./test/bench/run.sh
+	rm -f test/quality/evidence/ec-3.json
+	SKOPOS_BENCH_GATE=1 SKOPOS_BENCH_MEMORY_LIMIT_BYTES=$(BENCH_MEMORY_LIMIT_BYTES) ./scripts/bench/run.sh
+	$(GO) run ./tools/repoctl evidence record --ec 3 --command "make bench-gate"
+
+test-faults:
+	SKOPOS_FAULTS_TEST=1 $(GO) test ./test/integration/faults -count=1 -v
 
 profile-range:
-	./test/bench/profile-range.sh
+	./scripts/bench/profile-range.sh
 
 PKG ?= ./internal/auth
 
@@ -118,82 +140,91 @@ mutation:
 	mkdir -p bin
 	cd internal/tools && $(GO) build -o ../../bin/gremlins github.com/go-gremlins/gremlins/cmd/gremlins
 	./bin/gremlins unleash --workers 4 --timeout-coefficient 10 --output mutation.json $(PKG)
-	$(GO) run ./cmd/repoctl mutation report --input mutation.json
+	$(GO) run ./tools/repoctl mutation report --input mutation.json
 
 alpha-exit-check:
-	$(GO) run ./cmd/repoctl exit-check
+	rm -f test/quality/evidence/ec-7.json
+	$(GO) run ./tools/repoctl exit-check --check --skip 7
+	$(GO) test ./internal/archtest -count=1
+	$(GO) run ./tools/repoctl issues manifest --check
+	$(GO) run ./tools/repoctl issues lint
+	$(GO) run ./tools/repoctl ruleset
+	$(GO) run ./tools/repoctl evidence record --ec 7 --command "make alpha-exit-check"
+	$(GO) run ./tools/repoctl exit-check
 
 mutation-gate:
 	mkdir -p bin
 	cd internal/tools && $(GO) build -o ../../bin/gremlins github.com/go-gremlins/gremlins/cmd/gremlins
 	./bin/gremlins unleash --workers 4 --timeout-coefficient 10 --output mutation.json $(PKG)
-	$(GO) run ./cmd/repoctl mutation gate --input mutation.json --floor 70 --allowlist test/quality/mutation-allowlist.json
+	$(GO) run ./tools/repoctl mutation gate --input mutation.json --floor 70 --allowlist test/quality/mutation-allowlist.json
 
 release:
-	VERSION=$(VERSION) ./scripts/release.sh
+	VERSION=$(VERSION) ./scripts/release/release.sh
 
 release-dry-run:
-	VERSION=$(VERSION) ./scripts/release.sh
+	VERSION=$(VERSION) ./scripts/release/release.sh
 
 release-verify verify-release:
-	TAG=$(TAG) VERSION=$(VERSION) ./scripts/verify-release.sh
+	TAG=$(TAG) VERSION=$(VERSION) ./scripts/release/verify-release.sh
 
 scorecard:
-	./scripts/scorecard.sh
+	./scripts/scorecard/scorecard.sh
 
 coverage:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/repoctl coverage gate --profile coverage.out --floor test/quality/coverage-floor.json --previous-ref origin/development
+	$(GO) run ./tools/repoctl coverage gate --profile coverage.out --floor test/quality/coverage-floor.json --previous-ref origin/development
 
 coverage-report:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/repoctl coverage report --profile coverage.out --floor test/quality/coverage-floor.json
+	$(GO) run ./tools/repoctl coverage report --profile coverage.out --floor test/quality/coverage-floor.json
 
 coverage-write:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) run ./cmd/repoctl coverage write --profile coverage.out --floor test/quality/coverage-floor.json
+	$(GO) run ./tools/repoctl coverage write --profile coverage.out --floor test/quality/coverage-floor.json
 
 issues-manifest:
-	$(GO) run ./cmd/repoctl issues manifest --write
+	$(GO) run ./tools/repoctl issues manifest --write
 
 issues-manifest-check:
-	$(GO) run ./cmd/repoctl issues manifest --check
+	$(GO) run ./tools/repoctl issues manifest --check
 
 issues-lint:
-	$(GO) run ./cmd/repoctl issues lint
+	$(GO) run ./tools/repoctl issues lint
 
 issues-lint-live:
-	$(GO) run ./cmd/repoctl issues lint --live
+	$(GO) run ./tools/repoctl issues lint --live
 
 issues-sync:
-	$(GO) run ./cmd/repoctl issues sync $(if $(APPLY),--apply,)
+	$(GO) run ./tools/repoctl issues sync $(if $(APPLY),--apply,)
 
 ruleset-check:
-	$(GO) run ./cmd/repoctl ruleset
+	$(GO) run ./tools/repoctl ruleset
 
 release-check: vet test helm-lint ruleset-check
 	$(GO) mod verify
-	$(GO) mod vendor
-	git diff --exit-code -- vendor go.mod go.sum
 	$(HELM) template skopos $(CHART) --namespace observability >/dev/null
 	cd test/compat/prometheus && $(GO) mod verify && $(GO) vet ./... && $(GO) test -count=1 ./...
-	sh -n scripts/quickstart-test.sh
-	sh -n scripts/release.sh
-	sh -n scripts/verify-release.sh
-	sh -n scripts/sbom-fallback.sh
-	sh -n scripts/scorecard.sh
-	sh -n test/e2e/obi/run.sh
-	sh -n test/e2e/obi/grafana.sh
-	sh -n test/e2e/obi/seed.sh
-	sh -n test/e2e/obi/verify.sh
-	sh -n test/e2e/obi/load.sh
-	sh -n test/e2e/obi/render-schema.sh
-	sh -n test/e2e/obi/init-clickhouse.sh
-	sh -n test/integration/dedup/run.sh
-	bash -n test/integration/s3/run.sh
-	sh -n deploy/systemd/render-schema.sh
-	sh -n test/bench/run.sh
-	sh -n test/bench/measure-compression.sh
+	sh -n scripts/quickstart/quickstart-test.sh
+	sh -n scripts/release/release.sh
+	sh -n scripts/release/verify-release.sh
+	sh -n scripts/scorecard/scorecard.sh
+	sh -n scripts/e2e/obi/run.sh
+	sh -n scripts/e2e/obi/grafana.sh
+	sh -n scripts/e2e/obi/seed.sh
+	sh -n scripts/e2e/obi/verify.sh
+	sh -n scripts/e2e/obi/load.sh
+	sh -n scripts/e2e/obi/render-schema.sh
+	sh -n scripts/e2e/obi/init-clickhouse.sh
+	sh -n scripts/integration/dedup.sh
+	bash -n scripts/integration/s3.sh
+	sh -n scripts/deploy/render-schema.sh
+	sh -n scripts/bench/run.sh
+	sh -n scripts/bench/measure-compression.sh
+	sh -n scripts/compat/loki-upstream.sh
+	sh -n scripts/compat/tempo.sh
+	sh -n scripts/compat/all.sh
+	sh -n scripts/quality/report.sh
+	sh -n scripts/release/evidence.sh
 	@printf '%s\n' 'release-check: ok'
 
 clean:

@@ -37,6 +37,14 @@ provenance guarantees below.
   ClusterIP. NetworkPolicies restrict ingress traffic between components (v0.1
   does not ship egress policies; that is M6 hardening). The chart does not
   expose the gateway to the internet.
+- **Optional OTLP bearer auth and TLS/mTLS.**
+  `collector.otlpAuth.enabled=true` requires a static bearer token on the
+  Collector's gRPC and HTTP receivers and injects the matching header into OBI.
+  `collector.tls.enabled=true` serves OTLP over TLS, and
+  `collector.tls.mtls=true` requires a client certificate. Both are off by
+  default. Tokens over plaintext are visible to network observers; enable TLS
+  or mTLS for untrusted networks. The checkpoint endpoint and ClickHouse are
+  not covered by the OTLP token.
 - **Read-only ClickHouse user.** The gateway connects with a ClickHouse user
   that has `SELECT` on the configured database and `readonly = 2` (read-only
   queries, but query settings can be changed to enforce limits). Query time,
@@ -49,7 +57,8 @@ provenance guarantees below.
   observability and trace-context propagation, so it does not grant
   `CAP_NET_ADMIN` or `CAP_SYS_ADMIN`. See `values.yaml` and OBI's security
   documentation before enabling those features.
-- **Supply chain.** Go modules use `go.sum` and a committed `vendor/` tree.
+- **Supply chain.** Go modules are pinned by `go.sum`, and CI verifies them
+  with `go mod download` and `go mod verify`.
   Third-party images are pinned by digest, GitHub Actions are pinned by commit
   SHA, and the registry enforces SHA pinning. Releases are built from an
   annotated tag whose commit is on `main`; images and charts are signed with

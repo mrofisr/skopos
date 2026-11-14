@@ -18,6 +18,151 @@ func acquire(t *testing.T, limiter *Limiter) func() {
 	return release
 }
 
+func TestWeightedLimiterRejectsOverCapacity(t *testing.T) {
+	limiter, err := New(4, 1, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := limiter.AcquireWeight(context.Background(), 5); !errors.Is(err, ErrRejected) {
+		t.Fatalf("AcquireWeight(5) = %v, want ErrRejected", err)
+	}
+}
+
+func TestAcquireWeightNormalizesNonPositive(t *testing.T) {
+	limiter, err := New(1, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, weight := range []int{0, -3} {
+		release, err := limiter.AcquireWeight(context.Background(), weight)
+		if err != nil {
+			t.Fatalf("AcquireWeight(%d): %v", weight, err)
+		}
+		if got := limiter.InFlight(); got != 1 {
+			t.Fatalf("InFlight = %d, want 1 for weight %d", got, weight)
+		}
+		release()
+		if got := limiter.InFlight(); got != 0 {
+			t.Fatalf("InFlight = %d after release, want 0", got)
+		}
+	}
+}
+
+func TestAbandonReleasesGrantedSlot(t *testing.T) {
+	limiter, err := New(1, 1, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter.inflight = 1
+	pending := &waiter{ch: make(chan struct{}, 1), weight: 1, granted: true}
+	if err := limiter.abandon(pending, ErrRejected); !errors.Is(err, ErrRejected) {
+		t.Fatalf("abandon = %v, want ErrRejected", err)
+	}
+	if got := limiter.InFlight(); got != 0 {
+		t.Fatalf("InFlight = %d, want 0 after abandoning a granted waiter", got)
+	}
+}
+
+func TestWeightedLimiterQueuesAndGrantsFittingWork(t *testing.T) {
+	limiter, err := New(4, 2, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heavy := acquireWeight(t, limiter, 3)
+	queued := make(chan func(), 1)
+	go func() {
+		release, err := limiter.AcquireWeight(context.Background(), 2)
+		if err != nil {
+			queued <- nil
+			return
+		}
+		queued <- release
+	}()
+	waitFor(t, func() bool { return limiter.Queued() == 1 })
+	heavy()
+	select {
+	case release := <-queued:
+		if release == nil {
+			t.Fatal("queued weighted Acquire failed")
+		}
+		if got := limiter.InFlight(); got != 2 {
+			t.Fatalf("InFlight = %d, want 2", got)
+		}
+		release()
+	case <-time.After(time.Second):
+		t.Fatal("queued weighted Acquire was not granted")
+	}
+}
+
+func TestWeightedLimiterPrioritizesCheapWaiters(t *testing.T) {
+	limiter, err := New(4, 2, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := acquireWeight(t, limiter, 4)
+
+	heavyDone := make(chan func(), 1)
+	go func() {
+		release, err := limiter.AcquireWeight(context.Background(), 4)
+		if err != nil {
+			heavyDone <- nil
+			return
+		}
+		heavyDone <- release
+	}()
+	waitFor(t, func() bool { return limiter.Queued() == 1 })
+
+	cheapDone := make(chan func(), 1)
+	go func() {
+		release, err := limiter.AcquireWeight(context.Background(), 1)
+		if err != nil {
+			cheapDone <- nil
+			return
+		}
+		cheapDone <- release
+	}()
+	waitFor(t, func() bool { return limiter.Queued() == 2 })
+
+	held()
+	select {
+	case cheap := <-cheapDone:
+		if cheap == nil {
+			t.Fatal("cheap waiter failed")
+		}
+		if got := limiter.InFlight(); got != 1 {
+			t.Fatalf("InFlight = %d, want 1 after cheap grant", got)
+		}
+		if got := limiter.Queued(); got != 1 {
+			t.Fatalf("Queued = %d, want 1 heavy waiter still queued", got)
+		}
+		cheap()
+	case <-time.After(time.Second):
+		t.Fatal("cheap waiter was not granted before the heavy waiter")
+	}
+
+	select {
+	case heavy := <-heavyDone:
+		if heavy == nil {
+			t.Fatal("heavy waiter failed")
+		}
+		if got := limiter.InFlight(); got != 4 {
+			t.Fatalf("InFlight = %d, want 4", got)
+		}
+		heavy()
+	case <-time.After(time.Second):
+		t.Fatal("heavy waiter was not granted after budget freed")
+	}
+}
+
+func acquireWeight(t *testing.T, limiter *Limiter, weight int) func() {
+	t.Helper()
+	release, err := limiter.AcquireWeight(context.Background(), weight)
+	if err != nil {
+		t.Fatalf("AcquireWeight(%d): %v", weight, err)
+	}
+	return release
+}
+
 func waitFor(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

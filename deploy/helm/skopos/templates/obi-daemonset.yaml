@@ -60,6 +60,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- if .Values.collector.otlpAuth.enabled }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skopos.collector.otlpAuthSecretName" . }}
+                  key: {{ .Values.collector.otlpAuth.headersKey }}
+            {{- end }}
             {{- with .Values.obi.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -73,6 +80,11 @@ spec:
               mountPath: /var/run/obi
             - name: cgroup
               mountPath: /sys/fs/cgroup
+            {{- if .Values.collector.tls.enabled }}
+            - name: tls
+              mountPath: /etc/obi/tls
+              readOnly: true
+            {{- end }}
             {{- if .Values.obi.mountTracefs }}
             - name: tracefs
               mountPath: /sys/kernel/tracing
@@ -87,6 +99,11 @@ spec:
           hostPath:
             path: {{ .Values.obi.cgroupHostPath }}
             type: Directory
+        {{- if .Values.collector.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.collector.tls.existingSecret }}
+        {{- end }}
         {{- if .Values.obi.mountTracefs }}
         - name: tracefs
           hostPath:

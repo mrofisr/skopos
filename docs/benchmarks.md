@@ -4,18 +4,22 @@ These numbers come from real runs on the reference host, not from estimates.
 The harness is in [`test/bench`](../test/bench) and can be reproduced with one
 command.
 
-Run date: 2026-11-07 (local time). The sequential tables include the replay-dedup
-`ReplacingMergeTree` schema and `FINAL` reads. They come from the cleaner of two
-30-iteration runs; the earlier run had larger tail spikes. The 30-client
-concurrency baseline comes from a separate run on the same day and host.
+Run date: 2026-11-14 for the compression figures (ZSTD(3) schema); latency
+and concurrency figures are from the 2026-11-07 run on the same host. The
+sequential tables include the replay-dedup `ReplacingMergeTree` schema and
+`FINAL` reads. They come from the cleaner of two 30-iteration runs; the earlier
+run had larger tail spikes. The 30-client concurrency baseline comes from a
+separate run on the same day and host.
 
 ## Summary
 
 | Item | Value |
 | --- | --- |
 | Dataset | 2,658,400 main-table rows + 40,000 trace-lookup rows |
-| On disk | **103.7-103.8 MiB** total across runs (102.8-102.9 MiB main tables + 0.9-1.0 MiB lookup) |
-| Storage cost | 24.35 B/metric sample, 110.22 B/log line, 25.44 B/span |
+| On disk | **87.1-87.2 MiB** total (86.2 MiB main tables + 0.9 MiB lookup) |
+| Fast profile | **48.93 MiB** with `clickhouse.dedup.enabled=false` (trace identity dedup retained) |
+| Storage cost | 19.10 B/metric sample, 97.76 B/log line, 20.62 B/span (reliable profile) |
+| Fast storage cost | 2.76 B/metric sample, 81.69 B/log line, 20.62 B/span |
 | PromQL instant | p50 134-252 ms, p95 180-283 ms |
 | Tempo search | p50 592 ms, p95 701 ms |
 | Tempo trace by ID | p50 17.8 ms, p95 21.1 ms |
@@ -73,7 +77,7 @@ make bench
 SKOPOS_BENCH_ITERATIONS=30 \
 SKOPOS_BENCH_CONCURRENCY=30 \
 SKOPOS_BENCH_CONCURRENCY_SECONDS=60 \
-./test/bench/run.sh
+./scripts/bench/run.sh
 ```
 
 Optional environment variables:
@@ -108,22 +112,22 @@ and the per-column compressed/uncompressed sizes from `system.columns`.
 
 | Table | Rows | On disk (bytes) | Bytes/row on disk | Compressed data bytes/row | Compression ratio |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `otel_logs` | 500,000 | 55,107,861 | 110.22 | 50.05 | 6.71x |
-| `otel_metrics_gauge` | 576,000 | 12,946,963 | 22.48 | 22.10 | 10.12x |
-| `otel_metrics_histogram` | 230,400 | 7,915,577 | 34.36 | 33.66 | 14.00x |
-| `otel_metrics_sum` | 1,152,000 | 26,823,522 | 23.28 | 23.24 | 10.88x |
-| `otel_traces` | 200,000 | 5,087,934 | 25.44 | 24.15 | 12.89x |
-| `otel_traces_trace_id_ts` (lookup) | 40,000 | 982,367 | 24.56 | n/a | n/a |
+| `otel_logs` | 500,000 | 48,880,511 | 97.76 | 48.75 | 7.33x |
+| `otel_metrics_gauge` | 576,000 | 10,887,376 | 18.90 | 18.86 | 12.04x |
+| `otel_metrics_histogram` | 230,400 | 4,516,764 | 19.60 | 19.50 | 24.54x |
+| `otel_metrics_sum` | 1,152,000 | 21,995,835 | 19.09 | 19.07 | 13.26x |
+| `otel_traces` | 200,000 | 4,123,781 | 20.62 | 19.74 | 16.81x |
+| `otel_traces_trace_id_ts` (lookup) | 40,000 | 942,901 | 23.57 | 22.05 | 2.18x |
 
 Per-signal totals for the main signal tables:
 
 | Signal | Rows | On disk (bytes) | Bytes/row on disk | Compressed data bytes/row |
 | --- | ---: | ---: | ---: | ---: |
-| Logs | 500,000 | 55,107,861 | **110.22** | **50.05** |
-| Metrics | 1,958,400 | 47,686,062 | **24.35** | **24.13** |
-| Traces | 200,000 | 5,087,934 | **25.44** | **24.15** |
+| Logs | 500,000 | 48,880,511 | **97.76** | **48.75** |
+| Metrics | 1,958,400 | 37,399,975 | **19.10** | **19.07** |
+| Traces | 200,000 | 4,123,781 | **20.62** | **19.74** |
 
-The trace lookup table adds about `982,367 / 200,000 = 4.91` bytes per span
+The trace lookup table adds about `942,901 / 200,000 = 4.71` bytes per span
 (one lookup row per trace, 40,000 rows for 200,000 spans).
 
 ### Concurrency gate
@@ -132,7 +136,8 @@ The trace lookup table adds about `982,367 / 200,000 = 4.91` bytes per span
 enabled. A run fails when any request has a transport error, any non-2xx
 response is not a deliberate 429 or 503, a rejection has no `Retry-After`, a
 benchmark container was OOM-killed, or a sampled peak exceeds
-`SKOPOS_BENCH_MEMORY_LIMIT_BYTES`. Latency is written to JSON but is not gated.
+`SKOPOS_BENCH_MEMORY_LIMIT_BYTES` (1.5 GiB by default, matching the chart's
+gateway memory limit). Latency is written to JSON but is not gated.
 The self-tests in `test/bench/bench_test.go` cover dropped connections, bare
 500s, correct shedding, missing `Retry-After`, OOM, and the memory limit; they
 run in the normal Go test job without Docker.
@@ -140,23 +145,110 @@ run in the normal Go test job without Docker.
 <!-- BEGIN GENERATED BENCH GATE -->
 | Metric | Value |
 | --- | ---: |
-| Status | not run |
+| Requests | 3016 |
+| Errors | 249 |
+| Transport errors | 0 |
+| Deliberate rejections | 249 |
+| Unexpected statuses | 0 |
+| Missing Retry-After | 0 |
+| Gate | **pass** |
 <!-- END GENERATED BENCH GATE -->
+
+The gate run above used the chart admission defaults (16 slots, 32 queued,
+2 s wait, 100 points per slot). All 249 rejections were deliberate 503s on the
+6-hour range query; instant queries had zero errors, there were zero transport
+errors, and the gateway peaked at 382 MiB against the 1.5 GiB limit. The
+17.81% error baseline in the earlier concurrency section predates the deadline
+and admission changes.
 
 ## Interpretation
 
-- Metrics cost about **24 bytes per sample on disk** at this cardinality. The
+- Metrics cost about **19.1 bytes per sample on disk** at this cardinality. The
   replay-dedup schema adds the 16-byte `_skopos_row_hash` and a wider
-  `ReplacingMergeTree` key, so this is noticeably larger than the pre-dedup
-  layout.
-- Logs are the expensive signal: **110.2 bytes per line on disk**, even though
-  the compressed column data is only 50.1 bytes/line. The gap is the primary
+  `ReplacingMergeTree` key; ZSTD(3) offsets part of that cost.
+- Logs are the expensive signal: **97.8 bytes per line on disk**, even though
+  the compressed column data is only 48.8 bytes/line. The gap is the primary
   key, marks, the schema's full-text/text indexes, materialized Kubernetes
   columns, and the replay-dedup hash. Capacity planning for the default 7-day
   log TTL should use the on-disk number, not the column-data number.
-- Traces cost about **25.4 bytes per span on disk** plus the trace lookup
+- Traces cost about **20.6 bytes per span on disk** plus the trace lookup
   index. This is close to the pre-dedup layout; the hash only applies to logs
   and metrics.
+
+## ClickStack storage comparison
+
+The same 2.66M-row dataset was loaded into three schemas on the same ClickHouse
+26.8.36.3 instance. The ClickStack DDL came from `ClickHouse/ClickStack` at
+commit `c17fc16` (logs, traces, metrics, and the log/trace rollups). Skopos
+rendered the reliable profile and the fast profile
+(`clickhouse.dedup.enabled=false`). All schemas were `OPTIMIZE ... FINAL`
+before measuring.
+
+| Signal | Skopos reliable | Skopos fast | ClickStack |
+| --- | ---: | ---: | ---: |
+| Metrics | 35.67 MiB | 5.40 MiB | 5.15 MiB |
+| Logs | 46.62 MiB | 38.95 MiB | 39.01 MiB |
+| Traces | 3.93 MiB | 3.93 MiB | 6.06 MiB |
+| Auxiliary | 0.90 MiB | 0.90 MiB | 0.03 MiB |
+| **Total** | **87.12 MiB** | **48.93 MiB** | **50.25 MiB** |
+
+The fast profile is **2.6% smaller than ClickStack** and within 5% on metrics;
+its traces are 35% smaller because it uses bloom filters instead of
+ClickStack's larger text indexes. The reliable profile is 73.4% larger because
+of the 16-byte `_skopos_row_hash` (37.67 MiB, 43% of its total).
+
+Insert time for the same dataset:
+
+| Profile | Insert time |
+| --- | ---: |
+| Skopos reliable | 27.48 s |
+| Skopos fast | 15.10 s |
+| ClickStack | 14.78 s |
+
+The fast profile is within 2.2% of ClickStack's insert time. The reliable
+profile pays roughly 1.8x for the row hash and the wider
+`ReplacingMergeTree` key.
+
+### Query latency
+
+Direct ClickHouse SQL, 2 warm-ups then 30 iterations at concurrency 1, warm
+cache, same 2.66M-row dataset. Full uses `FINAL` on logs, metrics, and traces;
+fast uses `FINAL` on traces only; ClickStack uses no `FINAL`. Gateway HTTP/JSON
+overhead is excluded.
+
+| Query | Reliable p50/p95/p99 | Fast p50/p95/p99 | ClickStack p50/p95/p99 |
+| --- | ---: | ---: | ---: |
+| Log count + body match | 17 / 20 / 23 ms | 6 / 7 / 7 ms | 8 / 8 / 8 ms |
+| Log top 50 | 8 / 8 / 8 ms | 6 / 7 / 7 ms | 6 / 7 / 8 ms |
+| Log attribute filter | 29 / 31 / 33 ms | 12 / 13 / 14 ms | 12 / 14 / 14 ms |
+| Trace search | 4 / 4 / 4 ms | 4 / 4 / 4 ms | 7 / 7 / 7 ms |
+| Trace by ID | 4 / 4 / 5 ms | 4 / 4 / 5 ms | 5 / 6 / 6 ms |
+| Metric 6 h range | 8 / 10 / 10 ms | 7 / 8 / 8 ms | 7 / 8 / 9 ms |
+
+The fast profile matches or beats ClickStack on every query and is materially
+faster on trace lookups. The reliable profile's `FINAL` adds 2-2.8x on log
+queries and about 15% on metric ranges; trace timings are unchanged because
+fast also keeps trace identity dedup. The gateway's ClickHouse client caches
+`ILLEGAL_FINAL` per table for one minute, so fast-mode reads skip `FINAL`
+without a failed round trip after the first query.
+
+This is a storage and relative-latency benchmark, not a capacity test: the
+dataset is small enough that most queries return in single-digit milliseconds.
+
+Reproduce with ClickHouse 26.8.36.3 and the same `test/bench/generate.sql`
+data, fixed to `2026-11-12 00:00:00`:
+
+```sh
+# Skopos reliable and fast schemas
+./scripts/deploy/render-schema.sh > /tmp/full.sql
+SKOPOS_DEDUP=false ./scripts/deploy/render-schema.sh > /tmp/fast.sql
+# ClickStack DDL: ClickHouse/ClickStack c17fc16, files 00002, 00003, 00005,
+# 00006, and 00007, with ${DATABASE}=bench_clickstack and 30-day TTLs.
+```
+
+Load all three, run `OPTIMIZE TABLE ... FINAL`, then run each query with
+`clickhouse-benchmark --iterations 30 --concurrency 1 --delay 0 --query ...`.
+Use `FINAL` only where the profile keeps `ReplacingMergeTree`.
 
 ## Gateway latency
 
@@ -219,8 +311,8 @@ deduplication. A directional p50 comparison:
 The PromQL and Tempo regressions are consistent with the row hash and
 `FINAL` merge work. The Loki p50 improved in this run; cross-run comparisons
 are directional because the host is shared with Docker and the test runner.
-Storage also grew: metrics moved from ~8 to ~24 bytes/sample and logs from
-~84 to ~110 bytes/line on disk.
+Storage also grew: metrics moved from ~8 to ~19 bytes/sample and logs from
+~84 to ~98 bytes/line on disk.
 
 ## Concurrent mixed workload (30 clients)
 
@@ -239,7 +331,7 @@ at roughly 2-second intervals.
 Command (defaults are 30 clients and 60 seconds):
 
 ```sh
-SKOPOS_BENCH_KEEP=1 SKOPOS_BENCH_OUTPUT=/tmp/bench.json ./test/bench/run.sh
+SKOPOS_BENCH_KEEP=1 SKOPOS_BENCH_OUTPUT=/tmp/bench.json ./scripts/bench/run.sh
 ```
 
 Overall result:
@@ -256,7 +348,7 @@ Overall result:
 | p95 | 40,810.87 ms |
 | p99 | 63,039.76 ms |
 | mean | 14,412.90 ms |
-| On disk | 103.7 MiB (108.7 MB) |
+| On disk | 87.1 MiB (91.3 MB) |
 
 Per-query result (latency includes failed requests):
 
@@ -301,7 +393,7 @@ Resource use during the concurrent run:
   clients stopped, the idle gateway container dropped back to roughly 5 MiB,
   so the peak was in-flight buffering rather than a retained leak in this
   short run.
-- **Storage is not the constraint.** The dataset remained at 103.7 MiB on disk;
+- **Storage is not the constraint.** The dataset remained at 87.1 MiB on disk;
   the bottleneck is query compute and the gateway's buffering/response path.
 - **Repeatability is poor at saturation.** A second 60-second run on the same
   warm stack produced 138 requests, 43 errors (31.16%), p50 4,930.14 ms, p95

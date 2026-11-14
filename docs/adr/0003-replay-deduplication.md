@@ -3,7 +3,8 @@
 - Status: Accepted for the v0.1 alpha
 - Date: 2026-11-07
 - Supersedes: none
-- Related: [checkpoint.md](../checkpoint.md), [storage.md](../storage.md)
+- Related: [checkpoint.md](../checkpoint.md), [storage.md](../storage.md),
+  [ADR 0005](0005-obi-wrapper-speed-and-durability.md)
 
 ## Context
 
@@ -28,6 +29,11 @@ original insert block, and OTLP metadata is not carried into ClickHouse rows.
 ## Decisions
 
 ### D1: `ReplacingMergeTree` with a deterministic final sort-key component
+
+This is the default reliable profile. `clickhouse.dedup.enabled=false` opts
+into the fast profile described in [ADR 0005](0005-obi-wrapper-speed-and-durability.md):
+logs and metrics use `MergeTree` without a row hash, and replay is
+at-least-once. Traces keep the identity dedup below in both profiles.
 
 All signal tables use `ReplacingMergeTree`. The existing sort prefix stays for
 partition and primary-key pruning, and the final key component identifies the

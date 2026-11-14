@@ -170,7 +170,7 @@ func TestSequentialMatchesPythonBaseline(t *testing.T) {
 	}
 
 	got := readJSON[sequentialReport](t, out)
-	want := readJSON[sequentialBaseline](t, "testdata/python-sequential.json")
+	want := readJSON[sequentialBaseline](t, "testdata/baseline-sequential.json")
 	if got.Mode != want.Mode || got.Iterations != want.Iterations ||
 		got.Warmup != want.Warmup || got.TraceID != want.TraceID {
 		t.Fatalf("report header = %#v, want %#v", got, want)
@@ -207,7 +207,7 @@ func TestConcurrentMatchesPythonBaseline(t *testing.T) {
 	}
 
 	got := readJSON[concurrentReport](t, out)
-	want := readJSON[concurrentBaseline](t, "testdata/python-concurrent.json")
+	want := readJSON[concurrentBaseline](t, "testdata/baseline-concurrent.json")
 	if got.Mode != want.Mode || got.Concurrency != want.Concurrency ||
 		got.DurationSeconds != want.DurationSeconds || got.Warmup != want.Warmup ||
 		got.TraceID != want.TraceID || got.TotalRequests != want.TotalRequests ||
@@ -255,7 +255,7 @@ func TestConcurrentErrorClassesMatchPython(t *testing.T) {
 		t.Fatalf("run = %d, stderr = %s", code, stderr.String())
 	}
 	got := readJSON[concurrentReport](t, out)
-	want := readJSON[concurrentBaseline](t, "testdata/python-errors.json")
+	want := readJSON[concurrentBaseline](t, "testdata/baseline-errors.json")
 	if got.TotalRequests != want.TotalRequests || got.Errors != want.Errors {
 		t.Fatalf("counts = %d/%d, want %d/%d", got.TotalRequests, got.Errors, want.TotalRequests, want.Errors)
 	}
@@ -285,7 +285,7 @@ func TestConcurrentDroppedConnectionMatchesPython(t *testing.T) {
 		t.Fatalf("run = %d, stderr = %s", code, stderr.String())
 	}
 	got := readJSON[concurrentReport](t, out)
-	want := readJSON[concurrentBaseline](t, "testdata/python-dropped.json")
+	want := readJSON[concurrentBaseline](t, "testdata/baseline-dropped.json")
 	if got.TotalRequests != want.TotalRequests || got.Errors != want.Errors {
 		t.Fatalf("counts = %d/%d, want %d/%d", got.TotalRequests, got.Errors, want.TotalRequests, want.Errors)
 	}
