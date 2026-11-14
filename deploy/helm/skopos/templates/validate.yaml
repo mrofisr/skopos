@@ -4,6 +4,12 @@
 {{- if and .Values.checkpoint.enabled (not .Values.collector.enabled) }}
 {{- fail "checkpoint.enabled=true requires collector.enabled=true" }}
 {{- end }}
+{{- if .Values.collector.enabled }}
+{{- $oldCollector := lookup "apps/v1" "Deployment" .Release.Namespace (include "skopos.collector.fullname" .) }}
+{{- if and $oldCollector $oldCollector.metadata $oldCollector.metadata.name }}
+{{- fail (printf "collector is now a StatefulSet; drain the queue, delete the old Deployment %q, then rerun the upgrade" (include "skopos.collector.fullname" .)) }}
+{{- end }}
+{{- end }}
 {{- if .Values.checkpoint.enabled }}
 {{- $checkpoint := .Values.checkpoint }}
 {{- $s3 := $checkpoint.s3 }}

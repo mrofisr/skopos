@@ -156,6 +156,8 @@ collector:
     tag: 0.164.0
     digest: sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
     pullPolicy: IfNotPresent
+  # StatefulSet replicas. Each replica gets its own disk-backed queue PVC when
+  # sendingQueue.persistence.enabled=true.
   replicas: 1
   service:
     type: ClusterIP
@@ -168,13 +170,20 @@ collector:
     batchMinSize: 5000
     batchFlushTimeout: 5s
     # Disk-backed queue shared by the ClickHouse and checkpoint exporters.
-    # It survives Collector container restarts and, with persistence enabled,
-    # pod rescheduling. The checkpoint WAL remains the durable S3 layer.
+    # Each Collector replica gets its own PVC, so queued batches survive
+    # restarts and rescheduling without multiple writers sharing a volume.
+    # The checkpoint WAL remains the durable S3 layer.
     storageSize: 5Gi
     persistence:
       enabled: true
       size: 5Gi
       storageClass: ""
+      retentionPolicy:
+        # Retain queue PVCs when a replica is deleted or scaled down. This keeps
+        # queued telemetry available for inspection or manual replay; clean them
+        # up explicitly after the outage window.
+        whenDeleted: Retain
+        whenScaled: Retain
   memoryLimiter:
     # Keep the Collector below its 1Gi limit and apply backpressure before the
     # kernel OOM killer can drop in-flight telemetry.
@@ -200,6 +209,14 @@ collector:
     capabilities:
       drop:
         - ALL
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Optional recent-window durability checkpoint. When enabled, the Collector
@@ -297,6 +314,11 @@ checkpoint:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 obi:
@@ -436,6 +458,11 @@ gateway:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Metrics
@@ -478,6 +505,11 @@ frontend:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 # Internal query worker tier (used only when distributed.enabled=true). Worker
@@ -498,6 +530,11 @@ query:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+    minAvailable: ""
   extraEnv: []
 
 networkPolicy:

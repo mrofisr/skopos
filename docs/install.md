@@ -119,6 +119,42 @@ single-binary deployment. `SKOPOS_MODE=worker` is an explicit alias for
 `SKOPOS_MODE=query`; both register the three query heads. ClickHouse remains
 the backend and owns merges/compaction; this is not a ClickHouse HA topology.
 
+### Availability guardrails
+
+The chart adds these by default:
+
+- **PodDisruptionBudget** for gateway, frontend, query, Collector, and
+  checkpoint (`maxUnavailable: 1`). Set `minAvailable` to override it.
+- **Soft hostname topology spread** for any component with more than one
+  replica. Set explicit `topologySpreadConstraints` to override it.
+- **Rolling updates** for stateless components (`maxUnavailable: 0`,
+  `maxSurge: 1`). The Collector StatefulSet updates one replica at a time and
+  each replica owns its queue PVC.
+- **Collector StatefulSet**: each Collector replica gets its own
+  `ReadWriteOnce` queue PVC. `collector.sendingQueue.persistence.enabled=false`
+  uses a per-pod emptyDir instead. Scaling from the old Deployment to this
+  StatefulSet requires deleting the old Deployment after draining its queue;
+  the chart fails the upgrade with that instruction instead of running both
+  workloads. The old `skopos-collector-queue` PVC is not reused; delete it
+  after the new StatefulSet is healthy.
+- ClickHouse is still a single replica. These guardrails do not make it HA.
+
+#### One-time Collector StatefulSet migration
+
+If you are upgrading from a release where the Collector was a Deployment:
+
+1. Wait until the Collector queue is drained (`otelcol_exporter_queue_size`
+   returns to zero).
+2. Delete the old Deployment:
+   ```sh
+   kubectl -n observability delete deployment skopos-collector
+   ```
+3. Run the Helm upgrade. The StatefulSet creates a queue PVC per replica.
+4. Delete the old `skopos-collector-queue` PVC after the new StatefulSet is
+   healthy; it is not reused.
+
+The chart fails the upgrade before step 2 instead of running both workloads.
+
 ## Admission limits
 
 Admission is disabled by default. Set `gateway.config.maxInflight` to bound
@@ -223,7 +259,7 @@ The important values are:
 | `clickhouse.backup.*` | empty | Backup S3 endpoint, bucket, prefix, and credentials. The destination must not overlap the live cold tier. |
 | `checkpoint.enabled` | `false` | Fan out every OTLP signal to the recent-window durability checkpoint. Requires a bucket and credentials; see [checkpoint.md](checkpoint.md). |
 | `collector.sendingQueue.storageSize` | `5Gi` | `emptyDir` size when the queue PVC is disabled. The default is a PVC. |
-| `collector.sendingQueue.persistence.enabled` | `true` | Use a PVC for the Collector's disk-backed queue. Queued batches survive Collector restarts and pod rescheduling. |
+| `collector.sendingQueue.persistence.enabled` | `true` | Give each Collector replica its own PVC for the disk-backed queue. Queued batches survive restarts and pod rescheduling. |
 | `collector.sendingQueue.persistence.size` | `5Gi` | Queue PVC size. Resize it with the StorageClass if ClickHouse outages last longer than the buffer. |
 | `collector.memoryLimiter.limitMiB`, `spikeLimitMiB` | `700`, `100` | Keep the Collector below its memory limit and apply backpressure before the OOM killer. Lower these with a smaller Collector memory limit. |
 | `obi.batch.maxExportBatchSize`, `maxQueueSize` | `2048`, `8192` | OBI's OTLP batch and in-memory queue. Larger values reduce overhead and absorb short Collector stalls. |
@@ -245,6 +281,10 @@ The important values are:
 | `frontend.config.queryTimeout` | `30s` | Per-request proxy timeout. |
 | `frontend.config.readinessTimeout` | `1s` | Frontend probe timeout for query `/readyz`. |
 | `query.replicaCount` | `1` | Internal query worker replicas when distributed. |
+| `*.podDisruptionBudget.enabled` | `true` | PDB for gateway/frontend/query/collector/checkpoint. `maxUnavailable` defaults to 1; set `minAvailable` to override. |
+| `*.topologySpreadConstraints` | `[]` | Explicit spread constraints. When empty and replicas > 1, a soft `kubernetes.io/hostname` spread is rendered. |
+| `collector.replicas` | `1` | Collector StatefulSet replicas. Each replica gets its own queue PVC when persistence is enabled. |
+| `collector.sendingQueue.persistence.retentionPolicy` | `Retain` / `Retain` | Keep queue PVCs when a replica is deleted or scaled down; clean them up explicitly after the outage window. |
 | `gateway.image.digest` | `""` | Release images must set this. |
 | `networkPolicy.enabled` | `true` | Component ingress NetworkPolicies. |
 | `networkPolicy.gateway.allowFrom` | `[{namespaceSelector: {}}]` | Namespace/label selectors allowed to reach the gateway. Empty means no ingress. Tighten this to your Grafana namespace. |

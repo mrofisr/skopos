@@ -112,6 +112,21 @@ On the direct-SQL query benchmark, fast matched or beat ClickStack on every
 query; reliable paid 2-2.8x on log queries and about 15% on metric ranges for
 `FINAL` dedup, while trace timings were unchanged.
 
+### 7. Chart reliability guardrails
+
+The chart now ships:
+
+- PDBs for gateway, frontend, query, Collector, and checkpoint.
+- Soft hostname topology spread when a component has more than one replica.
+- `maxUnavailable: 0` / `maxSurge: 1` rolling updates for stateless
+  components.
+- The Collector is a StatefulSet with one queue PVC per replica. Queue PVCs
+  are retained on scale-down/delete by default. The first upgrade from the old
+  Deployment fails with an instruction to delete it after draining its queue,
+  so two workloads never write the same telemetry path.
+
+These do not make ClickHouse HA; that remains beta scope.
+
 ## Consequences
 
 - New installs get smaller and faster storage without losing replay dedup.
@@ -121,7 +136,7 @@ query; reliable paid 2-2.8x on log queries and about 15% on metric ranges for
   `CREATE TABLE IF NOT EXISTS` does not alter them. The alpha migration script
   handles engine changes only; changing codecs/indexes requires a table
   rebuild, which is acceptable before the first compliant release.
-- The default Collector needs one more PVC. Clusters without a default
+- The default Collector needs one PVC per replica. Clusters without a default
   StorageClass can set `collector.sendingQueue.persistence.enabled=false` and
   keep the emptyDir fallback.
 - Storage is still larger than ClickStack in reliable mode because of the

@@ -640,7 +640,8 @@
               "required": [
                 "enabled",
                 "size",
-                "storageClass"
+                "storageClass",
+                "retentionPolicy"
               ],
               "properties": {
                 "enabled": {
@@ -652,6 +653,30 @@
                 },
                 "storageClass": {
                   "type": "string"
+                },
+                "retentionPolicy": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "whenDeleted",
+                    "whenScaled"
+                  ],
+                  "properties": {
+                    "whenDeleted": {
+                      "type": "string",
+                      "enum": [
+                        "Retain",
+                        "Delete"
+                      ]
+                    },
+                    "whenScaled": {
+                      "type": "string",
+                      "enum": [
+                        "Retain",
+                        "Delete"
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -698,6 +723,54 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "additionalProperties": true
         }
       }
     },
@@ -925,6 +998,37 @@
           "items": {
             "type": "object",
             "additionalProperties": true
+          }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
           }
         }
       }
@@ -1366,6 +1470,37 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
         }
       }
     },
@@ -1512,6 +1647,37 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
         }
       }
     },
@@ -1586,6 +1752,37 @@
           "items": {
             "type": "object",
             "additionalProperties": true
+          }
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "maxUnavailable",
+            "minAvailable"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minAvailable": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
           }
         }
       }

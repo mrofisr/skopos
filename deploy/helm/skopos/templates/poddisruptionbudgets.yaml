@@ -1,0 +1,95 @@
+{{- if and .Values.gateway.enabled (not .Values.distributed.enabled) .Values.gateway.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skopos.gateway.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  {{- with .Values.gateway.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- else }}
+  maxUnavailable: {{ .Values.gateway.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "gateway") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.gateway.enabled .Values.distributed.enabled .Values.frontend.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skopos.frontend.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  {{- with .Values.frontend.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- else }}
+  maxUnavailable: {{ .Values.frontend.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.gateway.enabled .Values.distributed.enabled .Values.query.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skopos.query.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: query
+spec:
+  {{- with .Values.query.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- else }}
+  maxUnavailable: {{ .Values.query.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "query") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.collector.enabled .Values.collector.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skopos.collector.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  {{- with .Values.collector.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- else }}
+  maxUnavailable: {{ .Values.collector.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "collector") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.checkpoint.enabled .Values.checkpoint.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skopos.checkpoint.fullname" . }}
+  labels:
+    {{- include "skopos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: checkpoint
+spec:
+  {{- with .Values.checkpoint.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ . }}
+  {{- else }}
+  maxUnavailable: {{ .Values.checkpoint.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" . "component" "checkpoint") | nindent 6 }}
+---
+{{- end }}

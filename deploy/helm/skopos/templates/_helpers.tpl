@@ -48,12 +48,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: {{ $component }}
 {{- end }}
 
+{{- define "skopos.topologySpread" -}}
+{{- if .constraints -}}
+{{- toYaml .constraints -}}
+{{- else if gt (int .replicas) 1 -}}
+- maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+  labelSelector:
+    matchLabels:
+      {{- include "skopos.componentLabels" (dict "root" .root "component" .component) | nindent 6 }}
+{{- end -}}
+{{- end }}
+
 {{- define "skopos.clickhouse.fullname" -}}
 {{- printf "%s-clickhouse" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{- define "skopos.collector.fullname" -}}
 {{- printf "%s-collector" (include "skopos.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "skopos.collector.headlessName" -}}
+{{- printf "%s-headless" (include "skopos.collector.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{- define "skopos.checkpoint.fullname" -}}

@@ -45,6 +45,10 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with include "skopos.topologySpread" (dict "root" . "component" "checkpoint" "replicas" .Values.checkpoint.replicas "constraints" .Values.checkpoint.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
+      {{- end }}
       containers:
         - name: checkpoint
           # The Skopos image entrypoint is /skopos; SKOPOS_MODE selects the

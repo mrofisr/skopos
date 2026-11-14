@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: frontend
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       {{- include "skopos.componentLabels" (dict "root" . "component" "frontend") | nindent 6 }}
@@ -34,6 +39,10 @@ spec:
       {{- with .Values.frontend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with include "skopos.topologySpread" (dict "root" . "component" "frontend" "replicas" .Values.frontend.replicaCount "constraints" .Values.frontend.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- . | nindent 8 }}
       {{- end }}
       containers:
         - name: frontend
