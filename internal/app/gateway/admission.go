@@ -13,8 +13,9 @@ import (
 const admissionRetryAfterSeconds = "1"
 
 type admissionMiddleware struct {
-	limiters map[string]*admission.Limiter
-	metrics  *metrics.HTTP
+	limiters      map[string]*admission.Limiter
+	metrics       *metrics.HTTP
+	pointsPerSlot int
 }
 
 // newAdmissionMiddleware builds one limiter per query head. A zero in-flight
@@ -24,8 +25,9 @@ func newAdmissionMiddleware(cfg config.Config, httpMetrics *metrics.HTTP) (*admi
 		return nil, nil
 	}
 	middleware := &admissionMiddleware{
-		limiters: make(map[string]*admission.Limiter, 3),
-		metrics:  httpMetrics,
+		limiters:      make(map[string]*admission.Limiter, 3),
+		metrics:       httpMetrics,
+		pointsPerSlot: cfg.PointsPerSlot,
 	}
 	for _, head := range []string{"prom", "loki", "tempo"} {
 		limiter, err := admission.New(cfg.MaxInflight, cfg.QueueDepth, cfg.QueueWait)
@@ -51,7 +53,7 @@ func (a *admissionMiddleware) Wrap(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		release, err := limiter.Acquire(r.Context())
+		release, err := limiter.AcquireWeight(r.Context(), requestCost(r.URL.Path, r.URL.Query(), a.pointsPerSlot))
 		if err != nil {
 			if errors.Is(err, admission.ErrRejected) {
 				a.writeRejection(w, head)

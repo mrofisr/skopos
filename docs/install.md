@@ -164,13 +164,20 @@ the cap, or to `0` to disable admission. `gateway.config.queueDepth` and
 `gateway.config.queueWaitSeconds` add a bounded FIFO wait queue and must be set
 together. The chart rejects a queue without an in-flight cap.
 
+Range requests consume budget in proportion to their evaluated points:
+`ceil(points / gateway.config.pointsPerSlot)` units, with a minimum of one.
+Instant queries cost one unit. The default `pointsPerSlot: 100` means a 6-hour
+range at a 60-second step costs four units, so a few ranges cannot starve
+instant queries. Set `pointsPerSlot: 0` to disable cost weighting.
+
 ```sh
 helm upgrade --install skopos ./deploy/helm/skopos \
   --namespace observability \
   --set gateway.enabled=true \
   --set gateway.config.maxInflight=16 \
   --set gateway.config.queueDepth=32 \
-  --set gateway.config.queueWaitSeconds=2
+  --set gateway.config.queueWaitSeconds=2 \
+  --set gateway.config.pointsPerSlot=100
 ```
 
 The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and

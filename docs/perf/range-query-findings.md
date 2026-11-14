@@ -216,18 +216,23 @@ next planning pass decides which ones serve an exit criterion.
 - Done when: the 30-client mixed workload keeps the gateway under its chart
   memory limit with `maxInflight` disabled.
 
-### AX-64 Cost-aware admission
+### AX-64 Cost-aware admission (implemented)
 
-- Blocked by: AX-39.
-- Weight admitted work by estimated points (`(end-start)/step`) instead of one
-  slot per request, so cheap instant queries are not blocked behind ranges.
-- Red tests: a 6 h range consumes more budget than an instant query; a range
-  over the budget is rejected with 429 and `Retry-After`; instant queries still
-  pass while ranges queue.
-- Edge and negative: unknown step uses a conservative default; a zero
-  `maxInflight` disables the budget as it disables admission today.
-- Done when: under 30 clients the instant-query p95 stays within its
-  single-client envelope.
+- Implemented in `internal/admission` and `internal/app/gateway/cost.go`:
+  range requests cost `ceil(points / gateway.config.pointsPerSlot)` units,
+  instant requests cost one, and cheap waiters are granted before heavy ones.
+  A range whose cost exceeds the whole budget is rejected immediately with the
+  head's 429/503 and `Retry-After`.
+- Tests: `TestWeightedLimiter*`, `TestRequestCost`, and
+  `TestAdmissionRejectsRangeOverBudgetButAllowsInstant`.
+- Edge and negative: invalid or missing range parameters fall back to weight
+  one so the handler returns its normal 400; `pointsPerSlot: 0` disables cost
+  weighting; `maxInflight: 0` disables admission.
+- Remaining: on the saturated reference host the 30-client instant-query p95
+  is still above its single-client envelope (about 0.7-1.5 s versus ~17 ms),
+  but instant queries had zero errors while all 249 rejections were the
+  over-budget 6-hour range. The original AX-64 done criterion stays open until
+  capacity or scheduling improves.
 
 ### AX-65 Typed limit errors
 

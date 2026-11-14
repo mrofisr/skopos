@@ -145,20 +145,21 @@ run in the normal Go test job without Docker.
 <!-- BEGIN GENERATED BENCH GATE -->
 | Metric | Value |
 | --- | ---: |
-| Requests | 1619 |
-| Errors | 5 |
+| Requests | 3016 |
+| Errors | 249 |
 | Transport errors | 0 |
-| Deliberate rejections | 5 |
+| Deliberate rejections | 249 |
 | Unexpected statuses | 0 |
 | Missing Retry-After | 0 |
 | Gate | **pass** |
 <!-- END GENERATED BENCH GATE -->
 
-The gate run above used the chart admission defaults (16 in-flight, 32 queued,
-2 s wait). The five errors were deliberate 503s with `Retry-After`; there were
-zero transport errors and the gateway peaked at 1.2 GiB against the 1.5 GiB
-limit. The 17.81% error baseline in the earlier concurrency section predates
-the deadline and admission changes.
+The gate run above used the chart admission defaults (16 slots, 32 queued,
+2 s wait, 100 points per slot). All 249 rejections were deliberate 503s on the
+6-hour range query; instant queries had zero errors, there were zero transport
+errors, and the gateway peaked at 382 MiB against the 1.5 GiB limit. The
+17.81% error baseline in the earlier concurrency section predates the deadline
+and admission changes.
 
 ## Interpretation
 

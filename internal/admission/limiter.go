@@ -12,8 +12,8 @@ import (
 // ErrRejected means the limiter had no free slot and no usable wait queue.
 var ErrRejected = errors.New("admission: request rejected")
 
-// Limiter bounds the number of in-flight requests and the number waiting for a
-// slot. A zero queue or a zero wait turns excess requests away immediately.
+// Limiter bounds weighted in-flight work and the number waiting for budget.
+// A zero queue or a zero wait turns excess requests away immediately.
 type Limiter struct {
 	mu       sync.Mutex
 	capacity int
@@ -26,6 +26,7 @@ type Limiter struct {
 type waiter struct {
 	ch      chan struct{}
 	granted bool
+	weight  int
 	element *list.Element
 }
 
@@ -49,21 +50,33 @@ func New(capacity, queue int, wait time.Duration) (*Limiter, error) {
 	}, nil
 }
 
-// Acquire takes a slot, waiting up to the configured wait. The returned
-// release is idempotent and must be called once the work is done; defer it so
-// a panic cannot leak a slot.
+// Acquire takes one unit of budget, waiting up to the configured wait. The
+// returned release is idempotent and must be called once the work is done;
+// defer it so a panic cannot leak budget.
 func (l *Limiter) Acquire(ctx context.Context) (func(), error) {
+	return l.AcquireWeight(ctx, 1)
+}
+
+// AcquireWeight takes weight units of budget. A request whose weight exceeds
+// the total capacity is rejected immediately; it could never fit.
+func (l *Limiter) AcquireWeight(ctx context.Context, weight int) (func(), error) {
+	if weight < 1 {
+		weight = 1
+	}
+	if weight > l.capacity {
+		return nil, ErrRejected
+	}
 	l.mu.Lock()
-	if l.inflight < l.capacity {
-		l.inflight++
+	if l.inflight+weight <= l.capacity {
+		l.inflight += weight
 		l.mu.Unlock()
-		return l.releaser(), nil
+		return l.releaser(weight), nil
 	}
 	if l.queueMax <= 0 || l.wait <= 0 || l.waiters.Len() >= l.queueMax {
 		l.mu.Unlock()
 		return nil, ErrRejected
 	}
-	pending := &waiter{ch: make(chan struct{}, 1)}
+	pending := &waiter{ch: make(chan struct{}, 1), weight: weight}
 	pending.element = l.waiters.PushBack(pending)
 	l.mu.Unlock()
 
@@ -71,7 +84,7 @@ func (l *Limiter) Acquire(ctx context.Context) (func(), error) {
 	defer timer.Stop()
 	select {
 	case <-pending.ch:
-		return l.releaser(), nil
+		return l.releaser(weight), nil
 	case <-timer.C:
 		return nil, l.abandon(pending, ErrRejected)
 	case <-ctx.Done():
@@ -93,25 +106,46 @@ func (l *Limiter) Queued() int {
 	return l.waiters.Len()
 }
 
-func (l *Limiter) releaser() func() {
+func (l *Limiter) releaser(weight int) func() {
 	var once sync.Once
 	return func() {
-		once.Do(l.releaseSlot)
+		once.Do(func() { l.release(weight) })
 	}
 }
 
-func (l *Limiter) releaseSlot() {
+func (l *Limiter) release(weight int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if front := l.waiters.Front(); front != nil {
-		pending := front.Value.(*waiter)
-		l.waiters.Remove(front)
+	l.inflight -= weight
+	// Prefer one-unit waiters so cheap instant queries cannot be starved by a
+	// backlog of range queries. Then admit any heavier waiter that now fits.
+	for {
+		pending := l.nextWaiterLocked()
+		if pending == nil {
+			return
+		}
+		l.waiters.Remove(pending.element)
 		pending.element = nil
 		pending.granted = true
+		l.inflight += pending.weight
 		pending.ch <- struct{}{}
-		return
 	}
-	l.inflight--
+}
+
+func (l *Limiter) nextWaiterLocked() *waiter {
+	for element := l.waiters.Front(); element != nil; element = element.Next() {
+		pending := element.Value.(*waiter)
+		if pending.weight == 1 && l.inflight+1 <= l.capacity {
+			return pending
+		}
+	}
+	for element := l.waiters.Front(); element != nil; element = element.Next() {
+		pending := element.Value.(*waiter)
+		if l.inflight+pending.weight <= l.capacity {
+			return pending
+		}
+	}
+	return nil
 }
 
 // abandon removes a waiter that timed out or was cancelled. If a release
@@ -125,7 +159,7 @@ func (l *Limiter) abandon(pending *waiter, reason error) error {
 	}
 	l.mu.Unlock()
 	if wasGranted {
-		l.releaseSlot()
+		l.release(pending.weight)
 	}
 	return reason
 }

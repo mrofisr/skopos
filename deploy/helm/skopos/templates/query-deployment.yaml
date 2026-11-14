@@ -137,6 +137,8 @@ spec:
               value: {{ .Values.gateway.config.queueDepth | quote }}
             - name: SKOPOS_QUEUE_WAIT
               value: {{ printf "%ds" (int64 .Values.gateway.config.queueWaitSeconds) | quote }}
+            - name: SKOPOS_POINTS_PER_SLOT
+              value: {{ .Values.gateway.config.pointsPerSlot | quote }}
             {{- end }}
             - name: SKOPOS_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}

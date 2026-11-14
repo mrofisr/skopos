@@ -410,3 +410,23 @@ func TestFromEnvReadsProfile(t *testing.T) {
 		t.Fatal("FromEnv did not read SKOPOS_PROFILE")
 	}
 }
+
+func TestPointsPerSlot(t *testing.T) {
+	cfg, err := FromLookup(lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PointsPerSlot != 100 {
+		t.Fatalf("PointsPerSlot = %d, want 100", cfg.PointsPerSlot)
+	}
+	cfg, err = FromLookup(lookupFrom(map[string]string{"SKOPOS_POINTS_PER_SLOT": "250"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PointsPerSlot != 250 {
+		t.Fatalf("PointsPerSlot = %d, want 250", cfg.PointsPerSlot)
+	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_POINTS_PER_SLOT": "-1"})); err == nil {
+		t.Fatal("PointsPerSlot accepted a negative value")
+	}
+}

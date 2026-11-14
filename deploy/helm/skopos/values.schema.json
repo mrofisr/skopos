@@ -1391,6 +1391,10 @@
               "type": "integer",
               "minimum": 0
             },
+            "pointsPerSlot": {
+              "type": "integer",
+              "minimum": 0
+            },
             "metadataTTL": {
               "type": "string",
               "pattern": "^[0-9]+(ms|s|m|h)$"

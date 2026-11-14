@@ -417,6 +417,9 @@ gateway:
     maxInflight: 16
     queueDepth: 32
     queueWaitSeconds: 2
+    # Range requests consume ceil(points / pointsPerSlot) units; instant
+    # requests consume one. Set 0 to disable cost weighting.
+    pointsPerSlot: 100
     # Cache metric discovery, table emptiness, and metadata.
     metadataTTL: 30s
     # Expose the auth-protected /debug/pprof routes. Off by default.

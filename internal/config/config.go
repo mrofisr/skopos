@@ -58,6 +58,7 @@ type Config struct {
 	MaxInflight        int
 	QueueDepth         int
 	QueueWait          time.Duration
+	PointsPerSlot      int
 	MetadataTTL        time.Duration
 	QueryURLs          []string
 	QueryTimeout       time.Duration
@@ -97,6 +98,7 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		MaxInflight:        0,
 		QueueDepth:         0,
 		QueueWait:          0,
+		PointsPerSlot:      100,
 		MetadataTTL:        30 * time.Second,
 		QueryTimeout:       30 * time.Second,
 		LogLevel:           slog.LevelInfo,
@@ -185,6 +187,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.QueueWait, err = durationEnv(lookup, "SKOPOS_QUEUE_WAIT", cfg.QueueWait); err != nil {
 		return Config{}, err
 	}
+	if cfg.PointsPerSlot, err = intValueEnv(lookup, "SKOPOS_POINTS_PER_SLOT", cfg.PointsPerSlot); err != nil {
+		return Config{}, err
+	}
 	if cfg.MetadataTTL, err = durationEnv(lookup, "SKOPOS_METADATA_TTL", cfg.MetadataTTL); err != nil {
 		return Config{}, err
 	}
@@ -266,8 +271,8 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.MaxQueryRange <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_MAX_QUERY_RANGE: must be positive")
 	}
-	if cfg.MaxInflight < 0 || cfg.QueueDepth < 0 || cfg.QueueWait < 0 {
-		return Config{}, fmt.Errorf("SKOPOS_MAX_INFLIGHT, SKOPOS_QUEUE_DEPTH, and SKOPOS_QUEUE_WAIT must not be negative")
+	if cfg.MaxInflight < 0 || cfg.QueueDepth < 0 || cfg.QueueWait < 0 || cfg.PointsPerSlot < 0 {
+		return Config{}, fmt.Errorf("SKOPOS_MAX_INFLIGHT, SKOPOS_QUEUE_DEPTH, SKOPOS_QUEUE_WAIT, and SKOPOS_POINTS_PER_SLOT must not be negative")
 	}
 	if cfg.MaxInflight == 0 && (cfg.QueueDepth > 0 || cfg.QueueWait > 0) {
 		return Config{}, fmt.Errorf("SKOPOS_QUEUE_DEPTH and SKOPOS_QUEUE_WAIT require SKOPOS_MAX_INFLIGHT")
