@@ -128,7 +128,10 @@ The producers are:
 | 7 | `make alpha-exit-check` | Scope checks, then the aggregate check |
 
 EC1-EC3 need Docker; EC5 needs `cosign`, `gh`, `helm`, `k3d`, `kubectl`, and a
-published release whose tag matches the README quickstart version.
+published release whose tag matches the README quickstart version. EC2 runs
+the current PromQL, LogQL, TraceQL, Tempo, and cerberus seed checks; the retired
+end-to-end three-way harness remains the recorded baseline in
+[cerberus-baseline.md](cerberus-baseline.md), not a live re-run.
 
 `repoctl evidence run` executes one gate and writes pass/fail evidence;
 `repoctl evidence record` writes pass evidence after a compound Make target
