@@ -7,7 +7,7 @@ VERSION ?= 0.1.0-alpha.2
 LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
 
-.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
@@ -15,6 +15,7 @@ help:
 		'test              run unit tests' \
 		'test-race         run unit tests with the race detector' \
 		'test-integration  run integration tests (requires CLICKHOUSE_URL)' \
+		'test-faults       run the Docker Collector/ClickHouse restart test' \
 		'fuzz              run the SQL emitter fuzz target for 30s' \
 		'vet               run go vet' \
 		'vuln              run govulncheck' \
@@ -94,6 +95,9 @@ bench:
 
 bench-gate:
 	SKOPOS_BENCH_GATE=1 ./scripts/bench/run.sh
+
+test-faults:
+	SKOPOS_FAULTS_TEST=1 $(GO) test ./test/integration/faults -count=1 -v
 
 profile-range:
 	./scripts/bench/profile-range.sh

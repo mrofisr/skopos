@@ -205,7 +205,7 @@ func TestCommittedConfigMatchesJobs(t *testing.T) {
 	}
 	// The config must cover every ci.yml job name. This list is the contract
 	// from docs/ci-contract.md; adding a job without a path group fails here.
-	want := []string{"cerberus", "compat", "coverage", "docker", "go", "helm", "integration", "policy", "storage"}
+	want := []string{"cerberus", "compat", "coverage", "docker", "faults", "go", "helm", "integration", "policy", "storage"}
 	names := rules.JobNames()
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Fatalf("ci-paths jobs = %v, want %v", names, want)

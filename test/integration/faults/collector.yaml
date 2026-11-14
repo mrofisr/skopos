@@ -1,0 +1,50 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14317
+      http:
+        endpoint: 0.0.0.0:14318
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13134
+  file_storage:
+    directory: /var/lib/otelcol/storage
+    timeout: 2s
+
+exporters:
+  # The test runs a controllable OTLP/HTTP sink on the host.
+  otlp_http:
+    endpoint: http://127.0.0.1:19090
+    encoding: proto
+    compression: none
+    timeout: 1s
+    sending_queue:
+      enabled: true
+      storage: file_storage
+      num_consumers: 1
+      queue_size: 10000
+      sizer: items
+      batch:
+        min_size: 1
+        flush_timeout: 100ms
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 1s
+      max_elapsed_time: 0s
+
+service:
+  extensions:
+    - health_check
+    - file_storage
+  pipelines:
+    logs:
+      receivers:
+        - otlp
+      exporters:
+        - otlp_http
+  telemetry:
+    logs:
+      level: warn

@@ -411,11 +411,12 @@ gateway:
     maxResponseBytes: 67108864
     readinessTimeout: 2s
     maxRequestBytes: 1048576
-    # Admission limits. Zero maxInflight disables admission. queueDepth and
-    # queueWaitSeconds must be set together and require maxInflight.
-    maxInflight: 0
-    queueDepth: 0
-    queueWaitSeconds: 0
+    # Admission limits, per query head. The chart enables a conservative
+    # default so a burst is rejected with 429/503 + Retry-After instead of
+    # growing gateway memory. Set maxInflight to 0 to disable admission.
+    maxInflight: 16
+    queueDepth: 32
+    queueWaitSeconds: 2
     # Cache metric discovery, table emptiness, and metadata.
     metadataTTL: 30s
     # Expose the auth-protected /debug/pprof routes. Off by default.

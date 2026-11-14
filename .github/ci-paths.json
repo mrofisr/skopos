@@ -89,6 +89,9 @@
     "docker": [
       "go",
       "docker"
+    ],
+    "faults": [
+      "go"
     ]
   }
 }

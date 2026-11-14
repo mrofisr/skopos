@@ -151,9 +151,8 @@ Follow-up: **AX-63**, below.
 Admission (`SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, `SKOPOS_QUEUE_WAIT`)
 gives a 361-point range query the same slot as an instant query even though it
 decodes 72x more samples (720 per series instead of 10 for a five-minute
-instant query). The chart default disables admission
-(`maxInflight: 0`), so nothing bounds the number of expensive ranges; when it
-is enabled, a few ranges occupy every slot and instant queries queue behind
+instant query). The chart now defaults to 16 in-flight / 32 queued / 2 s wait,
+so expensive ranges can occupy every slot and instant queries queue behind
 them. The only per-request guard is `SKOPOS_QUERY_TIMEOUT` (30 s), which turns
 saturation into 503s instead of shedding cheap work first.
 

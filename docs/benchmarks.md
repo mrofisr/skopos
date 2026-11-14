@@ -144,8 +144,18 @@ run in the normal Go test job without Docker.
 <!-- BEGIN GENERATED BENCH GATE -->
 | Metric | Value |
 | --- | ---: |
-| Status | not run |
+| Requests | 1405 |
+| Errors | 0 |
+| Transport errors | 0 |
+| Deliberate rejections | 0 |
+| Unexpected statuses | 0 |
+| Missing Retry-After | 0 |
+| Gate | **pass** |
 <!-- END GENERATED BENCH GATE -->
+
+The gate run above used the chart admission defaults (16 in-flight, 32 queued,
+2 s wait). The 17.81% error baseline in the earlier concurrency section
+predates the deadline and admission changes.
 
 ## Interpretation
 

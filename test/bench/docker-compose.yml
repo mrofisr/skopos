@@ -55,6 +55,10 @@ services:
       SKOPOS_CLICKHOUSE_PASSWORD: ${SKOPOS_BENCH_GATEWAY_PASSWORD:-skopos-bench-password}
       SKOPOS_LOG_LEVEL: warn
       SKOPOS_PROFILE: ${SKOPOS_BENCH_PROFILE:-false}
+      # Mirror the chart's admission defaults so the gate exercises them.
+      SKOPOS_MAX_INFLIGHT: ${SKOPOS_BENCH_MAX_INFLIGHT:-16}
+      SKOPOS_QUEUE_DEPTH: ${SKOPOS_BENCH_QUEUE_DEPTH:-32}
+      SKOPOS_QUEUE_WAIT: ${SKOPOS_BENCH_QUEUE_WAIT:-2s}
     ports:
       - "${SKOPOS_BENCH_GATEWAY_PORT:-28082}:8080"
 

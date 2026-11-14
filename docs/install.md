@@ -135,7 +135,8 @@ The chart adds these by default:
   uses a per-pod emptyDir instead. Scaling from the old Deployment to this
   StatefulSet requires deleting the old Deployment after draining its queue;
   the chart fails the upgrade with that instruction instead of running both
-  workloads. The old `skopos-collector-queue` PVC is not reused; delete it
+  workloads. `make test-faults` proves the queue survives a backend outage and
+  a Collector restart. The old `skopos-collector-queue` PVC is not reused; delete it
   after the new StatefulSet is healthy.
 - ClickHouse is still a single replica. These guardrails do not make it HA.
 
@@ -157,8 +158,9 @@ The chart fails the upgrade before step 2 instead of running both workloads.
 
 ## Admission limits
 
-Admission is disabled by default. Set `gateway.config.maxInflight` to bound
-concurrent requests per query head; `gateway.config.queueDepth` and
+Admission is enabled by default in the chart: **16 in-flight requests per query
+head, 32 queued, 2-second wait**. Set `gateway.config.maxInflight` to change
+the cap, or to `0` to disable admission. `gateway.config.queueDepth` and
 `gateway.config.queueWaitSeconds` add a bounded FIFO wait queue and must be set
 together. The chart rejects a queue without an in-flight cap.
 
@@ -167,7 +169,7 @@ helm upgrade --install skopos ./deploy/helm/skopos \
   --namespace observability \
   --set gateway.enabled=true \
   --set gateway.config.maxInflight=16 \
-  --set gateway.config.queueDepth=16 \
+  --set gateway.config.queueDepth=32 \
   --set gateway.config.queueWaitSeconds=2
 ```
 
