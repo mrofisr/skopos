@@ -25,7 +25,7 @@ of the beta work below starts.
 | `helm lint` + render | **Passed** | Helm 3.22.1 and 4.3.1; CI renders default, overrides, digest-pinned gateway, distributed frontend/query, and storage/backup shapes. | — |
 | Real OBI e2e | **Passed on host** | `make e2e-obi`: real OBI v1.0.0, kernel 6.18, BTF/tracefs, metrics + traces + Tempo search/trace/tags + v2 protobuf. | GitHub-hosted runners cannot provide privileged eBPF; keep manual or use a privileged runner/VM. |
 | Compression and latency | **Measured** | `docs/benchmarks.md`: 19.10 B/metric sample, 97.76 B/log line, 20.62 B/span; fast profile 48.93 MiB total; p95 table. | Re-run on reference hardware and with real customer cardinality. |
-| Release signing/publishing | **Implemented; alpha.2 published** | The release workflow is tag-only, verifies the tag is on `main`, and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) and OCI chart with keyless Sigstore signatures, SBOM/provenance attestations, and an immutable GitHub release. `v0.1.0-alpha.2` is published as a prerelease; `development` is ahead of that tag. | Publish and verify a fresh exit-candidate release from `main`; the current release predates the monitoring, restore-drill, and multi-arch work. |
+| Release signing/publishing | **Implemented; alpha.3 published** | The release workflow is tag-only, verifies the tag is on `main`, and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) and OCI chart with keyless Sigstore signatures, SBOM/provenance attestations, and an immutable GitHub release. `v0.1.0-alpha.3` is published as a prerelease. | Run `make release-evidence TAG=v0.1.0-alpha.3` and the README quickstart from a clean machine to complete EC5, then record EC7. |
 
 ## Signals and storage evidence
 
