@@ -2,7 +2,6 @@
 /dist/
 /test/bench/out/
 /test/quality/evidence/
-/docs/alpha-exit-report.md
 /mutation.json
 *.test
 *.out

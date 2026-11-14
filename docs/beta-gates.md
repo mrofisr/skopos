@@ -5,8 +5,10 @@ no compatibility guarantee; a gate is only "passed" when the evidence below is
 reproducible on the pinned references.
 
 Alpha exit is governed separately by the
-[alpha exit plan](alpha-exit-plan.md): its seven criteria must pass before any
-of the beta work below starts.
+[alpha exit plan](alpha-exit-plan.md): its seven criteria passed **7/7** at
+commit `2d47804` on `v0.0.1-alpha`. The generated table is in
+[alpha-exit-report.md](alpha-exit-report.md). Beta work starts from this
+recorded exit.
 
 | Gate | Status | Evidence | Remaining work |
 | --- | --- | --- | --- |
@@ -25,7 +27,7 @@ of the beta work below starts.
 | `helm lint` + render | **Passed** | Helm 3.22.1 and 4.3.1; CI renders default, overrides, digest-pinned gateway, distributed frontend/query, and storage/backup shapes. | — |
 | Real OBI e2e | **Passed on host** | `make e2e-obi`: real OBI v1.0.0, kernel 6.18, BTF/tracefs, metrics + traces + Tempo search/trace/tags + v2 protobuf. | GitHub-hosted runners cannot provide privileged eBPF; keep manual or use a privileged runner/VM. |
 | Compression and latency | **Measured** | `docs/benchmarks.md`: 19.10 B/metric sample, 97.76 B/log line, 20.62 B/span; fast profile 48.93 MiB total; p95 table. | Re-run on reference hardware and with real customer cardinality. |
-| Release signing/publishing | **Fresh release pending** | The release workflow is tag-only, verifies the tag is on `main`, and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) and OCI chart with keyless Sigstore signatures, SBOM/provenance attestations, and an immutable GitHub release. The repository moved to `mrofisr/skopos`; `v0.0.1-alpha` is the first release from the new history. | Publish and verify `v0.0.1-alpha`; run `make release-evidence TAG=v0.0.1-alpha`, then record EC5/EC7. |
+| Release signing/publishing | **Implemented; v0.0.1-alpha published** | The release workflow is tag-only, verifies the tag is on `main`, and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) and OCI chart with keyless Sigstore signatures, SBOM/provenance attestations, and an immutable GitHub release. `v0.0.1-alpha` is the first release from `mrofisr/skopos`; EC5 passed. | — |
 
 ## Signals and storage evidence
 
