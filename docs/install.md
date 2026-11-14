@@ -203,6 +203,59 @@ ingress; it does not protect the checkpoint endpoint or ClickHouse. Bearer
 tokens over plaintext are visible to anything that can sniff the network — use
 TLS at the ingress or mTLS for untrusted networks.
 
+### TLS and mTLS
+
+TLS is also off by default. The Secret must contain:
+
+| Key | Purpose |
+| --- | --- |
+| `tls.crt` | Collector server certificate |
+| `tls.key` | Collector server private key |
+| `ca.crt` | CA used to verify the server (and clients for mTLS) |
+| `client.crt` | OBI client certificate, required for mTLS |
+| `client.key` | OBI client private key, required for mTLS |
+
+The server certificate's SANs must include the Collector service DNS name,
+for example `skopos-collector` and
+`skopos-collector.observability.svc`.
+
+```sh
+kubectl -n observability create secret generic skopos-otlp-tls \
+  --from-file=tls.crt=server.crt \
+  --from-file=tls.key=server.key \
+  --from-file=ca.crt=ca.crt \
+  --from-file=client.crt=client.crt \
+  --from-file=client.key=client.key
+
+helm upgrade --install skopos ./deploy/helm/skopos \
+  --namespace observability \
+  --set collector.tls.enabled=true \
+  --set collector.tls.existingSecret=skopos-otlp-tls \
+  --set collector.tls.mtls=true
+```
+
+With TLS enabled, OBI switches to `https://skopos-collector:4317`, trusts
+`ca.crt`, and presents the client certificate when `mtls=true`. External
+senders must do the same:
+
+```sh
+curl -X POST https://skopos-collector:4318/v1/logs \
+  --cacert ca.crt \
+  --cert client.crt --key client.key \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer change-me' \
+  --data-binary @logs.json
+```
+
+Without a client certificate, the TLS handshake fails. With a client
+certificate but no token, the Collector returns **401**. The server reloads its
+certificate every 10 minutes; restart OBI after rotating the client
+certificate.
+
+TLS-only (without `mtls`) still encrypts traffic and verifies the server, but
+does not authenticate clients. mTLS is the recommended setting for untrusted
+networks.
+
 ## Admission limits
 
 Admission is enabled by default in the chart: **16 in-flight requests per query
@@ -322,6 +375,9 @@ The important values are:
 | `collector.otlpAuth.enabled` | `false` | Require a bearer token on OTLP/gRPC and OTLP/HTTP ingress. |
 | `collector.otlpAuth.existingSecret` | `""` | Secret with `token` and `otlp-headers` keys (names configurable). Preferred over inline tokens. |
 | `collector.otlpAuth.token` | `""` | Inline token, rendered into a Secret. The chart also creates the `otlp-headers` value for OBI. |
+| `collector.tls.enabled` | `false` | Serve OTLP over TLS. Requires `collector.tls.existingSecret` with `tls.crt`, `tls.key`, and `ca.crt`. |
+| `collector.tls.mtls` | `false` | Require a client certificate signed by `ca.crt`; OBI uses `client.crt`/`client.key`. |
+| `collector.tls.minVersion` | `1.2` | Minimum TLS version (`1.2` or `1.3`). |
 | `obi.batch.maxExportBatchSize`, `maxQueueSize` | `2048`, `8192` | OBI's OTLP batch and in-memory queue. Larger values reduce overhead and absorb short Collector stalls. |
 | `checkpoint.persistence.size` | `2Gi` | Per-replica WAL PVC. Keep it above `checkpoint.maxLocalBytes` plus filesystem reserve. |
 | `checkpoint.sealBytes`, `sealInterval` | `8388608`, `15s` | Seal the active segment on size or age. The unshipped window is bounded by `max(sealBytes, arrival_rate * sealInterval)`. |

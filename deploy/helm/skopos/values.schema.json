@@ -525,6 +525,7 @@
         "sendingQueue",
         "memoryLimiter",
         "otlpAuth",
+        "tls",
         "resources",
         "podSecurityContext",
         "securityContext",
@@ -733,6 +734,34 @@
             "headersKey": {
               "type": "string",
               "minLength": 1
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "existingSecret",
+            "mtls",
+            "minVersion"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "mtls": {
+              "type": "boolean"
+            },
+            "minVersion": {
+              "type": "string",
+              "enum": [
+                "1.2",
+                "1.3"
+              ]
             }
           }
         },

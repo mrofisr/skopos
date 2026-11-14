@@ -108,12 +108,22 @@ spec:
               mountPath: /tmp
             - name: queue
               mountPath: /var/lib/otelcol/storage
+            {{- if .Values.collector.tls.enabled }}
+            - name: tls
+              mountPath: /etc/otelcol/tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "skopos.collector.fullname" . }}-config
         - name: tmp
           emptyDir: {}
+        {{- if .Values.collector.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.collector.tls.existingSecret }}
+        {{- end }}
         {{- if not .Values.collector.sendingQueue.persistence.enabled }}
         - name: queue
           emptyDir:

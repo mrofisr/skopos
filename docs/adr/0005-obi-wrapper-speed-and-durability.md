@@ -138,6 +138,16 @@ the Collector and OBI because the extension reads the environment at startup.
 Plaintext bearer tokens are only safe on a trusted network; TLS/mTLS is the
 next guardrail.
 
+### 9. TLS/mTLS for OTLP
+
+`collector.tls.enabled=true` serves OTLP over TLS with a server certificate
+from `collector.tls.existingSecret`; `collector.tls.mtls=true` adds
+`client_ca_file` and requires a client certificate. OBI switches to `https://`,
+trusts `ca.crt`, and presents `client.crt`/`client.key` for mTLS. The server
+reloads its certificate every 10 minutes; client-certificate rotation requires
+an OBI restart. The Secret keys are fixed and documented so certificate
+management stays outside the chart.
+
 ## Consequences
 
 - New installs get smaller and faster storage without losing replay dedup.

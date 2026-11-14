@@ -18,6 +18,9 @@
 {{- fail "collector.otlpAuth.enabled=true requires collector.otlpAuth.existingSecret or collector.otlpAuth.token" }}
 {{- end }}
 {{- end }}
+{{- if and .Values.collector.tls.enabled (not .Values.collector.tls.existingSecret) }}
+{{- fail "collector.tls.enabled=true requires collector.tls.existingSecret with tls.crt, tls.key, and ca.crt (plus client.crt/client.key for mTLS)" }}
+{{- end }}
 {{- end }}
 {{- if .Values.checkpoint.enabled }}
 {{- $checkpoint := .Values.checkpoint }}

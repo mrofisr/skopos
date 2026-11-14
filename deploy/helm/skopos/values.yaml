@@ -201,6 +201,15 @@ collector:
     token: ""
     tokenKey: token
     headersKey: otlp-headers
+  tls:
+    # Server TLS for the OTLP gRPC/HTTP receivers. The Secret must contain
+    # tls.crt, tls.key, and ca.crt. For mTLS it must also contain client.crt
+    # and client.key for OBI. The server certificate must include the
+    # Collector service DNS name in its SANs.
+    enabled: false
+    existingSecret: ""
+    mtls: false
+    minVersion: "1.2"
   resources:
     requests:
       cpu: 100m

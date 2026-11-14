@@ -13,12 +13,32 @@ data:
         protocols:
           grpc:
             endpoint: 0.0.0.0:4317
+            {{- if .Values.collector.tls.enabled }}
+            tls:
+              cert_file: /etc/otelcol/tls/tls.crt
+              key_file: /etc/otelcol/tls/tls.key
+              {{- if .Values.collector.tls.mtls }}
+              client_ca_file: /etc/otelcol/tls/ca.crt
+              {{- end }}
+              min_version: {{ .Values.collector.tls.minVersion | quote }}
+              reload_interval: 10m
+            {{- end }}
             {{- if .Values.collector.otlpAuth.enabled }}
             auth:
               authenticator: bearertokenauth
             {{- end }}
           http:
             endpoint: 0.0.0.0:4318
+            {{- if .Values.collector.tls.enabled }}
+            tls:
+              cert_file: /etc/otelcol/tls/tls.crt
+              key_file: /etc/otelcol/tls/tls.key
+              {{- if .Values.collector.tls.mtls }}
+              client_ca_file: /etc/otelcol/tls/ca.crt
+              {{- end }}
+              min_version: {{ .Values.collector.tls.minVersion | quote }}
+              reload_interval: 10m
+            {{- end }}
             {{- if .Values.collector.otlpAuth.enabled }}
             auth:
               authenticator: bearertokenauth
