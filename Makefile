@@ -3,7 +3,7 @@ SHELL := /bin/sh
 GO ?= go
 HELM ?= helm
 GOVULNCHECK ?= govulncheck
-VERSION ?= 0.1.0-alpha.2
+VERSION ?= 0.1.0-alpha.3
 BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
 LDFLAGS := -s -w -X github.com/jawaracloud/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos

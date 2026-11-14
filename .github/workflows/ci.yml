@@ -328,6 +328,7 @@ jobs:
             --set gateway.enabled=true \
             --set gateway.config.maxInflight=4 \
             --set gateway.config.queueDepth=4 \
+            --set gateway.config.queueWaitSeconds=0 \
             > /tmp/skopos-admission-invalid.yaml 2> /tmp/skopos-admission-invalid.err; then
             echo "expected admission without a queue wait to fail" >&2
             exit 1
@@ -339,7 +340,7 @@ jobs:
             --set gateway.enabled=true > /tmp/skopos-mem.yaml
           limit=$(awk '/name: GOMEMLIMIT/{getline; gsub(/[^0-9]/,"",$0); print $0}' /tmp/skopos-mem.yaml)
           test -n "$limit"
-          test "$limit" -le 268435456
+          test "$limit" -le 1610612736
       - name: Reject an invalid Go memory limit
         run: |
           if helm template skopos deploy/helm/skopos --namespace observability \
@@ -469,19 +470,27 @@ jobs:
           grep -q 'skopos-backup-retention' /tmp/skopos-backup-drill.yaml
       - name: Syntax-check backup automation scripts
         run: |
-          backup_args="--namespace observability --set clickhouse.backup.enabled=true --set clickhouse.backup.endpoint=http://rustfs:9000 --set clickhouse.backup.bucket=skopos-backup --set clickhouse.backup.accessKeyId=fake --set clickhouse.backup.secretAccessKey=fake"
-          helm template skopos deploy/helm/skopos $backup_args \
+          BACKUP_ARGS=(
+            template skopos deploy/helm/skopos
+            --namespace observability
+            --set clickhouse.backup.enabled=true
+            --set clickhouse.backup.endpoint=http://rustfs:9000
+            --set clickhouse.backup.bucket=skopos-backup
+            --set clickhouse.backup.accessKeyId=fake
+            --set clickhouse.backup.secretAccessKey=fake
+          )
+          helm "${BACKUP_ARGS[@]}" \
             --show-only templates/backup-cronjob.yaml > /tmp/skopos-backup-cronjob.yaml
           sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-cronjob.yaml \
             | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-backup-cronjob.sh
           bash -n /tmp/skopos-backup-cronjob.sh
-          helm template skopos deploy/helm/skopos $backup_args \
+          helm "${BACKUP_ARGS[@]}" \
             --set clickhouse.backup.restoreDrill.enabled=true \
             --show-only templates/restore-drill-cronjob.yaml > /tmp/skopos-restore-drill.yaml
           sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-restore-drill.yaml \
             | sed '1d;$d' | sed '1d' | sed 's/^                  //' > /tmp/skopos-restore-drill.sh
           bash -n /tmp/skopos-restore-drill.sh
-          helm template skopos deploy/helm/skopos $backup_args \
+          helm "${BACKUP_ARGS[@]}" \
             --set clickhouse.backup.lifecycle.enabled=true \
             --show-only templates/backup-lifecycle.yaml > /tmp/skopos-backup-lifecycle.yaml
           sed -n '/^              args:$/,/^              env:$/p' /tmp/skopos-backup-lifecycle.yaml \

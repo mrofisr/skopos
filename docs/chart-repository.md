@@ -14,7 +14,7 @@ each release uses a new version and consumers should pin the OCI digest.
 
 ```sh
 helm install skopos oci://ghcr.io/jawaracloud/charts/skopos \
-  --version 0.1.0-alpha.2 \
+  --version 0.1.0-alpha.3 \
   -f values.release.yaml \
   --namespace observability \
   --create-namespace
@@ -26,8 +26,8 @@ gateway and pins the image digest.
 Verify the chart before installing:
 
 ```sh
-cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.2 \
-  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.2' \
+cosign verify ghcr.io/jawaracloud/charts/skopos:0.1.0-alpha.3 \
+  --certificate-identity 'https://github.com/jawaracloud/skopos/.github/workflows/release.yml@refs/tags/v0.1.0-alpha.3' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 

@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-ARG VERSION=0.1.0-alpha.2
+ARG VERSION=0.1.0-alpha.3
 RUN CGO_ENABLED=0 GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-$(go env GOARCH)}" go build \
     -mod=readonly \
     -trimpath \

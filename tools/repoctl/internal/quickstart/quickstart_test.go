@@ -198,7 +198,7 @@ func TestRealREADMEQuickstart(t *testing.T) {
 	if plan.ChartRef != "oci://ghcr.io/jawaracloud/charts/skopos" {
 		t.Fatalf("ChartRef = %q", plan.ChartRef)
 	}
-	if plan.Version != "0.1.0-alpha.2" {
+	if plan.Version != "0.1.0-alpha.3" {
 		t.Fatalf("Version = %q", plan.Version)
 	}
 	if len(plan.Commands) != 1 {
