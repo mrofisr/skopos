@@ -79,8 +79,8 @@ rewrites the body and resets the ticks.
 ## Pull requests
 
 A PR must contain `Closes #N` or `Refs #N` for an open issue labelled
-`phase:alpha-exit`, unless its commit type is fix, deps, docs, security or ci.
-The guard is implemented in `repoctl prcheck`.
+`phase:alpha-exit` or `backlog:post-alpha`, unless its commit type is fix,
+deps, docs, security or ci. The guard is implemented in `repoctl prcheck`.
 
 ## Triage
 

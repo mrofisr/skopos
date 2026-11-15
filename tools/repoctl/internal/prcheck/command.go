@@ -22,7 +22,7 @@ func (Command) Name() string { return "prcheck" }
 
 // Summary implements command.Command.
 func (Command) Summary() string {
-	return "enforce alpha-exit traceability and frozen paths on pull requests"
+	return "enforce alpha-exit/post-alpha traceability and frozen paths on pull requests"
 }
 
 // Run implements command.Command.
