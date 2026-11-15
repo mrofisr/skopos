@@ -39,6 +39,9 @@ func (e *Engine) Query(ctx context.Context, expr string, at time.Time) (Value, e
 	if err != nil {
 		return nil, fmt.Errorf("%w: parse query: %v", ErrBadQuery, err)
 	}
+	if value, ok, rateErr := e.queryRate(ctx, parsed, at); ok {
+		return value, rateErr
+	}
 	fetchStart, fetchEnd := selectorWindow(parsed, e.lookback(), at, at, at)
 	ec := &evalCtx{
 		engine:     e,
