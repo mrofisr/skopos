@@ -91,6 +91,20 @@ default coefficient times out `internal/config` and makes it look empty):
 The nightly `Mutation` workflow runs the gate per package on that matrix. It is
 scheduled and manual only, is not a required check, and is advisory for alpha.
 
+## Kubernetes installation (KWOK)
+
+The `Kubernetes install (KWOK)` job installs and upgrades the local chart in a
+[KWOK](https://kwok.sigs.k8s.io/) cluster. It creates a fake node, binds the
+ClickHouse and Collector queue claims to static volumes, and then uses Helm to
+install the data plane and upgrade to the gateway deployment. The harness lives
+in [`test/e2e/kwok`](../test/e2e/kwok/README.md).
+
+KWOK fakes the pod lifecycle. The job proves that the API server accepts the
+chart, workloads schedule, PVCs bind, Helm hooks complete, and Services get
+endpoints. It does not start containers, run probes, execute ClickHouse SQL, or
+exercise OBI eBPF; those paths remain covered by the ClickHouse integration,
+compatibility, and OBI harnesses.
+
 ## Alpha exit evidence
 
 `make alpha-exit-check` aggregates the seven criteria into one report:

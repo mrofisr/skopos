@@ -46,6 +46,9 @@
     "helm": [
       "deploy/**"
     ],
+    "kwok": [
+      "test/e2e/kwok/**"
+    ],
     "policy": [
       ".github/**",
       "docs/security/**",
@@ -61,6 +64,9 @@
   },
   "jobs": {
     "go": [
+      "go"
+    ],
+    "binaries": [
       "go"
     ],
     "coverage": [
@@ -82,6 +88,10 @@
       "storage"
     ],
     "helm": [
+      "helm"
+    ],
+    "kwok": [
+      "kwok",
       "helm"
     ],
     "policy": [

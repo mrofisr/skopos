@@ -7,12 +7,17 @@ VERSION ?= 0.0.1-alpha
 BENCH_MEMORY_LIMIT_BYTES ?= 1610612736
 LDFLAGS := -s -w -X github.com/mrofisr/skopos/internal/version.Version=$(VERSION)
 CHART := deploy/helm/skopos
+GOOS ?=
+GOARCH ?=
+BIN_DIR ?= bin
+BINARY_EXT := $(if $(filter windows,$(GOOS)),.exe,)
 
-.PHONY: help build mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana grafana-journeys compat-all metrics-contract quality-report release-evidence storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
+.PHONY: help build build-for mutation mutation-gate alpha-exit-check test test-race test-integration test-faults fuzz vet vuln helm-lint helm-template check clean e2e-obi e2e-grafana grafana-journeys compat-all metrics-contract quality-report release-evidence storage-test bench bench-gate release release-dry-run release-check release-verify verify-release scorecard coverage coverage-report coverage-write issues-manifest issues-manifest-check issues-lint issues-lint-live issues-sync ruleset-check quickstart-test
 
 help:
 	@printf '%s\n' \
 		'build             build the single skopos binary' \
+		'build-for         cross-build skopos for GOOS/GOARCH into BIN_DIR' \
 		'test              run unit tests' \
 		'test-race         run unit tests with the race detector' \
 		'test-integration  run integration tests (requires CLICKHOUSE_URL)' \
@@ -56,6 +61,15 @@ help:
 build:
 	mkdir -p bin
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/skopos ./cmd/skopos
+
+# build-for keeps cross-compilation in the Makefile so CI and local runs use
+# the same flags. The Go tool needs CGO disabled to cross-compile without a
+# target C toolchain. The CI matrix calls this once per target.
+build-for:
+	@test -n "$(GOOS)" || (echo "GOOS is required" >&2; exit 1)
+	@test -n "$(GOARCH)" || (echo "GOARCH is required" >&2; exit 1)
+	mkdir -p $(BIN_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/skopos$(BINARY_EXT) ./cmd/skopos
 
 test:
 	$(GO) test ./...

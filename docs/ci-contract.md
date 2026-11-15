@@ -53,6 +53,22 @@ per-job requirements, in both the live ruleset and the checked-in file.
 one being a required check. Until the live flip, treat the live column above as
 the merge gate.
 
+## Path-gated build and install jobs
+
+`ci.yml` also runs two jobs that are not required checks by name. `CI gate`
+fails when their path group is true and they fail or are skipped.
+
+| Job | Display name | Path group | What it does |
+| --- | --- | --- | --- |
+| `binaries` | `Cross-platform build (<goos>/<goarch>)` | `go` | Cross-compiles `linux/{amd64,arm64}`, `freebsd/{amd64,arm64}`, and `windows/{amd64,arm64}`, verifies the executable header, and uploads the binary as a workflow artifact. |
+| `kwok` | `Kubernetes install (KWOK)` | `kwok`, `helm` | Installs and upgrades the local Helm chart in a KWOK cluster with a fake node and static volumes. |
+
+The cross-platform build is a compile gate only. It does not publish release
+artifacts; `release.yml` still ships the Linux container image and the Helm
+chart. The KWOK job proves API acceptance, scheduling, volume binding, Helm
+hooks, and Service endpoints. KWOK fakes the pod lifecycle, so it does not run
+containers, probes, ClickHouse SQL, or OBI eBPF.
+
 ## Trigger contract
 
 | Workflow | Trigger now | Must report on |
