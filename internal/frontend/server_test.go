@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +47,12 @@ func TestNewValidation(t *testing.T) {
 		{"no host", Config{Backends: []string{"http://"}}},
 		{"negative readiness timeout", Config{Backends: []string{"http://query:8080"}, ReadinessTimeout: -time.Second}},
 		{"negative proxy timeout", Config{Backends: []string{"http://query:8080"}, ProxyTimeout: -time.Second}},
+		{"negative query timeout", Config{Backends: []string{"http://query:8080"}, QueryTimeout: -time.Second}},
+		{"proxy timeout not above query timeout", Config{
+			Backends:     []string{"http://query:8080"},
+			QueryTimeout: time.Second,
+			ProxyTimeout: time.Second,
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -385,5 +392,152 @@ func TestFrontendPassesWorkerRejection(t *testing.T) {
 	}
 	if rec.Body.String() != body {
 		t.Fatalf("body = %q, want the worker body unchanged", rec.Body.String())
+	}
+}
+
+func TestProxyTimeoutExceedsQueryTimeout(t *testing.T) {
+	s, err := New(Config{
+		Backends:     []string{"http://query:8080"},
+		QueryTimeout: 10 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if s.proxyTimeout <= 10*time.Second {
+		t.Fatalf("derived proxy timeout = %s, want more than the query timeout", s.proxyTimeout)
+	}
+	if s.proxyTimeout != 12*time.Second {
+		t.Fatalf("derived proxy timeout = %s, want 12s", s.proxyTimeout)
+	}
+
+	s, err = New(Config{
+		Backends:     []string{"http://query:8080"},
+		QueryTimeout: time.Second,
+		ProxyTimeout: 3 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("New with an explicit proxy timeout: %v", err)
+	}
+	if s.proxyTimeout != 3*time.Second {
+		t.Fatalf("proxy timeout = %s, want 3s", s.proxyTimeout)
+	}
+}
+
+func TestBackendTimeoutDoesNotMarkUnready(t *testing.T) {
+	var calls atomic.Int32
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if calls.Add(1) == 1 {
+			<-r.Context().Done()
+			return
+		}
+		_, _ = io.WriteString(w, "ok")
+	}))
+	defer backend.Close()
+
+	s, err := New(Config{
+		Backends:     []string{backend.URL},
+		QueryTimeout: 300 * time.Millisecond,
+		ProxyTimeout: 500 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h := s.Handler()
+	rec := doRequest(t, h, http.MethodGet, "http://frontend/api/v1/query", nil)
+	if rec.Code != http.StatusBadGateway || !strings.Contains(rec.Body.String(), "timed out") {
+		t.Fatalf("first proxy = %d %q, want 502 timeout", rec.Code, rec.Body.String())
+	}
+	if !s.backends[0].ready.Load() {
+		t.Fatal("a proxy timeout marked the backend unready")
+	}
+	rec = doRequest(t, h, http.MethodGet, "http://frontend/api/v1/query", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
+		t.Fatalf("second proxy = %d %q, want 200 ok", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProxyRetriesIdempotentGETOnce(t *testing.T) {
+	failed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	failedURL := failed.URL
+	failed.Close()
+
+	var calls atomic.Int32
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/readyz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		calls.Add(1)
+		_, _ = io.WriteString(w, "second")
+	}))
+	defer ready.Close()
+
+	s := newTestServer(t, failedURL, ready.URL)
+	h := s.Handler()
+	rec := doRequest(t, h, http.MethodGet, "http://frontend/api/v1/query", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "second" {
+		t.Fatalf("retried proxy = %d %q, want 200 second", rec.Code, rec.Body.String())
+	}
+	if s.backends[0].ready.Load() {
+		t.Fatal("the failed backend stayed ready")
+	}
+	if !s.backends[1].ready.Load() {
+		t.Fatal("the retry backend was not marked ready")
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("retry backend calls = %d, want 1", calls.Load())
+	}
+}
+
+func TestProxyDoesNotRetryPOST(t *testing.T) {
+	failed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	failedURL := failed.URL
+	failed.Close()
+
+	var calls atomic.Int32
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ready.Close()
+
+	s := newTestServer(t, failedURL, ready.URL)
+	h := s.Handler()
+	rec := doRequest(t, h, http.MethodPost, "http://frontend/api/v1/query", strings.NewReader("body"))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("POST status = %d, want 502", rec.Code)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("POST was retried %d times, want 0", calls.Load())
+	}
+}
+
+type failingBody struct {
+	err error
+}
+
+func (b failingBody) Read([]byte) (int, error) { return 0, b.err }
+func (b failingBody) Close() error             { return nil }
+
+func TestClientBodyErrorDoesNotMarkBackendUnready(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	s := newTestServer(t, backend.URL)
+	h := s.Handler()
+	req := httptest.NewRequest(http.MethodPost, "http://frontend/api/v1/query", nil)
+	req.Body = failingBody{err: errors.New("client body read failed")}
+	req.ContentLength = 4
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if !s.backends[0].ready.Load() {
+		t.Fatal("a client body error marked the backend unready")
 	}
 }

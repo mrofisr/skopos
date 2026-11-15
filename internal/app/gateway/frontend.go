@@ -22,10 +22,12 @@ func runFrontend(ctx context.Context, cfg config.Config, logger *slog.Logger, ba
 		Backends:         cfg.QueryURLs,
 		Version:          buildVersion,
 		ReadinessTimeout: cfg.ReadinessTimeout,
-		ProxyTimeout:     cfg.QueryTimeout,
-		MaxRequestBytes:  cfg.MaxRequestBytes,
-		Auth:             basicAuth,
-		Metrics:          registry.Handler(),
+		// ProxyTimeout is derived as QueryTimeout + a short slack so the
+		// worker's timeout response wins the race.
+		QueryTimeout:    cfg.QueryTimeout,
+		MaxRequestBytes: cfg.MaxRequestBytes,
+		Auth:            basicAuth,
+		Metrics:         registry.Handler(),
 	})
 	if err != nil {
 		return fmt.Errorf("frontend: %w", err)
