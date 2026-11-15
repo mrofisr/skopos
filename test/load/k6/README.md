@@ -78,21 +78,21 @@ a budget only in the PR that improves that query.
 
 | Query | p95 budget |
 | --- | ---: |
-| `prom_vector` | 1500 ms |
-| `prom_rate` | 1500 ms |
-| `prom_by_service` | 1500 ms |
-| `prom_p95` | 1500 ms |
-| `prom_range` | 1900 ms |
-| `prom_series` | 4450 ms |
-| `prom_label_values` | 2100 ms |
-| `tempo_search` | 1500 ms |
-| `loki_labels` | 1500 ms |
+| `prom_vector` | 400 ms |
+| `prom_rate` | 900 ms |
+| `prom_by_service` | 900 ms |
+| `prom_p95` | 900 ms |
+| `prom_range` | 1000 ms |
+| `prom_series` | 1000 ms |
+| `prom_label_values` | 1100 ms |
+| `tempo_search` | 1200 ms |
+| `loki_labels` | 600 ms |
 
-The three budgets above the aggregate target are regression ceilings seeded
-from the 50-VU baseline. The rest stay at the aggregate target, so a query that
-drifts above 1500 ms stays visible. Lower a ceiling only with a before/after
-run that shows the improvement. The aggregate `P95_MS` remains the user-facing
-gate.
+Every budget is a regression ceiling seeded from the post-fix 50-VU baseline
+(15 Nov 2026) with headroom for run variance. They sit below the aggregate
+1500 ms target, so a per-query regression fails before the aggregate does.
+Lower a budget only with a before/after run that shows the improvement. The
+aggregate `P95_MS` remains the user-facing gate.
 
 `ZERO_5XX=true` (the default) fails the run on any 5xx response. Set
 `ZERO_5XX=false` for an above-design-point capacity probe where deliberate
