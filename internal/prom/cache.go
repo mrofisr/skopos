@@ -13,6 +13,7 @@ import (
 
 const (
 	defaultMetadataTTL = 30 * time.Second
+	labelValuesTTL     = 15 * time.Second
 	discoveryCacheSize = 4096
 	nonEmptyCacheSize  = 128
 	metadataCacheSize  = 4096
@@ -21,14 +22,33 @@ const (
 // metricCache caches the answers that do not change per query: which tables
 // hold a metric, whether a table has any rows, and metadata.
 type metricCache struct {
-	fetcher    *ClickHouseFetcher
-	discovery  *ttlcache.Cache[string, []tableKind]
-	nonEmpty   *ttlcache.Cache[string, bool]
-	metadata   *ttlcache.Cache[string, map[string]Metadata]
-	labelNames *ttlcache.Cache[labelNamesKey, []string]
+	fetcher     *ClickHouseFetcher
+	discovery   *ttlcache.Cache[string, []tableKind]
+	nonEmpty    *ttlcache.Cache[string, bool]
+	metadata    *ttlcache.Cache[string, map[string]Metadata]
+	labelNames  *ttlcache.Cache[labelNamesKey, []string]
+	labelValues *ttlcache.Cache[labelValuesKey, []string]
 
-	labelMu       sync.Mutex
-	labelRequests map[labelNamesKey]labelNamesRequest
+	labelMu             sync.Mutex
+	labelRequests       map[labelNamesKey]labelNamesRequest
+	labelValuesMu       sync.Mutex
+	labelValuesRequests map[labelValuesKey]labelValuesRequest
+}
+
+type labelValuesKey struct {
+	Name     string
+	Selector string
+	Start    int64
+	End      int64
+	Limit    int
+}
+
+type labelValuesRequest struct {
+	name     string
+	selector Selector
+	start    time.Time
+	end      time.Time
+	limit    int
 }
 
 type labelNamesKey struct {
@@ -70,12 +90,17 @@ func (f *ClickHouseFetcher) cacheFor() *metricCache {
 	})
 	cache := &metricCache{
 		fetcher: f, discovery: discovery, nonEmpty: nonEmpty, metadata: metadata,
-		labelRequests: make(map[labelNamesKey]labelNamesRequest),
+		labelRequests:       make(map[labelNamesKey]labelNamesRequest),
+		labelValuesRequests: make(map[labelValuesKey]labelValuesRequest),
 	}
 	labelNames, _ := ttlcache.New(ttlcache.Options[labelNamesKey, []string]{
 		TTL: ttl, MaxEntries: metadataCacheSize, Clock: clock, Load: cache.loadLabelNames,
 	})
 	cache.labelNames = labelNames
+	labelValues, _ := ttlcache.New(ttlcache.Options[labelValuesKey, []string]{
+		TTL: labelValuesTTL, MaxEntries: metadataCacheSize, Clock: clock, Load: cache.loadLabelValues,
+	})
+	cache.labelValues = labelValues
 	f.cache = cache
 	return f.cache
 }
@@ -83,10 +108,11 @@ func (f *ClickHouseFetcher) cacheFor() *metricCache {
 // tableHasData probes one table with LIMIT 1 and selects only MetricName.
 func (f *ClickHouseFetcher) tableHasData(ctx context.Context, table string) (bool, error) {
 	query := plan.Query{
-		Signal: plan.SignalMetrics,
-		Table:  table,
-		Select: []plan.SelectItem{{Expr: plan.Col("MetricName")}},
-		Limit:  1,
+		Signal:    plan.SignalMetrics,
+		Table:     table,
+		Select:    []plan.SelectItem{{Expr: plan.Col("MetricName")}},
+		Limit:     1,
+		SkipFinal: true,
 	}
 	emitted, err := f.Emitter.Emit(query)
 	if err != nil {
@@ -112,4 +138,11 @@ func (c *metricCache) loadLabelNames(ctx context.Context, key labelNamesKey) ([]
 	request := c.labelRequests[key]
 	c.labelMu.Unlock()
 	return c.fetcher.loadLabelNames(ctx, request.selector, request.start, request.end, request.limit)
+}
+
+func (c *metricCache) loadLabelValues(ctx context.Context, key labelValuesKey) ([]string, error) {
+	c.labelValuesMu.Lock()
+	request := c.labelValuesRequests[key]
+	c.labelValuesMu.Unlock()
+	return c.fetcher.loadLabelValues(ctx, request.name, request.selector, request.start, request.end, request.limit)
 }

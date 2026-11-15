@@ -40,6 +40,9 @@ type Query struct {
 	// TimeColumn is required when TimeRange is set.
 	TimeColumn string
 	TimeRange  *TimeRange
+	// SkipFinal omits FINAL for metadata reads where duplicate rows cannot
+	// change a distinct result.
+	SkipFinal bool
 }
 
 // TimeRange is always parameterized by the emitter.
