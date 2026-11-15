@@ -66,6 +66,7 @@ func NewClickHouseFetcher(client *chclient.Client, schema *plan.Schema, names pl
 // Fetch implements Fetcher.
 func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end time.Time) ([]Series, error) {
 	gaugeFilter, sumFilter, histFilter, summaryFilter := nameFilters(sel)
+	service := serviceFilter(sel)
 	tables, err := f.candidateTables(ctx, sel)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,7 @@ func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end 
 		case tableSummary:
 			name, kind, filter = f.Names.MetricsSummary, tableSummary, summaryFilter
 		}
+		filter = andFilters(filter, service)
 		nonEmpty, err := f.cacheFor().nonEmpty.Get(ctx, name)
 		if err != nil {
 			return nil, err
@@ -441,6 +443,60 @@ func nameFilters(sel Selector) (gauge, sum, histogram, summary plan.Expr) {
 		return gauge, sum, nil, nil
 	}
 	return nil, nil, nil, nil
+}
+
+// serviceFilter pushes exact and regex service_name matchers into SQL. The
+// ServiceName column leads the metric table primary key, so the exact branch is
+// a narrow range scan. Each branch also matches an empty ServiceName because
+// baseLabels falls back to a service.name attribute when the column is empty;
+// matchesAll still verifies the exact Prometheus semantics. Regex is an
+// over-approximation because ClickHouse match() is not anchored. Negative
+// matchers stay in Go because they also select series where the label is
+// absent.
+func serviceFilter(sel Selector) plan.Expr {
+	var filter plan.Expr
+	exact, regex, empty := 0, 0, 0
+	for _, matcher := range sel.Matchers {
+		if matcher.Name != "service_name" {
+			continue
+		}
+		var term plan.Expr
+		switch matcher.Type {
+		case promlabels.MatchEqual:
+			term = plan.Bin("OR",
+				plan.Bin("=", plan.Col("ServiceName"),
+					plan.String(fmt.Sprintf("service_filter_%d", exact), matcher.Value)),
+				plan.Bin("=", plan.Col("ServiceName"),
+					plan.String(fmt.Sprintf("service_empty_%d", empty), "")),
+			)
+			exact++
+			empty++
+		case promlabels.MatchRegexp:
+			term = plan.Bin("OR",
+				plan.F("match", plan.Col("ServiceName"),
+					plan.String(fmt.Sprintf("service_regex_filter_%d", regex), matcher.Value)),
+				plan.Bin("=", plan.Col("ServiceName"),
+					plan.String(fmt.Sprintf("service_empty_%d", empty), "")),
+			)
+			regex++
+			empty++
+		default:
+			continue
+		}
+		filter = andFilters(filter, term)
+	}
+	return filter
+}
+
+func andFilters(left, right plan.Expr) plan.Expr {
+	switch {
+	case left == nil:
+		return right
+	case right == nil:
+		return left
+	default:
+		return plan.Bin("AND", left, right)
+	}
 }
 
 func metricNameFilter(sel Selector) plan.Expr {

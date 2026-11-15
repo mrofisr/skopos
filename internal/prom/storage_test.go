@@ -413,3 +413,236 @@ func TestGaugeSelectorGoldenSQL(t *testing.T) {
 		t.Fatalf("gauge SQL changed:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
+
+func dataBodies(fake *fakeClickHouse) map[string]string {
+	bodies := make(map[string]string)
+	for index, table := range fake.seen {
+		body := fake.bodies[index]
+		if strings.Contains(body, "Value") || strings.Contains(body, "BucketCounts") || strings.Contains(body, "ValueAtQuantiles") {
+			bodies[table] = body
+		}
+	}
+	return bodies
+}
+
+func TestFetchPushesServiceNameEqualMatcher(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "checkout"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 1 {
+		t.Fatalf("series = %#v, want one", series)
+	}
+	body := dataBodies(fake)[names.MetricsGauge]
+	if !strings.Contains(body, "`ServiceName` = {service_filter_0:String}") {
+		t.Fatalf("service_name predicate missing:\n%s", body)
+	}
+	if !strings.Contains(body, "`ServiceName` = {service_empty_0:String}") {
+		t.Fatalf("empty service fallback missing:\n%s", body)
+	}
+}
+
+func TestFetchPushesServiceNameRegexMatcher(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+		promlabels.MustNewMatcher(promlabels.MatchRegexp, "service_name", "check.*"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	body := dataBodies(fake)[names.MetricsGauge]
+	if !strings.Contains(body, "match(`ServiceName`, {service_regex_filter_0:String})") {
+		t.Fatalf("service_name regex predicate missing:\n%s", body)
+	}
+	if !strings.Contains(body, "`ServiceName` = {service_empty_0:String}") {
+		t.Fatalf("empty service fallback missing:\n%s", body)
+	}
+}
+
+func TestFetchLeavesNegativeServiceNameMatcherInGo(t *testing.T) {
+	names := plan.DefaultTableNames()
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	for _, negative := range []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchNotEqual, "service_name", "cart"),
+		promlabels.MustNewMatcher(promlabels.MatchNotRegexp, "service_name", "cart"),
+	} {
+		row := map[string]any{
+			"MetricName":  "up",
+			"TimeUnix":    "2026-11-01 00:10:00",
+			"ServiceName": "checkout",
+			"Attributes":  map[string]any{},
+			"Value":       json.Number("1"),
+		}
+		fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+		series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+			promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+			negative,
+		}}, at.Add(-time.Minute), at)
+		if err != nil {
+			t.Fatalf("Fetch: %v", err)
+		}
+		if len(series) != 1 {
+			t.Fatalf("%s series = %#v, want one", negative, series)
+		}
+		body := dataBodies(fake)[names.MetricsGauge]
+		if strings.Contains(body, "{service_filter") || strings.Contains(body, "{service_regex_filter") {
+			t.Fatalf("%s was pushed into SQL:\n%s", negative, body)
+		}
+	}
+}
+
+func TestFetchUsesUniqueServiceNameParameters(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "checkout"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "cart"),
+		promlabels.MustNewMatcher(promlabels.MatchRegexp, "service_name", "check.*"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 0 {
+		t.Fatalf("series = %#v, want none", series)
+	}
+	body := dataBodies(fake)[names.MetricsGauge]
+	for _, param := range []string{
+		"{service_filter_0:String}",
+		"{service_filter_1:String}",
+		"{service_regex_filter_0:String}",
+		"{service_empty_0:String}",
+		"{service_empty_1:String}",
+		"{service_empty_2:String}",
+	} {
+		if !strings.Contains(body, param) {
+			t.Fatalf("parameter %s missing:\n%s", param, body)
+		}
+	}
+}
+
+func TestFetchPushesServiceNameWhenNameFilterIsNil(t *testing.T) {
+	names := plan.DefaultTableNames()
+	gauge := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Value": json.Number("1"),
+	}
+	histogram := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Count": json.Number("1"), "Sum": json.Number("1"),
+		"BucketCounts": []any{json.Number("1")}, "ExplicitBounds": []any{},
+	}
+	summary := map[string]any{
+		"MetricName": "foo", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Count": json.Number("1"), "Sum": json.Number("1"),
+		"ValueAtQuantiles.Quantile": []any{json.Number("0.5")},
+		"ValueAtQuantiles.Value":    []any{json.Number("1")},
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{
+		names.MetricsGauge: {gauge}, names.MetricsSum: {gauge},
+		names.MetricsHistogram: {histogram}, names.MetricsSummary: {summary},
+	})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchRegexp, promlabels.MetricName, "foo|bar"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "checkout"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	bodies := dataBodies(fake)
+	if len(bodies) != 4 {
+		t.Fatalf("data tables = %v, want all four", fake.seen)
+	}
+	for table, body := range bodies {
+		if !strings.Contains(body, "`ServiceName` = {service_filter_0:String}") {
+			t.Fatalf("table %s missing service predicate:\n%s", table, body)
+		}
+	}
+}
+
+func TestFetchMatchesServiceNameAttributeWhenColumnIsEmpty(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "",
+		"Attributes":  map[string]any{"service.name": "checkout"},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "checkout"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 1 {
+		t.Fatalf("series = %#v, want one", series)
+	}
+	if got := series[0].Labels["service_name"]; got != "checkout" {
+		t.Fatalf("service_name = %q, want checkout from the attribute", got)
+	}
+	body := dataBodies(fake)[names.MetricsGauge]
+	if !strings.Contains(body, "`ServiceName` = {service_empty_0:String}") {
+		t.Fatalf("empty service fallback missing:\n%s", body)
+	}
+}
+
+func TestGaugeSelectorWithServiceNameGoldenSQL(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName":  "up",
+		"TimeUnix":    "2026-11-01 00:10:00",
+		"ServiceName": "checkout",
+		"Attributes":  map[string]any{},
+		"Value":       json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+		promlabels.MustNewMatcher(promlabels.MatchEqual, "service_name", "checkout"),
+	}}, at.Add(-time.Minute), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	got := dataBodies(fake)[names.MetricsGauge]
+	want, err := os.ReadFile("testdata/gauge-service.sql")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if got != string(want) {
+		t.Fatalf("gauge SQL with service_name changed:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
