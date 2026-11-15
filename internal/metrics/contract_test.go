@@ -36,6 +36,7 @@ func TestMetricsContract(t *testing.T) {
 
 	httpMetrics.RecordAdmissionRejected("prom")
 	clickhouse.QueryDone("prom", "ok", time.Millisecond, 1, 1)
+	clickhouse.FinalFallback("prom", "retried")
 
 	required := map[string][]string{
 		"skopos_build_info":                        {"version"},
@@ -48,6 +49,7 @@ func TestMetricsContract(t *testing.T) {
 		"skopos_clickhouse_query_duration_seconds": {"head"},
 		"skopos_clickhouse_read_rows_total":        {"head"},
 		"skopos_clickhouse_read_bytes_total":       {"head"},
+		"skopos_clickhouse_final_fallback_total":   {"head", "action"},
 		"skopos_context_documented":                {"signal"},
 		"skopos_context_observed":                  {"signal"},
 		"skopos_context_coverage_ratio":            {"signal"},

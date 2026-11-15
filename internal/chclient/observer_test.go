@@ -18,14 +18,24 @@ type recordedQuery struct {
 	readBytes uint64
 }
 
+type recordedFallback struct {
+	head   string
+	action string
+}
+
 type recordingObserver struct {
-	calls []recordedQuery
+	calls     []recordedQuery
+	fallbacks []recordedFallback
 }
 
 func (o *recordingObserver) QueryDone(head, result string, duration time.Duration, readRows, readBytes uint64) {
 	o.calls = append(o.calls, recordedQuery{
 		head: head, result: result, duration: duration, readRows: readRows, readBytes: readBytes,
 	})
+}
+
+func (o *recordingObserver) FinalFallback(head, action string) {
+	o.fallbacks = append(o.fallbacks, recordedFallback{head: head, action: action})
 }
 
 func testClient(t *testing.T, handler http.Handler, observer QueryObserver) *Client {

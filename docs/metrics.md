@@ -31,10 +31,11 @@ A recovered panic is recorded as status `500`.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `skopos_clickhouse_queries_total` | `head`, `result` | Queries by head and `ok`/`error`. |
+| `skopos_clickhouse_queries_total` | `head`, `result` | Logical queries by head and `ok`/`error`; a FINAL fallback counts once. |
 | `skopos_clickhouse_query_duration_seconds` | `head` | Query duration histogram. |
 | `skopos_clickhouse_read_rows_total` | `head` | Rows read, from `X-ClickHouse-Summary`. |
 | `skopos_clickhouse_read_bytes_total` | `head` | Bytes read, from the same header. |
+| `skopos_clickhouse_final_fallback_total` | `head`, `action` | Queries that dropped `FINAL`: `retried` after `ILLEGAL_FINAL`, `skipped` from the per-table cache. |
 
 A missing or malformed summary header counts zero rows and is logged at debug;
 it never fails the query.

@@ -230,6 +230,7 @@ func TestQueryRejectsWriteStatements(t *testing.T) {
 		"TRUNCATE TABLE otel.otel_logs",
 		"WITH x AS (SELECT 1) INSERT INTO otel.otel_logs SELECT * FROM x",
 		"WITH x AS (SELECT 1) DELETE FROM otel.otel_logs WHERE 1",
+		"SELECT * FROM otel.otel_logs INTO OUTFILE '/tmp/skopos'",
 		"",
 	} {
 		if _, err := c.Query(context.Background(), sql, nil); err == nil {
@@ -256,6 +257,8 @@ func TestQueryAcceptsReadStatementsWithComments(t *testing.T) {
 		"SELECT `insert` FROM system.tables LIMIT 1",
 		"SELECT 1 /* DROP TABLE x */",
 		"SELECT 1 WHERE x = {insert:String}",
+		"SELECT 'into outfile' AS s",
+		"SELECT `outfile` FROM system.tables LIMIT 1",
 	} {
 		if _, err := c.Query(context.Background(), sql, nil); err != nil {
 			t.Errorf("Query(%q): %v", sql, err)
@@ -430,4 +433,100 @@ func TestResultHelpers(t *testing.T) {
 func mathNaN() float64 {
 	var z float64
 	return z / z
+}
+
+func TestQueryFallbackIsOneLogicalQuery(t *testing.T) {
+	var calls atomic.Int32
+	observer := &recordingObserver{}
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("X-ClickHouse-Summary", `{"read_rows":"5","read_bytes":"50"}`)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"exception":"Code: 181. DB::Exception: Storage MergeTree doesn't support FINAL. (ILLEGAL_FINAL)"}`)
+			return
+		}
+		w.Header().Set("X-ClickHouse-Summary", `{"read_rows":"7","read_bytes":"70"}`)
+		_, _ = io.WriteString(w, `{"meta":[],"data":[]}`)
+	}), observer)
+
+	recorder := &Recorder{}
+	ctx := WithRecorder(WithHead(context.Background(), "prom"), recorder)
+	sql := "SELECT 1 FROM `otel`.`otel_logs` FINAL"
+	if _, err := client.Query(ctx, sql, nil); err != nil {
+		t.Fatalf("Query: %v", err)
+	}
+	if len(observer.calls) != 1 {
+		t.Fatalf("observer calls = %d, want 1 logical query: %#v", len(observer.calls), observer.calls)
+	}
+	call := observer.calls[0]
+	if call.head != "prom" || call.result != "ok" || call.readRows != 12 || call.readBytes != 120 {
+		t.Fatalf("observer call = %#v, want one ok call with accumulated reads", call)
+	}
+	if len(observer.fallbacks) != 1 || observer.fallbacks[0].head != "prom" || observer.fallbacks[0].action != FinalFallbackRetried {
+		t.Fatalf("fallbacks = %#v, want one retried event", observer.fallbacks)
+	}
+	statements := recorder.Statements()
+	if len(statements) != 1 {
+		t.Fatalf("statements = %d, want 1 logical statement: %#v", len(statements), statements)
+	}
+	if statements[0].SQL != sql || statements[0].Error != "" || statements[0].ReadRows != 12 {
+		t.Fatalf("statement = %#v", statements[0])
+	}
+}
+
+func TestQueryFinalSkipReportsFallback(t *testing.T) {
+	var bodies []string
+	observer := &recordingObserver{}
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(body))
+		_, _ = io.WriteString(w, `{"meta":[],"data":[]}`)
+	}), observer)
+
+	sql := "SELECT 1 FROM `otel`.`otel_logs` FINAL"
+	client.markNoFinal(sql)
+	if _, err := client.Query(WithHead(context.Background(), "prom"), sql, nil); err != nil {
+		t.Fatalf("Query: %v", err)
+	}
+	if len(bodies) != 1 || strings.Contains(bodies[0], " FINAL") {
+		t.Fatalf("bodies = %#v, want one query without FINAL", bodies)
+	}
+	if len(observer.fallbacks) != 1 || observer.fallbacks[0].head != "prom" || observer.fallbacks[0].action != FinalFallbackSkipped {
+		t.Fatalf("fallbacks = %#v, want one skipped event", observer.fallbacks)
+	}
+}
+
+func TestQueryWithoutCallerDeadlineUsesConfigTimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+
+	client, err := New(Config{
+		BaseURL:    server.URL,
+		Database:   "otel",
+		Timeout:    50 * time.Millisecond,
+		HTTPClient: &http.Client{},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, queryErr := client.Query(context.Background(), "SELECT 1", nil)
+		done <- queryErr
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Query error = %v, want context.DeadlineExceeded", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Query without a caller deadline used no total timeout")
+	}
 }

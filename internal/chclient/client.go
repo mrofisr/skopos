@@ -56,6 +56,7 @@ type Client struct {
 	maxRowsToRead    uint64
 	maxResultRows    uint64
 	maxResponseBytes int64
+	timeout          time.Duration
 	http             *http.Client
 	observer         QueryObserver
 	logger           *slog.Logger
@@ -64,10 +65,18 @@ type Client struct {
 	noFinal          map[string]time.Time
 }
 
-// QueryObserver receives one query's outcome and ClickHouse read accounting.
+// QueryObserver receives one logical query's outcome, ClickHouse read
+// accounting, and FINAL fallback events.
 type QueryObserver interface {
 	QueryDone(head, result string, duration time.Duration, readRows, readBytes uint64)
+	FinalFallback(head, action string)
 }
+
+// FinalFallback actions reported to QueryObserver.
+const (
+	FinalFallbackRetried = "retried"
+	FinalFallbackSkipped = "skipped"
+)
 
 type headContextKey struct{}
 
@@ -248,6 +257,7 @@ func New(cfg Config) (*Client, error) {
 		maxRowsToRead:    cfg.MaxRowsToRead,
 		maxResultRows:    cfg.MaxResultRows,
 		maxResponseBytes: cfg.MaxResponseBytes,
+		timeout:          cfg.Timeout,
 		http:             cfg.HTTPClient,
 		observer:         cfg.Observer,
 		logger:           cfg.Logger,
@@ -273,13 +283,10 @@ func (c *Client) Ping(ctx context.Context) error {
 // parses the response. A statement whose first keyword is not SELECT or WITH is
 // rejected before any network call.
 func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (result *Result, err error) {
-	var (
-		readRows  uint64
-		readBytes uint64
-	)
+	var readRows, readBytes uint64
+	head := headFromContext(ctx)
 	if c.observer != nil {
 		started := time.Now()
-		head := headFromContext(ctx)
 		defer func() {
 			outcome := "ok"
 			if err != nil {
@@ -305,12 +312,54 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 	if !isReadOnlySQL(sql) {
 		return nil, errors.New("chclient: only SELECT and WITH statements are allowed")
 	}
-	if strings.Contains(sql, " FINAL") && c.skipsFinal(sql) {
-		if fallback, ok := withoutFinal(sql); ok {
-			sql = fallback
+
+	// A caller without a deadline gets one total budget for the query,
+	// including a FINAL fallback, instead of a fresh HTTP timeout per attempt.
+	queryCtx := ctx
+	if _, ok := ctx.Deadline(); !ok && c.timeout > 0 {
+		var cancel context.CancelFunc
+		queryCtx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	current := sql
+	if strings.Contains(current, " FINAL") && c.skipsFinal(current) {
+		if fallback, ok := withoutFinal(current); ok {
+			current = fallback
+			c.finalFallback(head, FinalFallbackSkipped)
 		}
 	}
 
+	// A plain MergeTree table rejects FINAL. Retry once without it so reads
+	// stay available; the observer sees one logical query for the pair.
+	for attempt := 0; ; attempt++ {
+		attemptResult, rows, bytes, attemptErr := c.queryOnce(queryCtx, current, params)
+		readRows += rows
+		readBytes += bytes
+		if attemptErr == nil {
+			return attemptResult, nil
+		}
+		if attempt == 0 && isIllegalFinal(attemptErr) {
+			if fallback, ok := withoutFinal(current); ok {
+				c.markNoFinal(current)
+				c.finalFallback(head, FinalFallbackRetried)
+				current = fallback
+				continue
+			}
+		}
+		return nil, attemptErr
+	}
+}
+
+func (c *Client) finalFallback(head, action string) {
+	if c.observer != nil {
+		c.observer.FinalFallback(head, action)
+	}
+}
+
+// queryOnce sends one statement. It returns the ClickHouse read accounting
+// even on failure so a FINAL fallback can report the total work for the pair.
+func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param) (*Result, uint64, uint64, error) {
 	u := *c.base
 	q := u.Query()
 	q.Set("database", c.database)
@@ -339,15 +388,15 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 		// plan builders are responsible for rejecting user-supplied reserved
 		// names.
 		if err := plan.ValidateParamValue(p); err != nil {
-			return nil, fmt.Errorf("chclient: parameter: %w", err)
+			return nil, 0, 0, fmt.Errorf("chclient: parameter: %w", err)
 		}
 		if _, exists := seen[p.Name]; exists {
-			return nil, fmt.Errorf("chclient: duplicate parameter %q", p.Name)
+			return nil, 0, 0, fmt.Errorf("chclient: duplicate parameter %q", p.Name)
 		}
 		seen[p.Name] = struct{}{}
 		encoded, err := EncodeParam(p)
 		if err != nil {
-			return nil, fmt.Errorf("chclient: parameter %q: %w", p.Name, err)
+			return nil, 0, 0, fmt.Errorf("chclient: parameter %q: %w", p.Name, err)
 		}
 		q.Set("param_"+p.Name, encoded)
 	}
@@ -356,7 +405,7 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 	body := stripSQL(sql) + "\nFORMAT JSON\n"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("chclient: build request: %w", err)
+		return nil, 0, 0, fmt.Errorf("chclient: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	req.Header.Set("Accept", "application/json")
@@ -367,33 +416,22 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("chclient: request: %w", err)
+		return nil, 0, 0, fmt.Errorf("chclient: request: %w", err)
 	}
 	defer resp.Body.Close()
-	readRows, readBytes = parseSummary(resp.Header.Get("X-ClickHouse-Summary"), c.logger)
+	readRows, readBytes := parseSummary(resp.Header.Get("X-ClickHouse-Summary"), c.logger)
 
 	limited := io.LimitReader(resp.Body, c.maxResponseBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, fmt.Errorf("chclient: read response: %w", err)
+		return nil, readRows, readBytes, fmt.Errorf("chclient: read response: %w", err)
 	}
 	if int64(len(data)) > c.maxResponseBytes {
-		return nil, fmt.Errorf("chclient: response exceeds %d bytes", c.maxResponseBytes)
+		return nil, readRows, readBytes, fmt.Errorf("chclient: response exceeds %d bytes", c.maxResponseBytes)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		queryErr := parseError(resp.StatusCode, data)
-		// FINAL is rejected by plain MergeTree. The chart migrates the signal
-		// tables to ReplacingMergeTree, but a gateway can start against an
-		// older schema while the init Job is still running. Retry without
-		// FINAL so reads stay available; only read-time deduplication is lost.
-		if isIllegalFinal(queryErr) {
-			if fallback, ok := withoutFinal(sql); ok {
-				c.markNoFinal(sql)
-				return c.Query(ctx, fallback, params)
-			}
-		}
-		return nil, queryErr
+		return nil, readRows, readBytes, parseError(resp.StatusCode, data)
 	}
 
 	var raw struct {
@@ -402,25 +440,25 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 		Exception string                       `json:"exception"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("chclient: decode response: %w", err)
+		return nil, readRows, readBytes, fmt.Errorf("chclient: decode response: %w", err)
 	}
 	if raw.Exception != "" {
-		return nil, parseError(resp.StatusCode, data)
+		return nil, readRows, readBytes, parseError(resp.StatusCode, data)
 	}
 
-	result = &Result{Columns: raw.Meta, Rows: make([]map[string]any, 0, len(raw.Data))}
+	result := &Result{Columns: raw.Meta, Rows: make([]map[string]any, 0, len(raw.Data))}
 	for _, rawRow := range raw.Data {
 		row := make(map[string]any, len(rawRow))
 		for k, v := range rawRow {
 			decoded, err := decodeValue(v)
 			if err != nil {
-				return nil, fmt.Errorf("chclient: decode column %q: %w", k, err)
+				return nil, readRows, readBytes, fmt.Errorf("chclient: decode column %q: %w", k, err)
 			}
 			row[k] = decoded
 		}
 		result.Rows = append(result.Rows, row)
 	}
-	return result, nil
+	return result, readRows, readBytes, nil
 }
 
 func decodeValue(raw json.RawMessage) (any, error) {
@@ -573,7 +611,7 @@ var writeKeywords = map[string]struct{}{
 	"INSERT": {}, "ALTER": {}, "DROP": {}, "CREATE": {}, "TRUNCATE": {},
 	"RENAME": {}, "ATTACH": {}, "DETACH": {}, "OPTIMIZE": {}, "GRANT": {},
 	"REVOKE": {}, "KILL": {}, "EXCHANGE": {}, "MOVE": {}, "UNDROP": {},
-	"DELETE": {}, "UPDATE": {},
+	"DELETE": {}, "UPDATE": {}, "OUTFILE": {},
 }
 
 // containsWriteKeyword scans tokens outside strings, quoted identifiers, and
