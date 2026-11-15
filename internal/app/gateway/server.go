@@ -27,6 +27,15 @@ func newServer(addr string, handler http.Handler, logger *slog.Logger, queryTime
 	}
 }
 
+// shutdownTimeout covers the full query budget plus the same response margin
+// WriteTimeout uses, so a query that runs to its deadline can finish.
+func shutdownTimeout(queryTimeout time.Duration) time.Duration {
+	if queryTimeout <= 0 {
+		return 10 * time.Second
+	}
+	return queryTimeout + 5*time.Second
+}
+
 func serve(ctx context.Context, addr string, handler http.Handler, logger *slog.Logger, queryTimeout time.Duration) error {
 	srv := newServer(addr, handler, logger, queryTimeout)
 
@@ -41,8 +50,9 @@ func serve(ctx context.Context, addr string, handler http.Handler, logger *slog.
 			return fmt.Errorf("serve: %w", err)
 		}
 	case <-ctx.Done():
-		logger.Info("shutting down")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		drain := shutdownTimeout(queryTimeout)
+		logger.Info("shutting down", "drain_timeout", drain.String())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), drain)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("shutdown: %w", err)

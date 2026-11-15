@@ -1459,6 +1459,7 @@
         "podSecurityContext",
         "securityContext",
         "probes",
+        "terminationGracePeriodSeconds",
         "podAnnotations",
         "nodeSelector",
         "tolerations",
@@ -1480,6 +1481,10 @@
           ]
         },
         "replicaCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "terminationGracePeriodSeconds": {
           "type": "integer",
           "minimum": 1
         },
@@ -1813,6 +1818,7 @@
         "service",
         "config",
         "resources",
+        "terminationGracePeriodSeconds",
         "podAnnotations",
         "nodeSelector",
         "tolerations",
@@ -1821,6 +1827,10 @@
       ],
       "properties": {
         "replicaCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "terminationGracePeriodSeconds": {
           "type": "integer",
           "minimum": 1
         },

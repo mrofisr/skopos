@@ -444,6 +444,10 @@ gateway:
   # frontend: proxy only, no ClickHouse. query/worker: internal query workers.
   mode: all
   replicaCount: 1
+  # Kubernetes waits this long after SIGTERM before SIGKILL. Keep it above
+  # clickhouse.limits.maxExecutionTimeSeconds + 10s so an in-flight query and
+  # the HTTP drain can finish.
+  terminationGracePeriodSeconds: 45
   image:
     repository: ghcr.io/mrofisr/skopos-gateway
     tag: dev
@@ -558,6 +562,8 @@ distributed:
 # gateway image, security context, probes, and shared config values.
 frontend:
   replicaCount: 1
+  # Keep above frontend.config.queryTimeout + 10s.
+  terminationGracePeriodSeconds: 45
   service:
     type: ClusterIP
     port: 8080
