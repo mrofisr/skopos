@@ -366,6 +366,14 @@ helm upgrade skopos ./deploy/helm/skopos --namespace observability \
 For a non-Helm deployment, set `SKOPOS_AUTH_ENABLED=true`,
 `SKOPOS_AUTH_USERNAME`, and `SKOPOS_AUTH_PASSWORD` directly.
 
+When upgrading a release created before the 200k result cap,
+`helm upgrade --reuse-values` keeps the old `clickhouse.limits.maxResultRows`
+(for example `100000`). The gateway rejects a scan cap above the result cap:
+set `clickhouse.limits.maxResultRows=200000`, or drop `--reuse-values` so the
+new chart default applies. The new termination-grace, pprof opt-in, and
+profile defaults are applied by the templates, so an old values file does not
+need to add them.
+
 Configure Grafana's Prometheus, Loki, and Tempo datasources with `basicAuth:
 true`, `basicAuthUser`, and the password in `secureJsonData`. Basic auth sends
 reusable credentials with every request: use TLS at the ingress and do not

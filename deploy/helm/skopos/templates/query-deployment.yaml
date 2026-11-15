@@ -30,7 +30,7 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
-      terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds | default 45 }}
       {{- with .Values.query.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -126,9 +126,9 @@ spec:
             - name: SKOPOS_METADATA_TTL
               value: {{ .Values.gateway.config.metadataTTL | quote }}
             - name: SKOPOS_PROFILE
-              value: {{ .Values.gateway.config.profile | quote }}
+              value: {{ .Values.gateway.config.profile | default false | quote }}
             - name: SKOPOS_PROFILE_ALLOW_UNAUTH
-              value: {{ .Values.gateway.config.profileAllowUnauth | quote }}
+              value: {{ .Values.gateway.config.profileAllowUnauth | default false | quote }}
             {{- if $goMemLimit }}
             - name: GOMEMLIMIT
               value: {{ $goMemLimit | quote }}
