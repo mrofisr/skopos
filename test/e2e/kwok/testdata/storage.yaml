@@ -1,0 +1,49 @@
+# KWOK runs the Kubernetes controllers but has no CSI driver. Give each chart
+# PVC its own storage class and one static PV so the PV controller can bind the
+# claim without a provisioner. The hostPath is never mounted; KWOK only fakes
+# the pod lifecycle.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kwok-clickhouse
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kwok-collector
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: skopos-clickhouse-data
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: kwok-clickhouse
+  hostPath:
+    path: /tmp/kwok/clickhouse
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: skopos-collector-queue
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: kwok-collector
+  hostPath:
+    path: /tmp/kwok/collector
+    type: DirectoryOrCreate
