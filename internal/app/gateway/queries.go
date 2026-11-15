@@ -142,6 +142,7 @@ func queryHandler(api *httpapi.Server, admission *admissionMiddleware) http.Hand
 func configureQueryAPIs(cfg config.Config, promAPI *prom.API, tempoAPI *tempo.API, lokiAPI *loki.API) {
 	promAPI.MaxRange = cfg.MaxQueryRange
 	promAPI.Timeout = cfg.QueryTimeout
+	promAPI.InstantCacheTTL = cfg.InstantCacheTTL
 	tempoAPI.MaxRange = cfg.MaxQueryRange
 	tempoAPI.Timeout = cfg.QueryTimeout
 	lokiAPI.MaxRange = cfg.MaxQueryRange

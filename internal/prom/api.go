@@ -11,12 +11,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
 
 	"github.com/mrofisr/skopos/internal/chclient"
 	"github.com/mrofisr/skopos/internal/metrics"
+	"github.com/mrofisr/skopos/internal/ttlcache"
 )
 
 // QueryEngine is the subset of Engine used by the HTTP API.
@@ -57,6 +59,18 @@ type API struct {
 	Now      func() time.Time
 	// Timeout is the per-request query deadline. Zero disables the deadline.
 	Timeout time.Duration
+	// InstantCacheTTL bounds reuse of an instant result. Zero disables it.
+	// The gateway sets one second; a request without an explicit time is
+	// evaluated at the start of its second.
+	InstantCacheTTL time.Duration
+
+	cacheMu      sync.Mutex
+	instantCache *ttlcache.Cache[instantKey, Value]
+}
+
+type instantKey struct {
+	query string
+	at    int64
 }
 
 // NewAPI returns a Prometheus-compatible API.
@@ -108,12 +122,24 @@ func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_data", "query is required")
 		return
 	}
+	explicitTime := r.FormValue("time") != ""
 	at, err := a.parseTime(r.FormValue("time"), a.now())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "bad_data", err.Error())
 		return
 	}
-	value, err := a.Engine.Query(ctx, query, at)
+	evalAt := at
+	var value Value
+	if a.InstantCacheTTL > 0 {
+		keyAt := at.UnixMilli()
+		if !explicitTime {
+			keyAt = at.Truncate(time.Second).UnixMilli()
+		}
+		evalAt = time.UnixMilli(keyAt)
+		value, err = a.cachedInstant(ctx, instantKey{query: query, at: keyAt})
+	} else {
+		value, err = a.Engine.Query(ctx, query, at)
+	}
 	if err != nil {
 		a.writeEngineError(w, r, err)
 		return
@@ -123,12 +149,43 @@ func (a *API) handleQuery(w http.ResponseWriter, r *http.Request) {
 	case Vector:
 		data["result"] = vectorData(v)
 	case Scalar:
-		data["result"] = []any{float64(at.UnixMilli()) / 1000, formatFloat(float64(v))}
+		data["result"] = []any{float64(evalAt.UnixMilli()) / 1000, formatFloat(float64(v))}
 	default:
 		a.writeEngineError(w, r, fmt.Errorf("unsupported result type %T", value))
 		return
 	}
 	writeSuccess(w, data)
+}
+
+// cachedInstant lazily builds the bounded instant cache. The loader gets a
+// timeout equal to the API query budget, so a cache miss cannot outlive the
+// request deadline by more than the configured timeout.
+func (a *API) cachedInstant(ctx context.Context, key instantKey) (Value, error) {
+	a.cacheMu.Lock()
+	cache := a.instantCache
+	if cache == nil {
+		loadTimeout := a.Timeout
+		if loadTimeout <= 0 {
+			loadTimeout = 30 * time.Second
+		}
+		var err error
+		cache, err = ttlcache.New(ttlcache.Options[instantKey, Value]{
+			TTL:         a.InstantCacheTTL,
+			MaxEntries:  64,
+			LoadTimeout: loadTimeout,
+			Clock:       a.Now,
+			Load: func(ctx context.Context, key instantKey) (Value, error) {
+				return a.Engine.Query(ctx, key.query, time.UnixMilli(key.at))
+			},
+		})
+		if err != nil {
+			a.cacheMu.Unlock()
+			return nil, err
+		}
+		a.instantCache = cache
+	}
+	a.cacheMu.Unlock()
+	return cache.Get(ctx, key)
 }
 
 func (a *API) handleQueryRange(w http.ResponseWriter, r *http.Request) {

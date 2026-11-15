@@ -60,6 +60,7 @@ type Config struct {
 	QueueWait          time.Duration
 	PointsPerSlot      int
 	MetadataTTL        time.Duration
+	InstantCacheTTL    time.Duration
 	QueryURLs          []string
 	QueryTimeout       time.Duration
 	AuthEnabled        bool
@@ -101,6 +102,7 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		QueueWait:          0,
 		PointsPerSlot:      100,
 		MetadataTTL:        30 * time.Second,
+		InstantCacheTTL:    time.Second,
 		QueryTimeout:       30 * time.Second,
 		LogLevel:           slog.LevelInfo,
 	}
@@ -192,6 +194,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.MetadataTTL, err = durationEnv(lookup, "SKOPOS_METADATA_TTL", cfg.MetadataTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.InstantCacheTTL, err = durationEnv(lookup, "SKOPOS_INSTANT_CACHE_TTL", cfg.InstantCacheTTL); err != nil {
 		return Config{}, err
 	}
 	if cfg.AuthEnabled, err = boolEnv(lookup, "SKOPOS_AUTH_ENABLED", false); err != nil {
@@ -291,6 +296,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	}
 	if cfg.MetadataTTL <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_METADATA_TTL: must be positive")
+	}
+	if cfg.InstantCacheTTL < 0 {
+		return Config{}, fmt.Errorf("SKOPOS_INSTANT_CACHE_TTL: must not be negative")
 	}
 	return cfg, nil
 }

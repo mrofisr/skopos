@@ -390,6 +390,33 @@ func TestMetadataTTL(t *testing.T) {
 	}
 }
 
+func TestInstantCacheTTL(t *testing.T) {
+	cfg, err := FromLookup(lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InstantCacheTTL != time.Second {
+		t.Fatalf("InstantCacheTTL = %s, want 1s", cfg.InstantCacheTTL)
+	}
+	cfg, err = FromLookup(lookupFrom(map[string]string{"SKOPOS_INSTANT_CACHE_TTL": "2s"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InstantCacheTTL != 2*time.Second {
+		t.Fatalf("InstantCacheTTL = %s, want 2s", cfg.InstantCacheTTL)
+	}
+	cfg, err = FromLookup(lookupFrom(map[string]string{"SKOPOS_INSTANT_CACHE_TTL": "0s"}))
+	if err != nil || cfg.InstantCacheTTL != 0 {
+		t.Fatalf("zero TTL = %s, %v; want disabled", cfg.InstantCacheTTL, err)
+	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_INSTANT_CACHE_TTL": "soon"})); err == nil {
+		t.Fatal("FromLookup accepted an invalid instant cache TTL")
+	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_INSTANT_CACHE_TTL": "-1s"})); err == nil {
+		t.Fatal("FromLookup accepted a negative instant cache TTL")
+	}
+}
+
 func TestProfileFlag(t *testing.T) {
 	cfg, err := FromLookup(lookupFrom(nil))
 	if err != nil {

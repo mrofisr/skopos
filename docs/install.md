@@ -295,6 +295,12 @@ request gets the head's error shape, `Retry-After: 1`, and increments
 `skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
 are exempt, so probes and scrapes keep working under load.
 
+Instant queries without an explicit `time` are evaluated at the start of the
+current second and cached for `SKOPOS_INSTANT_CACHE_TTL` (default `1s`; set
+`0s` to disable). The cache is per gateway replica and holds at most 64
+results. Supply `time` for an exact instant; explicit timestamps are cached by
+their exact value for the same TTL.
+
 ## Prometheus Operator, alerts, and dashboards
 
 `metrics.serviceMonitor.enabled=true` renders a `ServiceMonitor` for `/metrics`
