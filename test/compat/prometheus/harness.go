@@ -97,7 +97,7 @@ func (e *Engines) Instant(ctx context.Context, expr string, at time.Time) error 
 }
 
 func (e *Engines) referenceInstant(ctx context.Context, expr string, at time.Time) (any, error) {
-	query, err := e.Reference.NewInstantQuery(ctx, NewQueryable(e.refSeries), promql.NewPrometheusQueryOpts(false, lookback), expr, at)
+	query, err := e.Reference.NewInstantQuery(ctx, NewQueryable(e.refSeries), promql.NewPrometheusQueryOpts(false, lookback, nil), expr, at)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (e *Engines) Range(ctx context.Context, expr string, start, end time.Time, 
 }
 
 func (e *Engines) referenceRange(ctx context.Context, expr string, start, end time.Time, step time.Duration) (promql.Matrix, error) {
-	query, err := e.Reference.NewRangeQuery(ctx, NewQueryable(e.refSeries), promql.NewPrometheusQueryOpts(false, lookback), expr, start, end, step)
+	query, err := e.Reference.NewRangeQuery(ctx, NewQueryable(e.refSeries), promql.NewPrometheusQueryOpts(false, lookback, nil), expr, start, end, step)
 	if err != nil {
 		return nil, err
 	}
