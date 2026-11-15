@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -246,10 +247,13 @@ func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind t
 	}
 	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
+		if isResultLimit(err) {
+			return fmt.Errorf("%w: query result exceeds the ClickHouse result-row limit; narrow the time range or metric selector", ErrBadQuery)
+		}
 		return fmt.Errorf("prom: query %s: %w", table, err)
 	}
 	if result.Len() >= f.MaxRows {
-		return fmt.Errorf("prom: query reached the %d-row scan limit; narrow the time range or metric selector", f.MaxRows)
+		return fmt.Errorf("%w: query reached the %d-row scan limit; narrow the time range or metric selector", ErrBadQuery, f.MaxRows)
 	}
 	for i := 0; i < result.Len(); i++ {
 		switch kind {
@@ -651,6 +655,16 @@ func formatBound(v float64) string {
 		return "+Inf"
 	}
 	return strconv.FormatFloat(v, 'g', -1, 64)
+}
+
+// isResultLimit reports whether ClickHouse rejected a result because it
+// exceeded max_result_rows; the API turns this into a bad query, not a 500.
+func isResultLimit(err error) bool {
+	var clickhouseErr *chclient.Error
+	if !errors.As(err, &clickhouseErr) {
+		return false
+	}
+	return clickhouseErr.Code == "396" || strings.Contains(clickhouseErr.Message, "TOO_MANY_ROWS_OR_BYTES")
 }
 
 func matchesAll(matchers []*promlabels.Matcher, labels map[string]string) bool {

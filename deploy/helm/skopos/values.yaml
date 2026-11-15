@@ -150,7 +150,7 @@ clickhouse:
     maxExecutionTimeSeconds: 30
     maxMemoryUsageBytes: 1073741824
     maxRowsToRead: 10000000
-    maxResultRows: 100000
+    maxResultRows: 200000
   resources:
     requests:
       cpu: 500m
