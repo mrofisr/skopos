@@ -154,6 +154,20 @@ More than 5% of ClickHouse queries failed for 10 minutes.
 5. If ClickHouse is healthy but one query shape fails, reduce its range or
    remove it from the dashboard.
 
+### FINAL fallback
+
+`skopos_clickhouse_final_fallback_total` counts reads that dropped `FINAL`:
+
+- `action="retried"` means ClickHouse returned `ILLEGAL_FINAL` and the query
+  succeeded without read-time deduplication. The signal table is still plain
+  `MergeTree`; run the schema init job or migrate it to `ReplacingMergeTree`.
+- `action="skipped"` is the one-minute per-table cache that avoids repeating
+  the rejected round trip. It follows a `retried` event for the same table.
+
+The fallback keeps reads available during a migration, but it loses merge-time
+deduplication. An increase that does not clear after the init job is a schema
+problem, not a gateway problem.
+
 ### SkoposLowContextCoverage
 
 A signal's observed metric count is more than 20% larger than the documented
