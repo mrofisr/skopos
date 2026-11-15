@@ -217,17 +217,186 @@ func TestInvalidOptions(t *testing.T) {
 	if _, err := New(Options[string, int]{TTL: time.Minute, MaxEntries: 1}); err == nil {
 		t.Fatal("New accepted a nil loader")
 	}
-	if _, err := New(Options[string, int]{TTL: time.Minute, MaxEntries: 0, Load: func(context.Context, string) (int, error) { return 0, nil }}); err == nil {
+	load := func(context.Context, string) (int, error) { return 0, nil }
+	if _, err := New(Options[string, int]{TTL: time.Minute, MaxEntries: 0, Load: load}); err == nil {
 		t.Fatal("New accepted MaxEntries 0")
+	}
+	if _, err := New(Options[string, int]{TTL: time.Minute, MaxEntries: 1, LoadTimeout: -time.Second, Load: load}); err == nil {
+		t.Fatal("New accepted a negative LoadTimeout")
+	}
+	cache, err := New(Options[string, int]{TTL: time.Minute, MaxEntries: 1, Load: load})
+	if err != nil {
+		t.Fatalf("New with the default LoadTimeout: %v", err)
+	}
+	if cache.loadTimeout != defaultLoadTimeout {
+		t.Fatalf("loadTimeout = %s, want %s", cache.loadTimeout, defaultLoadTimeout)
+	}
+}
+
+func TestLoaderUsesDetachedContext(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	observed := make(chan error, 1)
+	cache, err := New(Options[string, string]{
+		TTL:        time.Minute,
+		MaxEntries: 1,
+		Load: func(ctx context.Context, _ string) (string, error) {
+			close(started)
+			<-release
+			observed <- ctx.Err()
+			return "value", nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	type result struct {
+		value string
+		err   error
+	}
+	results := make(chan result, 1)
+	go func() {
+		value, err := cache.Get(ctx, "key")
+		results <- result{value: value, err: err}
+	}()
+	<-started
+	cancel()
+	close(release)
+
+	select {
+	case err := <-observed:
+		if err != nil {
+			t.Fatalf("loader context was canceled with the caller: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("loader did not return")
+	}
+	select {
+	case got := <-results:
+		if !errors.Is(got.err, context.Canceled) {
+			t.Fatalf("leader Get error = %v, want context.Canceled", got.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("leader Get did not return")
+	}
+	if value, err := cache.Get(context.Background(), "key"); err != nil || value != "value" {
+		t.Fatalf("cached Get = %q, %v; the detached load was not cached", value, err)
+	}
+}
+
+// doneObserver closes reached when a Get evaluates the waiter select, so the
+// test can panic the loader only after a waiter is registered.
+type doneObserver struct {
+	context.Context
+	reached chan struct{}
+	once    sync.Once
+}
+
+func (c *doneObserver) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.reached) })
+	return c.Context.Done()
+}
+
+func TestPanickingLoaderDoesNotBlock(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	cache, err := New(Options[string, string]{
+		TTL:        time.Minute,
+		MaxEntries: 1,
+		Load: func(context.Context, string) (string, error) {
+			if calls.Add(1) == 1 {
+				close(started)
+				<-release
+				panic("boom")
+			}
+			return "ok", nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	leaderPanic := make(chan any, 1)
+	go func() {
+		defer func() { leaderPanic <- recover() }()
+		_, _ = cache.Get(context.Background(), "key")
+	}()
+	<-started
+
+	waiterCtx := &doneObserver{Context: context.Background(), reached: make(chan struct{})}
+	waiterErr := make(chan error, 1)
+	go func() {
+		_, err := cache.Get(waiterCtx, "key")
+		waiterErr <- err
+	}()
+	<-waiterCtx.reached
+	close(release)
+
+	select {
+	case err := <-waiterErr:
+		if !errors.Is(err, ErrLoaderPanicked) {
+			t.Fatalf("waiter error = %v, want ErrLoaderPanicked", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("waiter blocked on a panicking loader")
+	}
+	select {
+	case got := <-leaderPanic:
+		if got != "boom" {
+			t.Fatalf("recovered panic = %v, want boom", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("leader did not re-panic")
+	}
+	if value, err := cache.Get(context.Background(), "key"); err != nil || value != "ok" {
+		t.Fatalf("Get after panic = %q, %v", value, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("loader calls = %d, want 2", got)
+	}
+}
+
+func TestLoaderTimeout(t *testing.T) {
+	var calls atomic.Int32
+	cache, err := New(Options[string, string]{
+		TTL:         time.Minute,
+		MaxEntries:  1,
+		LoadTimeout: 20 * time.Millisecond,
+		Load: func(ctx context.Context, _ string) (string, error) {
+			calls.Add(1)
+			<-ctx.Done()
+			return "", ctx.Err()
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if _, err := cache.Get(context.Background(), "key"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want context.DeadlineExceeded", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("timeout took %s", elapsed)
+	}
+	if _, err := cache.Get(context.Background(), "key"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second error = %v, want context.DeadlineExceeded", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("loader calls = %d, want 2; a timed-out load was cached", got)
 	}
 }
 
 func TestCanceledWaiter(t *testing.T) {
 	release := make(chan struct{})
+	started := make(chan struct{})
 	cache, err := New(Options[string, int]{
 		TTL:        time.Minute,
 		MaxEntries: 1,
 		Load: func(context.Context, string) (int, error) {
+			close(started)
 			<-release
 			return 1, nil
 		},
@@ -235,9 +404,7 @@ func TestCanceledWaiter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	started := make(chan struct{})
 	go func() {
-		close(started)
 		_, _ = cache.Get(context.Background(), "key")
 	}()
 	<-started
