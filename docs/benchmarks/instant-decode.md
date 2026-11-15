@@ -72,13 +72,38 @@ from the Intel reference host, so these absolute numbers do not close the
 acceptance gate. The instant p95 moved from the issue's 7.4 s reference
 measurement to 4.8 s here, but the reference-host k6 run is still required.
 
+## Lab deployment run
+
+`dev-b52a32a` was deployed to the k0s lab (`oracle-cloud`, aarch64, 4 vCPU)
+with the exact 10k dataset, 32 in-flight/64 queued admission, gateway CPU limit
+raised from 500m to 3 cores, and ClickHouse at 2 cores. The tables were
+optimized after generation. The mixed workload was the same eight queries for
+60 s with the 6 h range skipped.
+
+| Scope | Requests | Errors | p50 | p95 | Throughput |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| overall | 1,234 | 0 | 706 ms | 4.96 s | 19.77 req/s |
+| `prom_instant_count` | 146 | 0 | 4.37 s | 5.46 s | — |
+| `prom_instant_by_service` | 144 | 0 | 4.27 s | 5.45 s | — |
+| `prom_histogram_p95` | 129 | 0 | 603 ms | 890 ms | — |
+| `prom_series` | 131 | 0 | 957 ms | 1.62 s | — |
+| `prom_label_values` | 132 | 0 | 311 ms | 636 ms | — |
+
+The lab also runs OBI, the Collector, and the reliable `ReplacingMergeTree`
+schema, so this is not the fast-profile Compose reference. A single instant
+query measured 0.6 s through the gateway versus 0.15 s direct to ClickHouse;
+30 concurrent queries on 4 vCPU therefore sit at roughly 4–5 s. Raising the
+gateway from 500m to 3 cores moved overall throughput from 5.9 to 19.8 req/s
+and instant p95 from 17.3 s to 5.45 s, but did not close the gate.
+
 ## Acceptance status
 
 - [x] Red/edge tests: the instant result matches the per-sample path; grouped
   and long-window queries are covered; the JSONCompact shapes were checked
   against ClickHouse 26.8.36.3.
-- [ ] **Reference host gate:** instant p95 < 2 s and throughput ≥ 48 req/s at
-  10k/30 clients. Run `test/bench` or k6 on the reference host.
+- [ ] **Reference gate:** instant p95 < 2 s and throughput ≥ 48 req/s at
+  10k/30 clients. The lab run above measured 5.45 s and 19.77 req/s, so the
+  gate is still open. The fast-profile Compose/reference run also remains.
 - [ ] If the reference run still misses 2 s, the next lever is SQL `rate`/`sum`
   pushdown (needs subquery/window support in `sqlgen`) or a deliberate
   one-second instant-result cache (a staleness tradeoff).
