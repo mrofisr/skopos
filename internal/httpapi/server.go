@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/mrofisr/skopos/internal/auth"
@@ -24,13 +25,23 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
+// Clock returns the current time. Tests inject a fake clock.
+type Clock func() time.Time
+
+const defaultReadinessCacheTTL = time.Second
+
 // Config configures the HTTP server.
 type Config struct {
 	Logger           *slog.Logger
 	Pinger           Pinger
 	Version          string
 	ReadinessTimeout time.Duration
-	MaxRequestBytes  int64
+	// ReadinessCacheTTL bounds how long a /readyz probe result is reused.
+	// Zero uses one second.
+	ReadinessCacheTTL time.Duration
+	// Clock defaults to time.Now.
+	Clock           Clock
+	MaxRequestBytes int64
 	// Auth optionally protects every route except /healthz and /readyz.
 	Auth *auth.Basic
 	// Register adds the query-head routes to the server mux. It is called
@@ -44,15 +55,20 @@ type Config struct {
 
 // Server owns the gateway handlers.
 type Server struct {
-	logger           *slog.Logger
-	pinger           Pinger
-	version          string
-	readinessTimeout time.Duration
-	maxRequestBytes  int64
-	auth             *auth.Basic
-	register         func(*http.ServeMux)
-	metrics          http.Handler
-	profile          bool
+	logger            *slog.Logger
+	pinger            Pinger
+	version           string
+	readinessTimeout  time.Duration
+	readinessCacheTTL time.Duration
+	clock             Clock
+	readinessMu       sync.Mutex
+	readinessChecked  time.Time
+	readinessErr      error
+	maxRequestBytes   int64
+	auth              *auth.Basic
+	register          func(*http.ServeMux)
+	metrics           http.Handler
+	profile           bool
 }
 
 // New validates cfg and returns a server.
@@ -62,6 +78,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.ReadinessTimeout < 0 {
 		return nil, errors.New("httpapi: readiness timeout must not be negative")
+	}
+	if cfg.ReadinessCacheTTL < 0 {
+		return nil, errors.New("httpapi: readiness cache TTL must not be negative")
 	}
 	if cfg.MaxRequestBytes < 0 {
 		return nil, errors.New("httpapi: max request bytes must not be negative")
@@ -75,19 +94,27 @@ func New(cfg Config) (*Server, error) {
 	if cfg.ReadinessTimeout == 0 {
 		cfg.ReadinessTimeout = 2 * time.Second
 	}
+	if cfg.ReadinessCacheTTL == 0 {
+		cfg.ReadinessCacheTTL = defaultReadinessCacheTTL
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = time.Now
+	}
 	if cfg.MaxRequestBytes == 0 {
 		cfg.MaxRequestBytes = 1 << 20
 	}
 	return &Server{
-		logger:           cfg.Logger,
-		pinger:           cfg.Pinger,
-		version:          cfg.Version,
-		readinessTimeout: cfg.ReadinessTimeout,
-		maxRequestBytes:  cfg.MaxRequestBytes,
-		auth:             cfg.Auth,
-		register:         cfg.Register,
-		metrics:          cfg.Metrics,
-		profile:          cfg.Profile,
+		logger:            cfg.Logger,
+		pinger:            cfg.Pinger,
+		version:           cfg.Version,
+		readinessTimeout:  cfg.ReadinessTimeout,
+		readinessCacheTTL: cfg.ReadinessCacheTTL,
+		clock:             cfg.Clock,
+		maxRequestBytes:   cfg.MaxRequestBytes,
+		auth:              cfg.Auth,
+		register:          cfg.Register,
+		metrics:           cfg.Metrics,
+		profile:           cfg.Profile,
 	}, nil
 }
 
@@ -167,14 +194,32 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), s.readinessTimeout)
-	defer cancel()
-	if err := s.pinger.Ping(ctx); err != nil {
+	if err := s.readiness(r.Context()); err != nil {
 		s.logger.Warn("readiness check failed", "error", err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+}
+
+// readiness reuses one probe result for ReadinessCacheTTL, so a Kubernetes
+// probe and a frontend fan-out cannot multiply ClickHouse pings. The probe is
+// detached from the caller's cancellation: a disconnected probe still fills
+// the cache, and the probe is bounded by ReadinessTimeout.
+func (s *Server) readiness(ctx context.Context) error {
+	s.readinessMu.Lock()
+	defer s.readinessMu.Unlock()
+	if !s.readinessChecked.IsZero() {
+		if age := s.clock().Sub(s.readinessChecked); age >= 0 && age < s.readinessCacheTTL {
+			return s.readinessErr
+		}
+	}
+	probeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.readinessTimeout)
+	defer cancel()
+	err := s.pinger.Ping(probeCtx)
+	s.readinessChecked = s.clock()
+	s.readinessErr = err
+	return err
 }
 
 func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {

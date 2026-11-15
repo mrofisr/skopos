@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,6 +120,148 @@ func TestReadyzTimeout(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("readiness took too long: %s", elapsed)
+	}
+}
+
+type manualClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newManualClock() *manualClock {
+	return &manualClock{now: time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)}
+}
+
+func (c *manualClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *manualClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+type countingPinger struct {
+	mu    sync.Mutex
+	err   error
+	calls int
+}
+
+func (p *countingPinger) Ping(context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	return p.err
+}
+
+func (p *countingPinger) setError(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.err = err
+}
+
+func (p *countingPinger) callCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
+}
+
+func TestReadyzCachesProbeForTTL(t *testing.T) {
+	clock := newManualClock()
+	pinger := &countingPinger{}
+	s := newTestServer(t, pinger, func(c *Config) {
+		c.Clock = clock.Now
+		c.ReadinessCacheTTL = time.Second
+	})
+	h := s.Handler()
+
+	if rec := doRequest(t, h, http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
+		t.Fatalf("first status = %d", rec.Code)
+	}
+	if rec := doRequest(t, h, http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
+		t.Fatalf("cached status = %d", rec.Code)
+	}
+	if got := pinger.callCount(); got != 1 {
+		t.Fatalf("probe calls = %d after two requests, want 1", got)
+	}
+
+	clock.Advance(500 * time.Millisecond)
+	doRequest(t, h, http.MethodGet, "/readyz")
+	if got := pinger.callCount(); got != 1 {
+		t.Fatalf("probe calls = %d inside the TTL, want 1", got)
+	}
+
+	pinger.setError(errors.New("clickhouse down"))
+	clock.Advance(600 * time.Millisecond)
+	if rec := doRequest(t, h, http.MethodGet, "/readyz"); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expired status = %d, want 503", rec.Code)
+	}
+	doRequest(t, h, http.MethodGet, "/readyz")
+	if got := pinger.callCount(); got != 2 {
+		t.Fatalf("probe calls = %d, want 2; the failure was not cached", got)
+	}
+
+	pinger.setError(nil)
+	clock.Advance(time.Second)
+	if rec := doRequest(t, h, http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
+		t.Fatalf("recovered status = %d, want 200", rec.Code)
+	}
+	if got := pinger.callCount(); got != 3 {
+		t.Fatalf("probe calls = %d, want 3", got)
+	}
+}
+
+type blockingPinger struct {
+	started  chan struct{}
+	release  chan struct{}
+	observed chan error
+}
+
+func (p *blockingPinger) Ping(ctx context.Context) error {
+	close(p.started)
+	<-p.release
+	p.observed <- ctx.Err()
+	return nil
+}
+
+func TestReadyzProbeOutlivesCaller(t *testing.T) {
+	pinger := &blockingPinger{
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+		observed: make(chan error, 1),
+	}
+	s := newTestServer(t, pinger, func(c *Config) {
+		c.Clock = newManualClock().Now
+		c.ReadinessCacheTTL = time.Second
+	})
+	h := s.Handler()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		h.ServeHTTP(rec, req)
+		close(done)
+	}()
+	<-pinger.started
+	cancel()
+	close(pinger.release)
+	<-done
+
+	select {
+	case err := <-pinger.observed:
+		if err != nil {
+			t.Fatalf("probe context was canceled with the caller: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("probe did not finish")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
 
@@ -235,6 +378,7 @@ func TestNewRejectsInvalidConfig(t *testing.T) {
 	}{
 		{"no pinger", Config{}},
 		{"negative readiness timeout", Config{Pinger: fakePinger{}, ReadinessTimeout: -time.Second}},
+		{"negative readiness cache", Config{Pinger: fakePinger{}, ReadinessCacheTTL: -time.Second}},
 		{"negative max body", Config{Pinger: fakePinger{}, MaxRequestBytes: -1}},
 	}
 	for _, tc := range tests {
