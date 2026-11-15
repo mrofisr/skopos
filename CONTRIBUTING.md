@@ -50,6 +50,23 @@ summarised in [docs/structure.md](docs/structure.md) and enforced by
   validation, or decision logic, and stay under 50 lines (enforced by
   `TestMainIsSmall`).
 
+## Proposals, style, and skills
+
+- A change that affects query semantics, the support matrix, chart values,
+  deployment modes, stored data, security posture, or MCP tools needs a proposal
+  in [`docs/proposals/`](docs/proposals/) before implementation. A proposal is
+  one to three pages: problem, goals, non-goals, behavior, compatibility, test
+  plan, and alternatives.
+- An ADR records a decision that has been made. A proposal argues for a decision
+  that has not been made. The support matrix records what is actually tested.
+- Go style is in [`docs/coding-guidelines.md`](docs/coding-guidelines.md).
+  Documentation style is in [`docs/style-guide.md`](docs/style-guide.md).
+- Shared agent runbooks are in [`.agents/skills/`](.agents/skills/). They name
+  files, commands, and verification for repeatable tasks, but the `Makefile`,
+  this file, and the ADRs remain the source of truth.
+- A resource or sizing recommendation needs a before/after measurement; see
+  [`docs/resource-review.md`](docs/resource-review.md).
+
 ## Naming conventions
 
 Workflow and job names are user-facing, so they follow one convention:

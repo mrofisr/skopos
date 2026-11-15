@@ -1,0 +1,53 @@
+---
+name: replace-me
+description: >-
+  Describe what this skill does in one or two sentences. Use when the user asks
+  for <the workflow>, mentions <keywords>, or changes <the relevant files>.
+license: Apache-2.0
+---
+
+# Replace me
+
+One paragraph that states the outcome and the single source of truth.
+
+## When to use
+
+- The concrete request or change that should activate this skill.
+- The adjacent request that should **not** activate it.
+
+## Inputs
+
+- The files, values, or identifiers the agent needs before starting.
+- The defaults to use when the caller does not provide them.
+
+## Workflow
+
+1. Inspect the current state. Name the exact files.
+2. Make the smallest change that satisfies the request.
+3. Run the focused verification.
+4. Update the source-of-truth document, matrix, or corpus.
+5. Run the broader verification before reporting completion.
+
+## Verification
+
+```sh
+# Focused check
+go test ./<package>/... -run '<TestName>' -count=1
+
+# Full check expected before a pull request
+make check
+```
+
+State what a pass looks like and what to report when a command could not run.
+
+## Guardrails
+
+- Do not update expected values from the implementation under test.
+- Do not skip, quarantine, or allow-list a test without a documented reason and
+  human approval.
+- Do not add a dependency, image, or action outside the approved policy.
+- Do not hand-edit a generated file.
+
+## References
+
+- Link the relevant ADR, support page, corpus README, or script.
