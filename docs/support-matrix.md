@@ -282,7 +282,7 @@ Every row is backed by an executable inventory test.
 | Maximum query range | 168h0m0s | `internal/config` |
 | Maximum scan rows | 200000 | `internal/config` |
 | Maximum rows to read | 10000000 | `internal/config` |
-| Maximum result rows | 100000 | `internal/config` |
+| Maximum result rows | 200000 | `internal/config` |
 | Maximum response bytes | 67108864 (64 MiB) | `internal/config` |
 | Maximum request bytes | 1048576 (1 MiB) | `internal/config` |
 | Query timeout | 30s | `internal/config` |

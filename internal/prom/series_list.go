@@ -102,7 +102,7 @@ func (f *ClickHouseFetcher) listSeriesTable(ctx context.Context, table string, k
 		return fmt.Errorf("prom: query %s series: %w", table, err)
 	}
 	if result.Len() >= f.MaxRows {
-		return fmt.Errorf("prom: series query reached the %d-row limit; narrow the time range or selector", f.MaxRows)
+		return fmt.Errorf("%w: series query reached the %d-row limit; narrow the time range or selector", ErrBadQuery, f.MaxRows)
 	}
 	for i := 0; i < result.Len(); i++ {
 		metric, _ := result.String(i, "MetricName")

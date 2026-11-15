@@ -203,6 +203,22 @@ func TestSeriesUsesLister(t *testing.T) {
 	}
 }
 
+func TestSeriesResultLimitIsBadQuery(t *testing.T) {
+	h := testAPI(fakeQueryEngine{}, fakeSeriesFetcher{err: fmt.Errorf(
+		"%w: query result exceeds the ClickHouse result-row limit", ErrBadQuery)})
+	rec := do(t, h, `/api/v1/series?match[]=up`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["status"] != "error" || body["errorType"] != "bad_data" {
+		t.Fatalf("body = %#v", body)
+	}
+}
+
 func TestMetadataAndBuildInfo(t *testing.T) {
 	fetcher := fakeSeriesFetcher{metadata: map[string]Metadata{
 		"http_requests_total": {Type: "counter", Help: "requests", Unit: "1"},

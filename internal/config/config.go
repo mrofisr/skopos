@@ -89,7 +89,7 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		MaxExecutionTime:   30 * time.Second,
 		MaxMemoryUsage:     1 << 30,
 		MaxRowsToRead:      10_000_000,
-		MaxResultRows:      100_000,
+		MaxResultRows:      200_000,
 		MaxScanRows:        200_000,
 		MaxQueryRange:      7 * 24 * time.Hour,
 		MaxResponseBytes:   64 << 20,
@@ -267,6 +267,11 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.MaxMemoryUsage == 0 || cfg.MaxRowsToRead == 0 || cfg.MaxResultRows == 0 ||
 		cfg.MaxScanRows <= 0 || cfg.MaxResponseBytes <= 0 || cfg.MaxRequestBytes <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS limits must be positive")
+	}
+	if uint64(cfg.MaxScanRows) > cfg.MaxResultRows {
+		return Config{}, fmt.Errorf(
+			"SKOPOS_MAX_SCAN_ROWS must not exceed SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS: scan %d > result %d",
+			cfg.MaxScanRows, cfg.MaxResultRows)
 	}
 	if cfg.MaxQueryRange <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_MAX_QUERY_RANGE: must be positive")

@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ type fakeClickHouse struct {
 	bodies        []string
 	valueBodies   []string
 	failDiscovery bool
+	failData      bool
 	failValuesAt  int
 	valueCalls    int
 	failNamesAt   int
@@ -99,6 +101,11 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"meta": []map[string]string{{"name": "value", "type": "String"}},
 			"data": rows,
 		})
+		return
+	}
+	if f.failData && (strings.Contains(query, "Value") || strings.Contains(query, "BucketCounts") || strings.Contains(query, "ValueAtQuantiles")) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"exception":"Code: 396. DB::Exception: Limit for result exceeded, max rows: 100000, current rows: 104960. (TOO_MANY_ROWS_OR_BYTES)"}`)
 		return
 	}
 	f.mu.Lock()
@@ -617,6 +624,48 @@ func TestFetchMatchesServiceNameAttributeWhenColumnIsEmpty(t *testing.T) {
 	body := dataBodies(fake)[names.MetricsGauge]
 	if !strings.Contains(body, "`ServiceName` = {service_empty_0:String}") {
 		t.Fatalf("empty service fallback missing:\n%s", body)
+	}
+}
+
+func TestFetchResultLimitIsBadQuery(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName": "up", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Value": json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	fake.failData = true
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	_, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at)
+	if !errors.Is(err, ErrBadQuery) {
+		t.Fatalf("err = %v, want ErrBadQuery", err)
+	}
+	if !strings.Contains(err.Error(), "result-row limit") {
+		t.Fatalf("err = %v, want the result-row limit message", err)
+	}
+}
+
+func TestFetchScanLimitIsBadQuery(t *testing.T) {
+	names := plan.DefaultTableNames()
+	rows := make([]map[string]any, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		rows = append(rows, map[string]any{
+			"MetricName": "up", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+			"Attributes": map[string]any{}, "Value": json.Number("1"),
+		})
+	}
+	fetcher, _ := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: rows})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	_, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at)
+	if !errors.Is(err, ErrBadQuery) {
+		t.Fatalf("err = %v, want ErrBadQuery", err)
+	}
+	if !strings.Contains(err.Error(), "scan limit") {
+		t.Fatalf("err = %v, want the scan-limit message", err)
 	}
 }
 

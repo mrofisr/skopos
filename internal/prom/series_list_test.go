@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -169,5 +170,23 @@ func TestListSeriesEmptyHistogramBounds(t *testing.T) {
 	}
 	if len(labels) != 3 {
 		t.Fatalf("labels = %#v, want 3", labels)
+	}
+}
+
+func TestListSeriesScanLimitIsBadQuery(t *testing.T) {
+	names := plan.DefaultTableNames()
+	rows := make([]map[string]any, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		rows = append(rows, map[string]any{
+			"MetricName": "up", "ServiceName": "checkout", "Attributes": map[string]any{},
+		})
+	}
+	fetcher, _ := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: rows})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	_, err := fetcher.ListSeries(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at)
+	if !errors.Is(err, ErrBadQuery) {
+		t.Fatalf("err = %v, want ErrBadQuery", err)
 	}
 }

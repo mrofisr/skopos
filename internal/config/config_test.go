@@ -68,7 +68,7 @@ func TestOverrides(t *testing.T) {
 		"SKOPOS_CLICKHOUSE_MAX_EXECUTION_TIME": "45s",
 		"SKOPOS_CLICKHOUSE_MAX_MEMORY_USAGE":   "2048",
 		"SKOPOS_CLICKHOUSE_MAX_ROWS_TO_READ":   "3000",
-		"SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS":    "4000",
+		"SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS":    "400000",
 		"SKOPOS_CLICKHOUSE_MAX_RESPONSE_BYTES": "5000",
 		"SKOPOS_READINESS_TIMEOUT":             "3s",
 		"SKOPOS_MAX_REQUEST_BYTES":             "6000",
@@ -93,7 +93,7 @@ func TestOverrides(t *testing.T) {
 		t.Fatalf("query limits = %d/%s", cfg.MaxScanRows, cfg.MaxQueryRange)
 	}
 	if cfg.MaxExecutionTime != 45*time.Second || cfg.QueryTimeout != 60*time.Second || cfg.MaxMemoryUsage != 2048 ||
-		cfg.MaxRowsToRead != 3000 || cfg.MaxResultRows != 4000 || cfg.MaxResponseBytes != 5000 {
+		cfg.MaxRowsToRead != 3000 || cfg.MaxResultRows != 400000 || cfg.MaxResponseBytes != 5000 {
 		t.Fatalf("unexpected limits: %#v", cfg)
 	}
 	if cfg.ReadinessTimeout != 3*time.Second || cfg.MaxRequestBytes != 6000 {
@@ -160,7 +160,8 @@ func TestInvalidValues(t *testing.T) {
 
 func TestMaxScanRowsAcceptsMaxInt(t *testing.T) {
 	cfg, err := FromLookup(lookupFrom(map[string]string{
-		"SKOPOS_MAX_SCAN_ROWS": strconv.Itoa(math.MaxInt),
+		"SKOPOS_MAX_SCAN_ROWS":              strconv.Itoa(math.MaxInt),
+		"SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS": strconv.Itoa(math.MaxInt),
 	}))
 	if err != nil {
 		t.Fatalf("FromLookup: %v", err)
@@ -440,5 +441,15 @@ func TestPointsPerSlot(t *testing.T) {
 	}
 	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_POINTS_PER_SLOT": "-1"})); err == nil {
 		t.Fatal("PointsPerSlot accepted a negative value")
+	}
+}
+
+func TestScanRowsMustNotExceedResultRows(t *testing.T) {
+	_, err := FromLookup(lookupFrom(map[string]string{
+		"SKOPOS_MAX_SCAN_ROWS":              "300000",
+		"SKOPOS_CLICKHOUSE_MAX_RESULT_ROWS": "200000",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "SKOPOS_MAX_SCAN_ROWS") {
+		t.Fatalf("err = %v, want the scan/result invariant", err)
 	}
 }
