@@ -27,16 +27,26 @@ type Options[K comparable, V any] struct {
 	Clock Clock
 	// Load is required.
 	Load Loader[K, V]
+	// LoadTimeout bounds a shared load and detaches it from the first caller's
+	// cancellation. Zero uses 30s.
+	LoadTimeout time.Duration
 }
+
+const defaultLoadTimeout = 30 * time.Second
+
+// ErrLoaderPanicked is returned to waiters when the first caller's loader
+// panics. The panic is re-raised to that caller after the call is cleaned up.
+var ErrLoaderPanicked = errors.New("ttlcache: loader panicked")
 
 // Cache is a bounded TTL cache with single-flight loading. It is safe for
 // concurrent use.
 type Cache[K comparable, V any] struct {
-	mu         sync.Mutex
-	ttl        time.Duration
-	maxEntries int
-	clock      Clock
-	load       Loader[K, V]
+	mu          sync.Mutex
+	ttl         time.Duration
+	maxEntries  int
+	loadTimeout time.Duration
+	clock       Clock
+	load        Loader[K, V]
 
 	entries map[K]*list.Element
 	order   *list.List
@@ -66,18 +76,26 @@ func New[K comparable, V any](opts Options[K, V]) (*Cache[K, V], error) {
 	if opts.MaxEntries <= 0 {
 		return nil, fmt.Errorf("ttlcache: MaxEntries must be positive, got %d", opts.MaxEntries)
 	}
+	if opts.LoadTimeout < 0 {
+		return nil, fmt.Errorf("ttlcache: LoadTimeout must not be negative, got %s", opts.LoadTimeout)
+	}
+	loadTimeout := opts.LoadTimeout
+	if loadTimeout == 0 {
+		loadTimeout = defaultLoadTimeout
+	}
 	clock := opts.Clock
 	if clock == nil {
 		clock = time.Now
 	}
 	return &Cache[K, V]{
-		ttl:        opts.TTL,
-		maxEntries: opts.MaxEntries,
-		clock:      clock,
-		load:       opts.Load,
-		entries:    make(map[K]*list.Element),
-		order:      list.New(),
-		calls:      make(map[K]*call[V]),
+		ttl:         opts.TTL,
+		maxEntries:  opts.MaxEntries,
+		loadTimeout: loadTimeout,
+		clock:       clock,
+		load:        opts.Load,
+		entries:     make(map[K]*list.Element),
+		order:       list.New(),
+		calls:       make(map[K]*call[V]),
 	}, nil
 }
 
@@ -113,17 +131,37 @@ func (c *Cache[K, V]) Get(ctx context.Context, key K) (V, error) {
 	c.calls[key] = pending
 	c.mu.Unlock()
 
-	value, err := c.load(ctx, key)
+	loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.loadTimeout)
+	defer cancel()
+	var (
+		value    V
+		err      error
+		panicked any
+	)
+	func() {
+		defer func() { panicked = recover() }()
+		value, err = c.load(loadCtx, key)
+	}()
 
 	c.mu.Lock()
 	delete(c.calls, key)
-	if err == nil {
+	if panicked != nil {
+		err = fmt.Errorf("%w: %v", ErrLoaderPanicked, panicked)
+	} else if err == nil {
 		c.insert(key, value, now.Add(c.ttl))
 	}
 	pending.value = value
 	pending.err = err
 	close(pending.done)
 	c.mu.Unlock()
+	if panicked != nil {
+		panic(panicked)
+	}
+	// The load is detached so a canceled leader does not poison waiters, but
+	// the leader still observes its own cancellation.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return zero, ctxErr
+	}
 	return value, err
 }
 
