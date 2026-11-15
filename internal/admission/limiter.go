@@ -9,8 +9,14 @@ import (
 	"time"
 )
 
-// ErrRejected means the limiter had no free slot and no usable wait queue.
-var ErrRejected = errors.New("admission: request rejected")
+var (
+	// ErrRejected means the limiter had no free slot and no usable wait queue.
+	ErrRejected = errors.New("admission: request rejected")
+	// ErrTooHeavy means the request's weight exceeds the limiter's total
+	// capacity, so waiting cannot help. It is a bad-query error, not a
+	// retryable capacity rejection.
+	ErrTooHeavy = errors.New("admission: request weight exceeds capacity")
+)
 
 // Limiter bounds weighted in-flight work and the number waiting for budget.
 // A zero queue or a zero wait turns excess requests away immediately.
@@ -64,7 +70,7 @@ func (l *Limiter) AcquireWeight(ctx context.Context, weight int) (func(), error)
 		weight = 1
 	}
 	if weight > l.capacity {
-		return nil, ErrRejected
+		return nil, ErrTooHeavy
 	}
 	l.mu.Lock()
 	if l.inflight+weight <= l.capacity {

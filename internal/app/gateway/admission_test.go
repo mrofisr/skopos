@@ -1,16 +1,24 @@
 package gateway
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/mrofisr/skopos/internal/auth"
 	"github.com/mrofisr/skopos/internal/config"
+	"github.com/mrofisr/skopos/internal/httpapi"
 	"github.com/mrofisr/skopos/internal/metrics"
 )
+
+type pingerStub struct{}
+
+func (pingerStub) Ping(context.Context) error { return nil }
 
 func TestAdmissionRejectsBeyondCapAndQueue(t *testing.T) {
 	registry := metrics.NewRegistry("test")
@@ -173,5 +181,102 @@ func TestAdmissionInvalidConfig(t *testing.T) {
 	httpMetrics := metrics.NewHTTP(metrics.NewRegistry("test"))
 	if _, err := newAdmissionMiddleware(config.Config{MaxInflight: -1}, httpMetrics); err == nil {
 		t.Fatal("newAdmissionMiddleware accepted a negative in-flight cap")
+	}
+}
+
+func TestAdmissionUsesPOSTRangeCost(t *testing.T) {
+	middleware, err := newAdmissionMiddleware(config.Config{
+		MaxInflight: 1, QueueDepth: 0, PointsPerSlot: 1, MaxRequestBytes: 1 << 20,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	handler := middleware.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	form := url.Values{
+		"query": {"sum(rate(x[5m]))"},
+		"start": {"0"},
+		"end":   {"900"},
+		"step":  {"90"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/query_range", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if called {
+		t.Fatal("POST range was admitted with weight 1; the form cost was ignored")
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "increase the step") {
+		t.Fatalf("body = %q, want the step hint", rec.Body.String())
+	}
+}
+
+func TestAdmissionRejectsOverCapacityAsBadData(t *testing.T) {
+	middleware, err := newAdmissionMiddleware(config.Config{MaxInflight: 1, PointsPerSlot: 1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	handler := middleware.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/query_range?start=0&end=900&step=90", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if called {
+		t.Fatal("over-capacity range reached the handler")
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After = %q, want empty on a bad-data rejection", got)
+	}
+	if !strings.Contains(rec.Body.String(), "increase the step") {
+		t.Fatalf("body = %q, want the step hint", rec.Body.String())
+	}
+}
+
+func TestAuthRunsBeforeAdmission(t *testing.T) {
+	middleware, err := newAdmissionMiddleware(config.Config{MaxInflight: 1, QueueDepth: 0, PointsPerSlot: 1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release, err := middleware.limiters["prom"].AcquireWeight(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("saturate limiter: %v", err)
+	}
+	t.Cleanup(release)
+
+	guard, err := auth.New("user", "pass")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api, err := httpapi.New(httpapi.Config{
+		Pinger:  pingerStub{},
+		Auth:    guard,
+		Version: "test",
+		Register: func(mux *http.ServeMux) {
+			mux.HandleFunc("GET /api/v1/query", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := queryHandler(api, middleware)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/query", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; admission ran before auth", rec.Code)
 	}
 }

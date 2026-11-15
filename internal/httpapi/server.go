@@ -93,6 +93,12 @@ func New(cfg Config) (*Server, error) {
 
 // Handler returns the fully wrapped HTTP handler.
 func (s *Server) Handler() http.Handler {
+	return s.HandlerWith(nil)
+}
+
+// HandlerWith inserts wrap between the routes and the auth guard, so
+// authentication is evaluated before wrap. A nil wrap is the normal handler.
+func (s *Server) HandlerWith(wrap func(http.Handler) http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
@@ -143,6 +149,9 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	var h http.Handler = router
+	if wrap != nil {
+		h = wrap(h)
+	}
 	if s.auth != nil {
 		h = s.auth.Wrap(h, "/healthz", "/readyz")
 	}

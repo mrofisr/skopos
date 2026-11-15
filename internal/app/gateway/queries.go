@@ -121,11 +121,19 @@ func runQueries(ctx context.Context, cfg config.Config, logger *slog.Logger, bas
 		logger.Info("starting gateway", attrs...)
 	}
 
-	handler := api.Handler()
-	if admission != nil {
-		handler = admission.Wrap(handler)
-	}
-	return serve(ctx, cfg.ListenAddr, httpMetrics.Wrap(handler), logger, cfg.QueryTimeout)
+	return serve(ctx, cfg.ListenAddr, httpMetrics.Wrap(queryHandler(api, admission)), logger, cfg.QueryTimeout)
+}
+
+// queryHandler builds the public query handler. The auth guard lives inside the
+// HTTP API; admission is inserted under it so unauthenticated traffic cannot
+// occupy slots.
+func queryHandler(api *httpapi.Server, admission *admissionMiddleware) http.Handler {
+	return api.HandlerWith(func(next http.Handler) http.Handler {
+		if admission == nil {
+			return next
+		}
+		return admission.Wrap(next)
+	})
 }
 
 // configureQueryAPIs applies the shared range and per-request deadline to the
