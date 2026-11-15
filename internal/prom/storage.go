@@ -168,11 +168,12 @@ func (f *ClickHouseFetcher) probeTables(ctx context.Context, name string) ([]tab
 	found := make([]tableKind, 0, len(tables))
 	for _, table := range tables {
 		query := plan.Query{
-			Signal: plan.SignalMetrics,
-			Table:  table.name,
-			Select: []plan.SelectItem{{Expr: plan.Col("MetricName")}},
-			Where:  plan.Bin("=", normalizedMetricName(), plan.String("metric_filter", name)),
-			Limit:  1,
+			Signal:    plan.SignalMetrics,
+			Table:     table.name,
+			Select:    []plan.SelectItem{{Expr: plan.Col("MetricName")}},
+			Where:     plan.Bin("=", normalizedMetricName(), plan.String("metric_filter", name)),
+			Limit:     1,
+			SkipFinal: true,
 		}
 		emitted, err := f.Emitter.Emit(query)
 		if err != nil {
@@ -398,7 +399,8 @@ func (f *ClickHouseFetcher) probeExponentialHistogram(ctx context.Context, sel S
 			End:          end,
 			EndInclusive: true,
 		},
-		Limit: limit,
+		Limit:     limit,
+		SkipFinal: true,
 	}
 	emitted, err := f.Emitter.Emit(query)
 	if err != nil {
@@ -728,9 +730,10 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 				{Expr: plan.Agg("any", plan.Col("MetricDescription")), Alias: "help"},
 				{Expr: plan.Agg("any", plan.Col("MetricUnit")), Alias: "unit"},
 			},
-			Where:   filter,
-			GroupBy: []string{"MetricName"},
-			Limit:   f.MaxRows,
+			Where:     filter,
+			GroupBy:   []string{"MetricName"},
+			Limit:     f.MaxRows,
+			SkipFinal: true,
 		}
 		emitted, err := f.Emitter.Emit(query)
 		if err != nil {
@@ -753,10 +756,35 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 	return out, nil
 }
 
-// LabelValues computes distinct label values in ClickHouse for selectors that
-// only constrain __name__. Callers must fall back to Fetch for any other
-// matcher so the result stays correct.
+// LabelValues returns cached distinct label values for selectors that only
+// constrain __name__. The cache TTL is 15 seconds; callers still fall back to
+// Fetch for any other matcher.
 func (f *ClickHouseFetcher) LabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	bucket := int64(labelValuesTTL / time.Second)
+	if bucket < 1 {
+		bucket = 1
+	}
+	key := labelValuesKey{
+		Name:     name,
+		Selector: sel.String(),
+		Start:    start.Unix() / bucket,
+		End:      end.Unix() / bucket,
+		Limit:    limit,
+	}
+	cache := f.cacheFor()
+	cache.labelValuesMu.Lock()
+	cache.labelValuesRequests[key] = labelValuesRequest{name: name, selector: sel, start: start, end: end, limit: limit}
+	cache.labelValuesMu.Unlock()
+	values, err := cache.labelValues.Get(ctx, key)
+	cache.labelValuesMu.Lock()
+	delete(cache.labelValuesRequests, key)
+	cache.labelValuesMu.Unlock()
+	return values, err
+}
+
+// loadLabelValues computes the distinct values. Callers reach it through the
+// cache.
+func (f *ClickHouseFetcher) loadLabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error) {
 	tables, err := f.candidateTables(ctx, sel)
 	if err != nil {
 		return nil, err
@@ -794,6 +822,7 @@ func (f *ClickHouseFetcher) LabelValues(ctx context.Context, name string, sel Se
 			}},
 			GroupBy:    []string{"value"},
 			Where:      metricNameFilter(sel),
+			SkipFinal:  true,
 			TimeColumn: "TimeUnix",
 			TimeRange: &plan.TimeRange{
 				Start:        start,
@@ -936,6 +965,7 @@ func (f *ClickHouseFetcher) loadLabelNames(ctx context.Context, sel Selector, st
 			}},
 			Where:      metricNameFilter(sel),
 			GroupBy:    []string{"name"},
+			SkipFinal:  true,
 			TimeColumn: "TimeUnix",
 			TimeRange: &plan.TimeRange{
 				Start:        start,

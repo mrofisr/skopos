@@ -233,3 +233,95 @@ func TestLabelValuesPushdownUsesGroupBy(t *testing.T) {
 		t.Errorf("label-values query has no GROUP BY: %s", body)
 	}
 }
+
+func TestLabelValuesCacheSecondCall(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newValuesFetcher(t,
+		map[string][]map[string]any{names.MetricsSum: {gaugeRow("m")}},
+		map[string][]string{names.MetricsSum: {"server-0"}})
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+	call := func(limit int) []string {
+		t.Helper()
+		values, err := fetcher.LabelValues(context.Background(), "service_name", matchAll(), start, end, limit)
+		if err != nil {
+			t.Fatalf("LabelValues: %v", err)
+		}
+		return values
+	}
+	if values := call(0); len(values) != 1 || values[0] != "server-0" {
+		t.Fatalf("values = %v", values)
+	}
+	fake.mu.Lock()
+	first := fake.valueCalls
+	body := fake.valueBodies[0]
+	fake.mu.Unlock()
+	if strings.Contains(body, "FINAL") {
+		t.Fatalf("metadata query still uses FINAL:\n%s", body)
+	}
+	call(0)
+	fake.mu.Lock()
+	second := fake.valueCalls
+	fake.mu.Unlock()
+	if second != first {
+		t.Fatalf("label-values queries = %d then %d, want a cache hit", first, second)
+	}
+	call(1)
+	fake.mu.Lock()
+	third := fake.valueCalls
+	fake.mu.Unlock()
+	if third != second+1 {
+		t.Fatalf("label-values queries = %d then %d, want a new key for limit", second, third)
+	}
+}
+
+func TestLabelValuesCacheExpires(t *testing.T) {
+	clock := &cacheClock{now: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+	names := plan.DefaultTableNames()
+	fetcher, fake := newValuesFetcher(t,
+		map[string][]map[string]any{names.MetricsSum: {gaugeRow("m")}},
+		map[string][]string{names.MetricsSum: {"server-0"}})
+	fetcher.Now = clock.Now
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+	if values, err := fetcher.LabelValues(context.Background(), "service_name", matchAll(), start, end, 0); err != nil || values[0] != "server-0" {
+		t.Fatalf("initial values = %v, err = %v", values, err)
+	}
+	fake.mu.Lock()
+	fake.labelValues[names.MetricsSum] = []string{"server-1"}
+	fake.mu.Unlock()
+	clock.Advance(16 * time.Second)
+	values, err := fetcher.LabelValues(context.Background(), "service_name", matchAll(), start, end, 0)
+	if err != nil {
+		t.Fatalf("LabelValues: %v", err)
+	}
+	if len(values) != 1 || values[0] != "server-1" {
+		t.Fatalf("expired values = %v, want server-1", values)
+	}
+}
+
+func TestLabelValuesCacheDoesNotCacheErrors(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newValuesFetcher(t,
+		map[string][]map[string]any{names.MetricsSum: {gaugeRow("m")}},
+		map[string][]string{names.MetricsSum: {"server-0"}})
+	fake.failValuesAt = 1
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+	if _, err := fetcher.LabelValues(context.Background(), "service_name", matchAll(), start, end, 0); err == nil {
+		t.Fatal("first LabelValues succeeded, want an error")
+	}
+	values, err := fetcher.LabelValues(context.Background(), "service_name", matchAll(), start, end, 0)
+	if err != nil {
+		t.Fatalf("second LabelValues: %v", err)
+	}
+	if len(values) != 1 || values[0] != "server-0" {
+		t.Fatalf("values = %v", values)
+	}
+	fake.mu.Lock()
+	calls := fake.valueCalls
+	fake.mu.Unlock()
+	if calls != 2 {
+		t.Fatalf("label-values queries = %d, want 2 (the error must not be cached)", calls)
+	}
+}

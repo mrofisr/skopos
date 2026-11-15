@@ -85,6 +85,7 @@ func (f *ClickHouseFetcher) listSeriesTable(ctx context.Context, table string, k
 		Select:     selects,
 		Where:      filter,
 		GroupBy:    groupBy,
+		SkipFinal:  true,
 		TimeColumn: "TimeUnix",
 		TimeRange: &plan.TimeRange{
 			Start:        start,
