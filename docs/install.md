@@ -422,6 +422,8 @@ The important values are:
 | `auth.existingSecret` | `""` | Secret with `username` and `password` keys. Preferred over inline values. |
 | `auth.username`, `auth.password` | `""` | Inline credentials rendered into a Secret. Use only when `existingSecret` is empty. |
 | `gateway.mode` | `all` | `all`, `query`/`worker`, or `frontend` for a single Deployment. |
+| `gateway.terminationGracePeriodSeconds` | `45` | Kubernetes drain budget. Keep it above `clickhouse.limits.maxExecutionTimeSeconds + 10`. |
+| `frontend.terminationGracePeriodSeconds` | `45` | Same for the distributed frontend; keep it above `frontend.config.queryTimeout + 10`. |
 | `distributed.enabled` | `false` | Split into a public frontend and an internal query tier. |
 | `frontend.replicaCount` | `1` | Public proxy replicas when distributed. |
 | `frontend.config.queryTimeout` | `30s` | Per-request proxy timeout. |

@@ -30,6 +30,7 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds }}
       {{- with .Values.query.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
