@@ -4,6 +4,7 @@
 package frontend
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -461,6 +462,49 @@ func (r *statusRecorder) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// Unwrap lets http.ResponseController reach the original writer.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
+// Flush preserves streaming for handlers that assert http.Flusher.
+func (r *statusRecorder) Flush() {
+	if r.status == 0 {
+		r.WriteHeader(http.StatusOK)
+	}
+	if flusher, ok := r.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack preserves WebSocket-style upgrades.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	return hijacker.Hijack()
+}
+
+// Push preserves HTTP/2 server push.
+func (r *statusRecorder) Push(target string, opts *http.PushOptions) error {
+	if pusher, ok := r.ResponseWriter.(http.Pusher); ok {
+		return pusher.Push(target, opts)
+	}
+	return http.ErrNotSupported
+}
+
+// ReadFrom keeps the sendfile path when the underlying writer supports it.
+func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
+	if r.status == 0 {
+		r.WriteHeader(http.StatusOK)
+	}
+	if readerFrom, ok := r.ResponseWriter.(io.ReaderFrom); ok {
+		n, err := readerFrom.ReadFrom(src)
+		r.bytes += int(n)
+		return n, err
+	}
+	return io.Copy(writerOnly{r}, src)
+}
+
 func (s *Server) logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -501,6 +545,55 @@ func (w *recoveryWriter) Write(p []byte) (int, error) {
 	}
 	return w.ResponseWriter.Write(p)
 }
+
+// Unwrap lets http.ResponseController reach the original writer.
+func (w *recoveryWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Flush preserves streaming for handlers that assert http.Flusher.
+func (w *recoveryWriter) Flush() {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack preserves WebSocket-style upgrades. A successful hijack marks the
+// response as started so a later panic does not try to write JSON.
+func (w *recoveryWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	conn, rw, err := hijacker.Hijack()
+	if err == nil {
+		w.wroteHeader = true
+	}
+	return conn, rw, err
+}
+
+// Push preserves HTTP/2 server push.
+func (w *recoveryWriter) Push(target string, opts *http.PushOptions) error {
+	if pusher, ok := w.ResponseWriter.(http.Pusher); ok {
+		return pusher.Push(target, opts)
+	}
+	return http.ErrNotSupported
+}
+
+// ReadFrom keeps the sendfile path when the underlying writer supports it.
+func (w *recoveryWriter) ReadFrom(src io.Reader) (int64, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	if readerFrom, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return readerFrom.ReadFrom(src)
+	}
+	return io.Copy(writerOnly{w}, src)
+}
+
+// writerOnly hides ReadFrom from io.Copy so the fallback path stays here.
+type writerOnly struct{ io.Writer }
 
 func recoverMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
