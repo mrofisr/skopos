@@ -371,6 +371,14 @@ true`, `basicAuthUser`, and the password in `secureJsonData`. Basic auth sends
 reusable credentials with every request: use TLS at the ingress and do not
 expose the gateway over plain HTTP.
 
+The gateway compares the presented username and password in constant time and
+keeps the configured credential only in memory. It deliberately does not hash
+the configured password with bcrypt or argon2: Basic auth must compare the
+plaintext the client sends, the plaintext already lives in the Secret or
+environment, and a slow hash on every unauthenticated request would be a
+CPU-denial-of-service surface. Protect the Secret with RBAC, use a long random
+password, and keep TLS in front of the gateway.
+
 ## Configuration
 
 The important values are:

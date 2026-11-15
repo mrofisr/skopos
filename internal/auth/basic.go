@@ -57,6 +57,11 @@ func (b *Basic) Wrap(next http.Handler, bypassPaths ...string) http.Handler {
 	})
 }
 
+// authorized compares both fields in constant time. Do not replace the
+// password check with a per-request bcrypt/argon2 hash: the configured
+// plaintext already lives in the environment or Secret, and an unauthenticated
+// request would then be able to burn CPU. A long random password, Secret RBAC,
+// and TLS are the at-rest and in-transit controls.
 func (b *Basic) authorized(r *http.Request) bool {
 	username, password, ok := r.BasicAuth()
 	if !ok {
