@@ -28,6 +28,10 @@ const (
 	scopeName    = "skopos/scale"
 	scopeVersion = "1"
 	nanoTime     = "2006-01-02 15:04:05.000000000"
+
+	metricSum       = "http_requests_total"
+	metricHistogram = "http_request_duration"
+	servicePrefix   = "service-"
 )
 
 var histogramBounds = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
@@ -118,7 +122,7 @@ func writeSumRows(d Dataset, now time.Time, yield func([]byte) error) error {
 	profile := d.Profile
 	start := now.Add(-profile.Range)
 	for series := 0; series < profile.Series; series++ {
-		service := fmt.Sprintf("scale-service-%d", series%profile.Services)
+		service := serviceName(series % profile.Services)
 		instance := fmt.Sprintf("instance-%d", series/profile.Services)
 		method := "GET"
 		if (series/profile.Services)%2 == 1 {
@@ -135,7 +139,7 @@ func writeSumRows(d Dataset, now time.Time, yield func([]byte) error) error {
 				"ScopeName":              scopeName,
 				"ScopeVersion":           scopeVersion,
 				"ServiceName":            service,
-				"MetricName":             "http_server_requests_total",
+				"MetricName":             metricSum,
 				"MetricDescription":      "synthetic scale counter",
 				"MetricUnit":             "1",
 				"Attributes":             map[string]string{"instance": instance, "http.method": method, "http.response.status_code": status},
@@ -162,7 +166,7 @@ func writeHistogramRows(d Dataset, now time.Time, yield func([]byte) error) erro
 	profile := d.Profile
 	start := now.Add(-profile.Range)
 	for service := 0; service < profile.Services; service++ {
-		name := fmt.Sprintf("scale-service-%d", service)
+		name := serviceName(service)
 		for sample := 0; sample < profile.Samples; sample++ {
 			at := start.Add(time.Duration(sample) * profile.Step)
 			count := uint64(sample + 1)
@@ -173,7 +177,7 @@ func writeHistogramRows(d Dataset, now time.Time, yield func([]byte) error) erro
 				"ScopeName":              scopeName,
 				"ScopeVersion":           scopeVersion,
 				"ServiceName":            name,
-				"MetricName":             "http_server_request_duration",
+				"MetricName":             metricHistogram,
 				"MetricDescription":      "synthetic scale histogram",
 				"MetricUnit":             "s",
 				"Attributes":             map[string]string{"instance": name, "http.method": "GET", "http.response.status_code": "200"},
@@ -211,11 +215,15 @@ func writeLogRows(d Dataset, now time.Time, yield func([]byte) error) error {
 		step = time.Nanosecond
 	}
 	for i := 0; i < profile.Logs; i++ {
-		service := fmt.Sprintf("scale-service-%d", i%profile.Services)
+		service := serviceName(i % profile.Services)
 		at := start.Add(time.Duration(i) * step)
 		level, status, severity := "info", 200, 9
 		if i%2 == 1 {
 			level, status, severity = "error", 500, 17
+		}
+		message := "synthetic scale log"
+		if level == "error" {
+			message = "synthetic scale log failed"
 		}
 		row := map[string]any{
 			"Timestamp":          at.UTC().Format(nanoTime),
@@ -225,7 +233,7 @@ func writeLogRows(d Dataset, now time.Time, yield func([]byte) error) error {
 			"SeverityText":       level,
 			"SeverityNumber":     severity,
 			"ServiceName":        service,
-			"Body":               fmt.Sprintf(`{"level":%q,"status":%d,"msg":"synthetic scale log"}`, level, status),
+			"Body":               fmt.Sprintf(`{"level":%q,"status":%d,"msg":%q}`, level, status, message),
 			"ResourceSchemaUrl":  "",
 			"ResourceAttributes": map[string]string{"service.name": service},
 			"ScopeSchemaUrl":     "",
@@ -258,7 +266,7 @@ func writeTraceRows(d Dataset, now time.Time, yield func([]byte) error) error {
 		step = time.Nanosecond
 	}
 	for i := 0; i < profile.Spans; i++ {
-		service := fmt.Sprintf("scale-service-%d", i%profile.Services)
+		service := serviceName(i % profile.Services)
 		group := uint64(i / spansPerTrace)
 		parent := ""
 		if i%spansPerTrace != 0 {
@@ -291,6 +299,10 @@ func writeTraceRows(d Dataset, now time.Time, yield func([]byte) error) error {
 		}
 	}
 	return nil
+}
+
+func serviceName(index int) string {
+	return fmt.Sprintf("%s%d", servicePrefix, index)
 }
 
 func metricTime(t time.Time) string {

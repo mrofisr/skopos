@@ -102,6 +102,28 @@ var queries = []query{
 	},
 }
 
+// selectedQueries filters the workload by comma-separated query names.
+func selectedQueries(skip string) []query {
+	if strings.TrimSpace(skip) == "" {
+		return queries
+	}
+	skipped := make(map[string]struct{})
+	for _, name := range strings.Split(skip, ",") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			skipped[name] = struct{}{}
+		}
+	}
+	out := make([]query, 0, len(queries))
+	for _, q := range queries {
+		if _, ok := skipped[q.Name]; ok {
+			continue
+		}
+		out = append(out, q)
+	}
+	return out
+}
+
 // buildRequest substitutes the trace ID and expands Minutes into start/end.
 func buildRequest(q query, traceID string, now int64) (string, url.Values) {
 	path := strings.ReplaceAll(q.Path, "{trace_id}", traceID)

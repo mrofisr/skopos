@@ -43,6 +43,9 @@ func (d Dataset) Hash() string {
 		_, _ = h.Write([]byte{0})
 	}
 	write(d.Profile.Name)
+	write(metricSum)
+	write(metricHistogram)
+	write(servicePrefix)
 	write(strconv.FormatInt(int64(d.Profile.Range), 10))
 	write(strconv.FormatInt(int64(d.Profile.Step), 10))
 	write(strconv.Itoa(d.Profile.Logs))
