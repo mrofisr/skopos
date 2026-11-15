@@ -25,6 +25,10 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 	if baseURL == "" {
 		t.Fatal("CLICKHOUSE_URL is required for integration tests")
 	}
+	// Optional basic auth so the same test runs against a protected ClickHouse
+	// as well as the passwordless service used by CI.
+	user := os.Getenv("CLICKHOUSE_USER")
+	password := os.Getenv("CLICKHOUSE_PASSWORD")
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	database := "skopos_prom_" + suffix
 	admin := &http.Client{Timeout: 15 * time.Second}
@@ -33,6 +37,9 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, baseURL, strings.NewReader(query))
 		if err != nil {
 			t.Fatalf("build request: %v", err)
+		}
+		if user != "" {
+			req.SetBasicAuth(user, password)
 		}
 		resp, err := admin.Do(req)
 		if err != nil {
@@ -80,6 +87,7 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 		`{"MetricName":"http_requests_total","TimeUnix":"2026-11-01 00:04:30","Value":5,"ServiceName":"checkout","MetricDescription":"requests","MetricUnit":"1","Attributes":{"http.method":"GET"}}`,
 		`{"MetricName":"http_requests_total","TimeUnix":"2026-11-01 00:05:30","Value":6,"ServiceName":"checkout","MetricDescription":"requests","MetricUnit":"1","Attributes":{"http.method":"GET"}}`,
 		`{"MetricName":"http_requests_total","TimeUnix":"2026-11-01 00:05:30","Value":60,"ServiceName":"cart","MetricDescription":"requests","MetricUnit":"1","Attributes":{"http.method":"GET"}}`,
+		`{"MetricName":"http_requests_total","TimeUnix":"2026-11-01 00:05:30","Value":7,"ServiceName":"","MetricDescription":"requests","MetricUnit":"1","Attributes":{"http.method":"GET","service.name":"legacy"}}`,
 	}
 	exec("INSERT INTO `" + database + "`.`otel_metrics_gauge` FORMAT JSONEachRow\n" + strings.Join(gaugeRows, "\n"))
 	histRows := []string{
@@ -96,6 +104,8 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 
 	client, err := chclient.New(chclient.Config{
 		BaseURL:          baseURL,
+		User:             user,
+		Password:         password,
 		Database:         database,
 		Timeout:          10 * time.Second,
 		MaxExecutionTime: 10 * time.Second,
@@ -135,6 +145,22 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 			t.Fatalf("GET %s = %d %#v", path, resp.StatusCode, body)
 		}
 		return body["data"].(map[string]any)
+	}
+	getData := func(path string) any {
+		t.Helper()
+		resp, err := http.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		var body map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+		if resp.StatusCode != http.StatusOK || body["status"] != "success" {
+			t.Fatalf("GET %s = %d %#v", path, resp.StatusCode, body)
+		}
+		return body["data"]
 	}
 
 	data := get("/api/v1/query?query=" + url.QueryEscape(`http_requests_total{service_name="checkout"}`) + "&time=2026-11-01T00:06:00Z")
@@ -204,6 +230,51 @@ func TestIntegrationPrometheusAPI(t *testing.T) {
 	summaryMeta, ok := data["rpc_duration"].([]any)
 	if !ok || len(summaryMeta) != 1 || summaryMeta[0].(map[string]any)["type"] != "summary" {
 		t.Fatalf("summary metadata = %#v", data)
+	}
+
+	// /series and label values share Fetch; the service_name matcher must
+	// narrow the scan and still return the exact Prometheus label set.
+	seriesQuery := url.Values{"match[]": []string{`http_requests_total{service_name="checkout"}`}}
+	seriesData := getData("/api/v1/series?" + seriesQuery.Encode()).([]any)
+	if len(seriesData) != 1 {
+		t.Fatalf("series = %#v, want one", seriesData)
+	}
+	seriesLabels := seriesData[0].(map[string]any)
+	if seriesLabels["__name__"] != "http_requests_total" ||
+		seriesLabels["service_name"] != "checkout" ||
+		seriesLabels["http_method"] != "GET" {
+		t.Fatalf("series labels = %#v", seriesLabels)
+	}
+
+	cartQuery := url.Values{"match[]": []string{`http_requests_total{service_name="cart"}`}}
+	cartData := getData("/api/v1/series?" + cartQuery.Encode()).([]any)
+	if len(cartData) != 1 || cartData[0].(map[string]any)["service_name"] != "cart" {
+		t.Fatalf("cart series = %#v", cartData)
+	}
+
+	missingQuery := url.Values{"match[]": []string{`http_requests_total{service_name="missing"}`}}
+	if missingData := getData("/api/v1/series?" + missingQuery.Encode()).([]any); len(missingData) != 0 {
+		t.Fatalf("missing service series = %#v, want none", missingData)
+	}
+
+	// A row with an empty ServiceName column derives service_name from the
+	// service.name attribute; the pushdown must still return it.
+	legacyQuery := url.Values{"match[]": []string{`http_requests_total{service_name="legacy"}`}}
+	legacyData := getData("/api/v1/series?" + legacyQuery.Encode()).([]any)
+	if len(legacyData) != 1 || legacyData[0].(map[string]any)["service_name"] != "legacy" {
+		t.Fatalf("legacy series = %#v, want the attribute-derived service", legacyData)
+	}
+
+	valuesQuery := url.Values{"match[]": []string{`http_requests_total{service_name=~"check.*"}`}}
+	serviceValues := getData("/api/v1/label/service_name/values?" + valuesQuery.Encode()).([]any)
+	if len(serviceValues) != 1 || serviceValues[0] != "checkout" {
+		t.Fatalf("service_name values = %#v, want checkout", serviceValues)
+	}
+
+	methodQuery := url.Values{"match[]": []string{`http_requests_total{service_name="checkout"}`}}
+	methods := getData("/api/v1/label/http_method/values?" + methodQuery.Encode()).([]any)
+	if len(methods) != 1 || methods[0] != "GET" {
+		t.Fatalf("http_method values = %#v, want GET", methods)
 	}
 
 	// Exponential histograms are stored but not queryable; the error must be
