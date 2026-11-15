@@ -150,3 +150,25 @@ func FuzzDecodeRecords(f *testing.F) {
 		_, _ = decodeRecords(data)
 	})
 }
+
+func TestSignalNamesAndUnknownPaths(t *testing.T) {
+	tests := []struct {
+		signal Signal
+		name   string
+		path   string
+	}{
+		{SignalTraces, "traces", "/v1/traces"},
+		{SignalMetrics, "metrics", "/v1/metrics"},
+		{SignalLogs, "logs", "/v1/logs"},
+		{SignalUnknown, "unknown", ""},
+		{Signal(99), "unknown", ""},
+	}
+	for _, test := range tests {
+		if got := test.signal.String(); got != test.name {
+			t.Errorf("Signal(%d).String() = %q, want %q", test.signal, got, test.name)
+		}
+		if got := test.signal.Path(); got != test.path {
+			t.Errorf("Signal(%d).Path() = %q, want %q", test.signal, got, test.path)
+		}
+	}
+}
