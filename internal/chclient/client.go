@@ -99,10 +99,14 @@ type Column struct {
 	Type string `json:"type"`
 }
 
-// Result is a parsed ClickHouse JSON response.
+// Result is a parsed ClickHouse JSON response. JSON responses populate Rows;
+// JSONCompact responses keep the columnar data and resolve cells by index.
 type Result struct {
 	Columns []Column
 	Rows    []map[string]any
+
+	data  [][]any
+	index map[string]int
 }
 
 // Len returns the number of rows.
@@ -110,15 +114,31 @@ func (r *Result) Len() int {
 	if r == nil {
 		return 0
 	}
+	if r.data != nil {
+		return len(r.data)
+	}
 	return len(r.Rows)
+}
+
+// Value returns one cell. It works for both row-map and columnar results.
+func (r *Result) Value(row int, column string) (any, bool) {
+	if r == nil || row < 0 || row >= r.Len() {
+		return nil, false
+	}
+	if r.data != nil {
+		col, ok := r.index[column]
+		if !ok || col < 0 || col >= len(r.data[row]) {
+			return nil, false
+		}
+		return r.data[row][col], true
+	}
+	v, ok := r.Rows[row][column]
+	return v, ok
 }
 
 // String returns a string cell.
 func (r *Result) String(row int, column string) (string, bool) {
-	if r == nil || row < 0 || row >= len(r.Rows) {
-		return "", false
-	}
-	v, ok := r.Rows[row][column]
+	v, ok := r.Value(row, column)
 	if !ok {
 		return "", false
 	}
@@ -128,10 +148,7 @@ func (r *Result) String(row int, column string) (string, bool) {
 
 // Float64 returns a numeric cell as float64.
 func (r *Result) Float64(row int, column string) (float64, bool) {
-	if r == nil || row < 0 || row >= len(r.Rows) {
-		return 0, false
-	}
-	v, ok := r.Rows[row][column]
+	v, ok := r.Value(row, column)
 	if !ok {
 		return 0, false
 	}
@@ -154,10 +171,7 @@ func (r *Result) Float64(row int, column string) (float64, bool) {
 
 // Int64 returns a numeric cell as int64.
 func (r *Result) Int64(row int, column string) (int64, bool) {
-	if r == nil || row < 0 || row >= len(r.Rows) {
-		return 0, false
-	}
-	v, ok := r.Rows[row][column]
+	v, ok := r.Value(row, column)
 	if !ok {
 		return 0, false
 	}
@@ -283,6 +297,18 @@ func (c *Client) Ping(ctx context.Context) error {
 // parses the response. A statement whose first keyword is not SELECT or WITH is
 // rejected before any network call.
 func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (result *Result, err error) {
+	return c.query(ctx, sql, params, "JSON", decodeResult)
+}
+
+// QueryCompact is Query with FORMAT JSONCompact: the payload omits repeated
+// column names and the result keeps columnar rows instead of per-row maps.
+func (c *Client) QueryCompact(ctx context.Context, sql string, params []plan.Param) (result *Result, err error) {
+	return c.query(ctx, sql, params, "JSONCompact", decodeCompactResult)
+}
+
+type resultDecoder func([]byte, int) (*Result, error)
+
+func (c *Client) query(ctx context.Context, sql string, params []plan.Param, format string, decode resultDecoder) (result *Result, err error) {
 	var readRows, readBytes uint64
 	head := headFromContext(ctx)
 	if c.observer != nil {
@@ -333,7 +359,7 @@ func (c *Client) Query(ctx context.Context, sql string, params []plan.Param) (re
 	// A plain MergeTree table rejects FINAL. Retry once without it so reads
 	// stay available; the observer sees one logical query for the pair.
 	for attempt := 0; ; attempt++ {
-		attemptResult, rows, bytes, attemptErr := c.queryOnce(queryCtx, current, params)
+		attemptResult, rows, bytes, attemptErr := c.queryOnce(queryCtx, current, params, format, decode)
 		readRows += rows
 		readBytes += bytes
 		if attemptErr == nil {
@@ -359,7 +385,7 @@ func (c *Client) finalFallback(head, action string) {
 
 // queryOnce sends one statement. It returns the ClickHouse read accounting
 // even on failure so a FINAL fallback can report the total work for the pair.
-func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param) (*Result, uint64, uint64, error) {
+func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param, format string, decode resultDecoder) (*Result, uint64, uint64, error) {
 	u := *c.base
 	q := u.Query()
 	q.Set("database", c.database)
@@ -402,7 +428,7 @@ func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param)
 	}
 	u.RawQuery = q.Encode()
 
-	body := stripSQL(sql) + "\nFORMAT JSON\n"
+	body := stripSQL(sql) + "\nFORMAT " + format + "\n"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(body))
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("chclient: build request: %w", err)
@@ -434,41 +460,49 @@ func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param)
 		return nil, readRows, readBytes, parseError(resp.StatusCode, data)
 	}
 
-	var raw struct {
-		Meta      []Column                     `json:"meta"`
-		Data      []map[string]json.RawMessage `json:"data"`
-		Exception string                       `json:"exception"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, readRows, readBytes, fmt.Errorf("chclient: decode response: %w", err)
-	}
-	if raw.Exception != "" {
-		return nil, readRows, readBytes, parseError(resp.StatusCode, data)
-	}
-
-	result := &Result{Columns: raw.Meta, Rows: make([]map[string]any, 0, len(raw.Data))}
-	for _, rawRow := range raw.Data {
-		row := make(map[string]any, len(rawRow))
-		for k, v := range rawRow {
-			decoded, err := decodeValue(v)
-			if err != nil {
-				return nil, readRows, readBytes, fmt.Errorf("chclient: decode column %q: %w", k, err)
-			}
-			row[k] = decoded
-		}
-		result.Rows = append(result.Rows, row)
+	result, err := decode(data, resp.StatusCode)
+	if err != nil {
+		return nil, readRows, readBytes, err
 	}
 	return result, readRows, readBytes, nil
 }
 
-func decodeValue(raw json.RawMessage) (any, error) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return nil, err
+func decodeResult(data []byte, status int) (*Result, error) {
+	var raw struct {
+		Meta      []Column         `json:"meta"`
+		Data      []map[string]any `json:"data"`
+		Exception string           `json:"exception"`
 	}
-	return v, nil
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&raw); err != nil {
+		return nil, fmt.Errorf("chclient: decode response: %w", err)
+	}
+	if raw.Exception != "" {
+		return nil, parseError(status, data)
+	}
+	return &Result{Columns: raw.Meta, Rows: raw.Data}, nil
+}
+
+func decodeCompactResult(data []byte, status int) (*Result, error) {
+	var raw struct {
+		Meta      []Column `json:"meta"`
+		Data      [][]any  `json:"data"`
+		Exception string   `json:"exception"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&raw); err != nil {
+		return nil, fmt.Errorf("chclient: decode response: %w", err)
+	}
+	if raw.Exception != "" {
+		return nil, parseError(status, data)
+	}
+	index := make(map[string]int, len(raw.Meta))
+	for i, column := range raw.Meta {
+		index[column.Name] = i
+	}
+	return &Result{Columns: raw.Meta, data: raw.Data, index: index}, nil
 }
 
 // EncodeParam returns the ClickHouse text-format value for a parameter.

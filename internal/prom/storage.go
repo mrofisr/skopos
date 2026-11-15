@@ -19,6 +19,11 @@ import (
 	"github.com/mrofisr/skopos/internal/sqlgen"
 )
 
+// groupedSampleWindow bounds the sample grouping used for instant queries.
+// Longer windows keep the per-sample query so the result-row limit still
+// bounds memory.
+const groupedSampleWindow = 15 * time.Minute
+
 // ClickHouseFetcher loads gauge, sum, and histogram samples from ClickHouse.
 //
 // Metric and label names are normalized to Prometheus names by replacing
@@ -110,7 +115,7 @@ func (f *ClickHouseFetcher) Fetch(ctx context.Context, sel Selector, start, end 
 		sort.Slice(s.Samples, func(i, j int) bool { return s.Samples[i].T < s.Samples[j].T })
 		out = append(out, *s)
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortSeries(out)
 	if len(out) == 0 && hasMetricNameMatcher(sel) {
 		if err := f.probeExponentialHistogram(ctx, sel, start, end); err != nil {
 			return nil, err
@@ -179,7 +184,7 @@ func (f *ClickHouseFetcher) probeTables(ctx context.Context, name string) ([]tab
 		if err != nil {
 			return nil, fmt.Errorf("prom: build metric discovery query: %w", err)
 		}
-		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 		if err != nil {
 			return nil, fmt.Errorf("prom: discover metric in %s: %w", table.name, err)
 		}
@@ -205,29 +210,41 @@ const (
 )
 
 func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind tableKind, filter plan.Expr, start, end time.Time, out map[string]*Series) error {
-	selects := []plan.SelectItem{
-		{Expr: plan.Col("MetricName")},
-		{Expr: plan.Col("TimeUnix")},
-		{Expr: plan.Col("ServiceName")},
-		{Expr: plan.Col("Attributes")},
-	}
-	switch kind {
-	case tableGauge, tableSum:
-		selects = append(selects, plan.SelectItem{Expr: plan.Col("Value")})
-	case tableHistogram:
-		selects = append(selects,
-			plan.SelectItem{Expr: plan.Col("Count")},
-			plan.SelectItem{Expr: plan.Col("Sum")},
-			plan.SelectItem{Expr: plan.Col("BucketCounts")},
-			plan.SelectItem{Expr: plan.Col("ExplicitBounds")},
-		)
-	case tableSummary:
-		selects = append(selects,
-			plan.SelectItem{Expr: plan.Col("Count")},
-			plan.SelectItem{Expr: plan.Col("Sum")},
-			plan.SelectItem{Expr: plan.Col("ValueAtQuantiles.Quantile")},
-			plan.SelectItem{Expr: plan.Col("ValueAtQuantiles.Value")},
-		)
+	grouped := (kind == tableGauge || kind == tableSum) && end.Sub(start) <= groupedSampleWindow
+	var selects []plan.SelectItem
+	if grouped {
+		selects = []plan.SelectItem{
+			{Expr: plan.Col("MetricName")},
+			{Expr: plan.Col("ServiceName")},
+			{Expr: plan.Col("Attributes")},
+			{Expr: plan.Agg("groupArray", plan.Col("TimeUnix")), Alias: "Times"},
+			{Expr: plan.Agg("groupArray", plan.Col("Value")), Alias: "Values"},
+		}
+	} else {
+		selects = []plan.SelectItem{
+			{Expr: plan.Col("MetricName")},
+			{Expr: plan.Col("TimeUnix")},
+			{Expr: plan.Col("ServiceName")},
+			{Expr: plan.Col("Attributes")},
+		}
+		switch kind {
+		case tableGauge, tableSum:
+			selects = append(selects, plan.SelectItem{Expr: plan.Col("Value")})
+		case tableHistogram:
+			selects = append(selects,
+				plan.SelectItem{Expr: plan.Col("Count")},
+				plan.SelectItem{Expr: plan.Col("Sum")},
+				plan.SelectItem{Expr: plan.Col("BucketCounts")},
+				plan.SelectItem{Expr: plan.Col("ExplicitBounds")},
+			)
+		case tableSummary:
+			selects = append(selects,
+				plan.SelectItem{Expr: plan.Col("Count")},
+				plan.SelectItem{Expr: plan.Col("Sum")},
+				plan.SelectItem{Expr: plan.Col("ValueAtQuantiles.Quantile")},
+				plan.SelectItem{Expr: plan.Col("ValueAtQuantiles.Value")},
+			)
+		}
 	}
 	query := plan.Query{
 		Signal:     plan.SignalMetrics,
@@ -242,11 +259,14 @@ func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind t
 		},
 		Limit: f.MaxRows,
 	}
+	if grouped {
+		query.GroupBy = []string{"MetricName", "ServiceName", "Attributes"}
+	}
 	emitted, err := f.Emitter.Emit(query)
 	if err != nil {
 		return fmt.Errorf("prom: build %s query: %w", table, err)
 	}
-	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+	result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
 		if isResultLimit(err) {
 			return fmt.Errorf("%w: query result exceeds the ClickHouse result-row limit; narrow the time range or metric selector", ErrBadQuery)
@@ -255,6 +275,9 @@ func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind t
 	}
 	if result.Len() >= f.MaxRows {
 		return fmt.Errorf("%w: query reached the %d-row scan limit; narrow the time range or metric selector", ErrBadQuery, f.MaxRows)
+	}
+	if grouped {
+		return f.addGroupedRows(result, out)
 	}
 	for i := 0; i < result.Len(); i++ {
 		switch kind {
@@ -271,6 +294,88 @@ func (f *ClickHouseFetcher) fetchTable(ctx context.Context, table string, kind t
 		}
 	}
 	return nil
+}
+
+// addGroupedRows expands short-window series rows. ClickHouse returns one row
+// per series with parallel time and value arrays, which avoids repeating the
+// labels for every sample.
+func (f *ClickHouseFetcher) addGroupedRows(result *chclient.Result, out map[string]*Series) error {
+	total := 0
+	for i := 0; i < result.Len(); i++ {
+		times, err := timeSlice(cellValue(result, i, "Times"))
+		if err != nil {
+			return fmt.Errorf("prom: decode Times: %w", err)
+		}
+		values, err := floatSlice(cellValue(result, i, "Values"))
+		if err != nil {
+			return fmt.Errorf("prom: decode Values: %w", err)
+		}
+		if len(times) != len(values) {
+			return fmt.Errorf("prom: grouped series has %d times and %d values", len(times), len(values))
+		}
+		total += len(values)
+		if total >= f.MaxRows {
+			return fmt.Errorf("%w: query reached the %d-row scan limit; narrow the time range or metric selector", ErrBadQuery, f.MaxRows)
+		}
+		metric, _ := result.String(i, "MetricName")
+		service, _ := result.String(i, "ServiceName")
+		labels := baseLabels(metric, service, attributes(result, i))
+		points := make([]Sample, len(times))
+		for j := range times {
+			points[j] = Sample{T: times[j], V: values[j]}
+		}
+		sort.Slice(points, func(a, b int) bool { return points[a].T < points[b].T })
+		key := labelsKey(labels)
+		series := out[key]
+		if series == nil {
+			series = &Series{Labels: labels}
+			out[key] = series
+		}
+		series.Samples = append(series.Samples, points...)
+	}
+	return nil
+}
+
+func timeSlice(v any) ([]int64, error) {
+	switch values := v.(type) {
+	case nil:
+		return nil, nil
+	case []any:
+		out := make([]int64, 0, len(values))
+		for _, value := range values {
+			s, ok := value.(string)
+			if !ok {
+				return nil, fmt.Errorf("unexpected time type %T", value)
+			}
+			ms, err := parseTimeString(s)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, ms)
+		}
+		return out, nil
+	case []string:
+		out := make([]int64, 0, len(values))
+		for _, value := range values {
+			ms, err := parseTimeString(value)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, ms)
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("unexpected array type %T", v)
+	}
+}
+
+func parseTimeString(s string) (int64, error) {
+	for _, layout := range []string{"2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05", time.RFC3339Nano} {
+		if t, err := time.ParseInLocation(layout, s, time.UTC); err == nil {
+			return t.UnixMilli(), nil
+		}
+	}
+	return 0, fmt.Errorf("invalid TimeUnix %q", s)
 }
 
 func (f *ClickHouseFetcher) addGaugeRow(result *chclient.Result, row int, out map[string]*Series) {
@@ -297,11 +402,11 @@ func (f *ClickHouseFetcher) addHistogramRow(result *chclient.Result, row int, ou
 	}
 	base := baseLabels(metric, service, attributes(result, row))
 	name := base["__name__"]
-	counts, err := floatSlice(result.Rows[row]["BucketCounts"])
+	counts, err := floatSlice(cellValue(result, row, "BucketCounts"))
 	if err != nil {
 		return fmt.Errorf("prom: decode BucketCounts: %w", err)
 	}
-	bounds, err := floatSlice(result.Rows[row]["ExplicitBounds"])
+	bounds, err := floatSlice(cellValue(result, row, "ExplicitBounds"))
 	if err != nil {
 		return fmt.Errorf("prom: decode ExplicitBounds: %w", err)
 	}
@@ -356,11 +461,11 @@ func (f *ClickHouseFetcher) addSummaryRow(result *chclient.Result, row int, out 
 		labels["__name__"] = name + "_sum"
 		addSample(out, labels, Sample{T: ts, V: sum})
 	}
-	quantiles, err := floatSlice(result.Rows[row]["ValueAtQuantiles.Quantile"])
+	quantiles, err := floatSlice(cellValue(result, row, "ValueAtQuantiles.Quantile"))
 	if err != nil {
 		return fmt.Errorf("prom: decode ValueAtQuantiles.Quantile: %w", err)
 	}
-	values, err := floatSlice(result.Rows[row]["ValueAtQuantiles.Value"])
+	values, err := floatSlice(cellValue(result, row, "ValueAtQuantiles.Value"))
 	if err != nil {
 		return fmt.Errorf("prom: decode ValueAtQuantiles.Value: %w", err)
 	}
@@ -406,7 +511,7 @@ func (f *ClickHouseFetcher) probeExponentialHistogram(ctx context.Context, sel S
 	if err != nil {
 		return fmt.Errorf("prom: build exponential histogram probe: %w", err)
 	}
-	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+	result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return fmt.Errorf("prom: exponential histogram probe: %w", err)
 	}
@@ -582,7 +687,7 @@ func addSample(out map[string]*Series, labels map[string]string, sample Sample) 
 }
 
 func attributes(result *chclient.Result, row int) map[string]string {
-	v, ok := result.Rows[row]["Attributes"]
+	v, ok := result.Value(row, "Attributes")
 	if !ok {
 		return nil
 	}
@@ -599,17 +704,17 @@ func attributes(result *chclient.Result, row int) map[string]string {
 	return out
 }
 
+func cellValue(result *chclient.Result, row int, column string) any {
+	v, _ := result.Value(row, column)
+	return v
+}
+
 func resultTime(result *chclient.Result, row int) (int64, error) {
 	s, ok := result.String(row, "TimeUnix")
 	if !ok {
 		return 0, fmt.Errorf("missing TimeUnix")
 	}
-	for _, layout := range []string{"2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05", time.RFC3339Nano} {
-		if t, err := time.ParseInLocation(layout, s, time.UTC); err == nil {
-			return t.UnixMilli(), nil
-		}
-	}
-	return 0, fmt.Errorf("invalid TimeUnix %q", s)
+	return parseTimeString(s)
 }
 
 func floatSlice(v any) ([]float64, error) {
@@ -739,7 +844,7 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 		if err != nil {
 			return nil, fmt.Errorf("prom: build metadata query: %w", err)
 		}
-		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 		if err != nil {
 			return nil, fmt.Errorf("prom: metadata query %s: %w", table.name, err)
 		}
@@ -837,7 +942,7 @@ func (f *ClickHouseFetcher) loadLabelValues(ctx context.Context, name string, se
 		if err != nil {
 			return nil, fmt.Errorf("prom: build label values query: %w", err)
 		}
-		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 		if err != nil {
 			return nil, fmt.Errorf("prom: label values query %s: %w", tableName, err)
 		}
@@ -980,7 +1085,7 @@ func (f *ClickHouseFetcher) loadLabelNames(ctx context.Context, sel Selector, st
 		if err != nil {
 			return nil, fmt.Errorf("prom: build label names query: %w", err)
 		}
-		result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+		result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 		if err != nil {
 			return nil, fmt.Errorf("prom: label names query %s: %w", tableName, err)
 		}

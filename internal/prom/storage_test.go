@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -73,11 +74,7 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, name := range names {
 			rows = append(rows, map[string]any{"name": name})
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"meta": []map[string]string{{"name": "name", "type": "String"}},
-			"data": rows,
-		})
+		writeRows(w, query, rows)
 		return
 	}
 	if strings.Contains(query, "DISTINCT") || strings.Contains(query, "AS `value`") {
@@ -96,11 +93,7 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, value := range values {
 			rows = append(rows, map[string]any{"value": value})
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"meta": []map[string]string{{"name": "value", "type": "String"}},
-			"data": rows,
-		})
+		writeRows(w, query, rows)
 		return
 	}
 	if f.failData && (strings.Contains(query, "Value") || strings.Contains(query, "BucketCounts") || strings.Contains(query, "ValueAtQuantiles")) {
@@ -112,11 +105,87 @@ func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.seen = append(f.seen, table)
 	f.bodies = append(f.bodies, query)
 	f.mu.Unlock()
+	rows := f.rows[table]
+	if strings.Contains(query, "groupArray") {
+		rows = groupRows(rows)
+	}
+	writeRows(w, query, rows)
+}
+
+// groupRows collapses per-sample rows into the grouped shape the short-window
+// query requests.
+func groupRows(rows []map[string]any) []map[string]any {
+	type group struct {
+		metric  any
+		service any
+		attrs   any
+		times   []any
+		values  []any
+	}
+	order := make([]string, 0)
+	groups := make(map[string]*group)
+	for _, row := range rows {
+		key := fmt.Sprintf("%v\x00%v\x00%v", row["MetricName"], row["ServiceName"], row["Attributes"])
+		g := groups[key]
+		if g == nil {
+			g = &group{
+				metric:  row["MetricName"],
+				service: row["ServiceName"],
+				attrs:   row["Attributes"],
+			}
+			groups[key] = g
+			order = append(order, key)
+		}
+		g.times = append(g.times, row["TimeUnix"])
+		g.values = append(g.values, row["Value"])
+	}
+	out := make([]map[string]any, 0, len(order))
+	for _, key := range order {
+		g := groups[key]
+		out = append(out, map[string]any{
+			"MetricName":  g.metric,
+			"ServiceName": g.service,
+			"Attributes":  g.attrs,
+			"Times":       g.times,
+			"Values":      g.values,
+		})
+	}
+	return out
+}
+
+// writeRows answers in the format the client asked for. Compact responses use
+// arrays; row-map responses keep the existing shape.
+func writeRows(w http.ResponseWriter, query string, rows []map[string]any) {
+	columns := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, row := range rows {
+		for name := range row {
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			columns = append(columns, name)
+		}
+	}
+	sort.Strings(columns)
+	meta := make([]map[string]string, len(columns))
+	for i, name := range columns {
+		meta[i] = map[string]string{"name": name, "type": ""}
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"meta": []map[string]string{{"name": "MetricName", "type": "String"}},
-		"data": f.rows[table],
-	})
+	if !strings.Contains(query, "FORMAT JSONCompact") {
+		_ = json.NewEncoder(w).Encode(map[string]any{"meta": meta, "data": rows})
+		return
+	}
+	data := make([][]any, len(rows))
+	for i, row := range rows {
+		values := make([]any, len(columns))
+		for j, name := range columns {
+			values[j] = row[name]
+		}
+		data[i] = values
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"meta": meta, "data": data})
 }
 
 func newFakeFetcher(t *testing.T, rows map[string][]map[string]any) (*ClickHouseFetcher, *fakeClickHouse) {
@@ -693,5 +762,59 @@ func TestGaugeSelectorWithServiceNameGoldenSQL(t *testing.T) {
 	}
 	if got != string(want) {
 		t.Fatalf("gauge SQL with service_name changed:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestShortWindowGroupsSamplesBySeries(t *testing.T) {
+	names := plan.DefaultTableNames()
+	rows := []map[string]any{
+		{"MetricName": "up", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout", "Attributes": map[string]any{}, "Value": json.Number("1")},
+		{"MetricName": "up", "TimeUnix": "2026-11-01 00:09:00", "ServiceName": "checkout", "Attributes": map[string]any{}, "Value": json.Number("2")},
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: rows})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	series, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Minute), at)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(series) != 1 || len(series[0].Samples) != 2 {
+		t.Fatalf("series = %#v, want one series with two samples", series)
+	}
+	if series[0].Samples[0].T >= series[0].Samples[1].T {
+		t.Fatalf("samples are not time-ordered: %#v", series[0].Samples)
+	}
+	if series[0].Samples[0].V != 2 || series[0].Samples[1].V != 1 {
+		t.Fatalf("samples = %#v, want 2 then 1", series[0].Samples)
+	}
+	var grouped bool
+	for _, body := range fake.bodies {
+		if strings.Contains(body, "groupArray") {
+			grouped = true
+		}
+	}
+	if !grouped {
+		t.Fatal("short-window fetch did not use groupArray")
+	}
+}
+
+func TestLongWindowKeepsPerSampleQuery(t *testing.T) {
+	names := plan.DefaultTableNames()
+	row := map[string]any{
+		"MetricName": "up", "TimeUnix": "2026-11-01 00:10:00", "ServiceName": "checkout",
+		"Attributes": map[string]any{}, "Value": json.Number("1"),
+	}
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{names.MetricsGauge: {row}})
+	at := time.Date(2026, 11, 1, 1, 10, 0, 0, time.UTC)
+	if _, err := fetcher.Fetch(context.Background(), Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}, at.Add(-time.Hour), at); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	for _, body := range fake.bodies {
+		if strings.Contains(body, "groupArray") {
+			t.Fatalf("long-window fetch used groupArray:\n%s", body)
+		}
 	}
 }

@@ -79,7 +79,7 @@ func (e *evalCtx) evalAggregateK(agg *parser.AggregateExpr, op string) (Value, e
 			out = append(out, VectorSample{Labels: item.labels, T: e.at.UnixMilli(), V: item.value})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 
@@ -126,7 +126,7 @@ func (e *evalCtx) evalCountValues(agg *parser.AggregateExpr) (Value, error) {
 	for _, entry := range groups {
 		out = append(out, VectorSample{Labels: entry.labels, T: e.at.UnixMilli(), V: entry.count})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 

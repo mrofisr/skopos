@@ -98,7 +98,7 @@ func (f *ClickHouseFetcher) listSeriesTable(ctx context.Context, table string, k
 	if err != nil {
 		return fmt.Errorf("prom: build %s series query: %w", table, err)
 	}
-	result, err := f.Client.Query(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
+	result, err := f.Client.QueryCompact(chclient.WithHead(ctx, "prom"), emitted.SQL, emitted.Params)
 	if err != nil {
 		return fmt.Errorf("prom: query %s series: %w", table, err)
 	}
@@ -113,7 +113,7 @@ func (f *ClickHouseFetcher) listSeriesTable(ctx context.Context, table string, k
 		case tableGauge, tableSum:
 			addLabelSet(out, matchers, base)
 		case tableHistogram:
-			bounds, err := floatSlice(result.Rows[i]["ExplicitBounds"])
+			bounds, err := floatSlice(cellValue(result, i, "ExplicitBounds"))
 			if err != nil {
 				return fmt.Errorf("prom: decode ExplicitBounds: %w", err)
 			}
@@ -129,7 +129,7 @@ func (f *ClickHouseFetcher) listSeriesTable(ctx context.Context, table string, k
 			addLabelSet(out, matchers, inf)
 			addCountSumLabels(out, matchers, base)
 		case tableSummary:
-			quantiles, err := floatSlice(result.Rows[i]["ValueAtQuantiles.Quantile"])
+			quantiles, err := floatSlice(cellValue(result, i, "ValueAtQuantiles.Quantile"))
 			if err != nil {
 				return fmt.Errorf("prom: decode ValueAtQuantiles.Quantile: %w", err)
 			}
