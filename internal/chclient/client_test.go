@@ -530,3 +530,58 @@ func TestQueryWithoutCallerDeadlineUsesConfigTimeout(t *testing.T) {
 		t.Fatal("Query without a caller deadline used no total timeout")
 	}
 }
+
+func TestQueryCompactDecodesArrays(t *testing.T) {
+	var body string
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		_, _ = io.WriteString(w, `{"meta":[{"name":"Name","type":"String"},{"name":"Value","type":"Float64"},{"name":"Count","type":"UInt64"},{"name":"Tags","type":"Array(String)"}],"data":[["up",1.5,3,["a","b"]]],"rows":1}`)
+	}), nil)
+
+	result, err := c.QueryCompact(context.Background(), "SELECT 1", nil)
+	if err != nil {
+		t.Fatalf("QueryCompact: %v", err)
+	}
+	if !strings.HasSuffix(body, "FORMAT JSONCompact\n") {
+		t.Fatalf("body does not use JSONCompact: %q", body)
+	}
+	if result.Len() != 1 {
+		t.Fatalf("Len = %d, want 1", result.Len())
+	}
+	if name, ok := result.String(0, "Name"); !ok || name != "up" {
+		t.Fatalf("Name = %q, %v", name, ok)
+	}
+	if value, ok := result.Float64(0, "Value"); !ok || value != 1.5 {
+		t.Fatalf("Value = %v, %v", value, ok)
+	}
+	if count, ok := result.Int64(0, "Count"); !ok || count != 3 {
+		t.Fatalf("Count = %d, %v", count, ok)
+	}
+	tags, ok := result.Value(0, "Tags")
+	if !ok {
+		t.Fatal("Tags is missing")
+	}
+	values, ok := tags.([]any)
+	if !ok || len(values) != 2 || values[0] != "a" || values[1] != "b" {
+		t.Fatalf("Tags = %#v", tags)
+	}
+	if result.Rows != nil {
+		t.Fatalf("compact result built row maps: %#v", result.Rows)
+	}
+}
+
+func TestQueryCompactError(t *testing.T) {
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"exception":"Code: 60. DB::Exception: Table otel.otel_traces does not exist. (UNKNOWN_TABLE)"}`)
+	}), nil)
+	_, err := c.QueryCompact(context.Background(), "SELECT 1", nil)
+	if err == nil {
+		t.Fatal("expected query error")
+	}
+	var che *Error
+	if !errors.As(err, &che) || che.Code != "60" {
+		t.Fatalf("error = %#v", err)
+	}
+}

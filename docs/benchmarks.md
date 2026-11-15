@@ -6,6 +6,9 @@ command.
 
 Current profile report: [B-02: 10k-series profile](benchmarks/b02-10k.md).
 
+Instant decode and grouping evidence: [instant-decode](benchmarks/instant-decode.md)
+(partial; the reference-host acceptance run is still open).
+
 Run date: 2026-11-14 for the compression figures (ZSTD(3) schema); latency
 and concurrency figures are from the 2026-11-07 run on the same host. The
 sequential tables include the replay-dedup `ReplacingMergeTree` schema and

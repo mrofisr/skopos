@@ -247,7 +247,7 @@ func (e *evalCtx) evalVectorSelector(vs *parser.VectorSelector) (Value, error) {
 		}
 		out = append(out, VectorSample{Labels: cloneLabels(s.Labels), T: e.at.UnixMilli(), SampleT: last.T, SampleTValid: true, V: last.V})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 
@@ -610,7 +610,7 @@ func (e *evalCtx) rateLike(name string, matrix Matrix, rangeStart, rangeEnd time
 		}
 		out = append(out, VectorSample{Labels: labels, T: e.at.UnixMilli(), V: value})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out
 }
 
@@ -670,7 +670,7 @@ func (e *evalCtx) overTime(name string, matrix Matrix) Vector {
 		}
 		out = append(out, VectorSample{Labels: labels, T: e.at.UnixMilli(), V: value})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out
 }
 
@@ -942,7 +942,7 @@ func (e *evalCtx) evalAggregate(agg *parser.AggregateExpr) (Value, error) {
 		}
 		out = append(out, VectorSample{Labels: g.labels, T: e.at.UnixMilli(), V: value})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 
@@ -1058,7 +1058,7 @@ func (e *evalCtx) setBinary(op string, lhs, rhs Vector, matching *parser.VectorM
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out
 }
 
@@ -1161,7 +1161,7 @@ func (e *evalCtx) vectorBinary(op string, lhs, rhs Vector, matching *parser.Vect
 		}
 		out = append(out, VectorSample{Labels: labels, T: e.at.UnixMilli(), V: v})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 
@@ -1555,7 +1555,7 @@ func histogramQuantile(q float64, buckets Vector, at time.Time) (Vector, error) 
 		}
 		out = append(out, VectorSample{Labels: group.labels, T: at.UnixMilli(), V: value})
 	}
-	sort.Slice(out, func(i, j int) bool { return labelsKey(out[i].Labels) < labelsKey(out[j].Labels) })
+	sortVector(out)
 	return out, nil
 }
 

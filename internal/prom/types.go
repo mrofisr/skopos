@@ -108,12 +108,27 @@ func cloneLabels(in map[string]string) map[string]string {
 }
 
 func labelsKey(m map[string]string) string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
+	switch len(m) {
+	case 0:
+		return ""
+	case 1:
+		for k, v := range m {
+			return k + "=" + v + "\x00"
+		}
+	}
+	var small [8]string
+	keys := small[:0]
+	if len(m) > len(small) {
+		keys = make([]string, 0, len(m))
+	}
+	size := 0
+	for k, v := range m {
 		keys = append(keys, k)
+		size += len(k) + len(v) + 2
 	}
 	sort.Strings(keys)
 	var b strings.Builder
+	b.Grow(size)
 	for _, k := range keys {
 		b.WriteString(k)
 		b.WriteByte('=')
@@ -121,6 +136,55 @@ func labelsKey(m map[string]string) string {
 		b.WriteByte(0)
 	}
 	return b.String()
+}
+
+// sortVector sorts by label key with each key computed once. Sorting by
+// labelsKey in the comparator recomputed every key O(n log n) times.
+func sortVector(v Vector) {
+	if len(v) < 2 {
+		return
+	}
+	keys := make([]string, len(v))
+	for i := range v {
+		keys[i] = labelsKey(v[i].Labels)
+	}
+	sort.Sort(&vectorByKey{v: v, keys: keys})
+}
+
+// sortSeries is sortVector for fetched series.
+func sortSeries(series []Series) {
+	if len(series) < 2 {
+		return
+	}
+	keys := make([]string, len(series))
+	for i := range series {
+		keys[i] = labelsKey(series[i].Labels)
+	}
+	sort.Sort(&seriesByKey{series: series, keys: keys})
+}
+
+type seriesByKey struct {
+	series []Series
+	keys   []string
+}
+
+func (s *seriesByKey) Len() int           { return len(s.series) }
+func (s *seriesByKey) Less(i, j int) bool { return s.keys[i] < s.keys[j] }
+func (s *seriesByKey) Swap(i, j int) {
+	s.series[i], s.series[j] = s.series[j], s.series[i]
+	s.keys[i], s.keys[j] = s.keys[j], s.keys[i]
+}
+
+type vectorByKey struct {
+	v    Vector
+	keys []string
+}
+
+func (s *vectorByKey) Len() int           { return len(s.v) }
+func (s *vectorByKey) Less(i, j int) bool { return s.keys[i] < s.keys[j] }
+func (s *vectorByKey) Swap(i, j int) {
+	s.v[i], s.v[j] = s.v[j], s.v[i]
+	s.keys[i], s.keys[j] = s.keys[j], s.keys[i]
 }
 
 func labelString(m map[string]string) string {
