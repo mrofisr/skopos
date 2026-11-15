@@ -30,6 +30,7 @@ type fakeClickHouse struct {
 	seen          []string
 	bodies        []string
 	valueBodies   []string
+	rateRows      []map[string]any
 	failDiscovery bool
 	failData      bool
 	failValuesAt  int
@@ -41,6 +42,13 @@ type fakeClickHouse struct {
 func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := io.ReadAll(r.Body)
 	query := string(data)
+	if strings.Contains(query, "lagInFrame") {
+		f.mu.Lock()
+		rows := f.rateRows
+		f.mu.Unlock()
+		writeRows(w, query, rows)
+		return
+	}
 	table := ""
 	for _, name := range []string{
 		plan.DefaultTableNames().MetricsGauge,
