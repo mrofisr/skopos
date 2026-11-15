@@ -143,6 +143,10 @@ The sync is idempotent. It owns the `phase:*`, `ec:*`, `type:*`, `owner:*`,
 `backlog:*`, and `frozen` labels and leaves unrelated labels alone. The live
 lint runs from the scheduled `issues` workflow, not on fork pull requests.
 
+Post-alpha PRs that serve no exit criterion should reference an open
+`backlog:post-alpha` issue; the PR guard accepts that label alongside
+`phase:alpha-exit`.
+
 ## Development loop
 
 1. Write one failing test at the agreed seam.
