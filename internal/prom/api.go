@@ -30,6 +30,12 @@ type SeriesFetcher interface {
 	Metadata(ctx context.Context, metric string) (map[string]Metadata, error)
 }
 
+// SeriesLister is the optional label-only surface for /series. A backend that
+// does not implement it keeps the Fetch path.
+type SeriesLister interface {
+	ListSeries(ctx context.Context, sel Selector, start, end time.Time) ([]map[string]string, error)
+}
+
 // LabelValueFetcher is the optional pushdown surface for label values. A
 // backend that does not implement it keeps the Go evaluation path.
 type LabelValueFetcher interface {
@@ -197,14 +203,27 @@ func (a *API) handleSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seen := make(map[string]map[string]string)
-	for _, sel := range selectors {
-		series, err := a.Fetcher.Fetch(ctx, sel, start, end)
-		if err != nil {
-			a.writeEngineError(w, r, err)
-			return
+	if lister, ok := a.Fetcher.(SeriesLister); ok {
+		for _, sel := range selectors {
+			series, err := lister.ListSeries(ctx, sel, start, end)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, labels := range series {
+				seen[labelsKey(labels)] = labels
+			}
 		}
-		for _, s := range series {
-			seen[labelsKey(s.Labels)] = s.Labels
+	} else {
+		for _, sel := range selectors {
+			series, err := a.Fetcher.Fetch(ctx, sel, start, end)
+			if err != nil {
+				a.writeEngineError(w, r, err)
+				return
+			}
+			for _, s := range series {
+				seen[labelsKey(s.Labels)] = s.Labels
+			}
 		}
 	}
 	keys := make([]string, 0, len(seen))

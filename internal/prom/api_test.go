@@ -40,6 +40,15 @@ func (f fakeSeriesFetcher) Metadata(context.Context, string) (map[string]Metadat
 	return f.metadata, f.err
 }
 
+type fakeListerFetcher struct {
+	fakeSeriesFetcher
+	labels []map[string]string
+}
+
+func (f fakeListerFetcher) ListSeries(context.Context, Selector, time.Time, time.Time) ([]map[string]string, error) {
+	return f.labels, nil
+}
+
 func testAPI(engine QueryEngine, fetcher SeriesFetcher) http.Handler {
 	api := NewAPI(engine, fetcher, "test-version")
 	api.Now = func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) }
@@ -167,6 +176,30 @@ func TestSeriesPOST(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST series = %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestSeriesUsesLister(t *testing.T) {
+	fetcher := fakeListerFetcher{
+		fakeSeriesFetcher: fakeSeriesFetcher{err: errors.New("Fetch must not be called")},
+		labels:            []map[string]string{{"__name__": "http_requests_total", "service_name": "checkout"}},
+	}
+	h := testAPI(fakeQueryEngine{}, fetcher)
+	rec := do(t, h, `/api/v1/series?match[]=http_requests_total`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	data, _ := body["data"].([]any)
+	if len(data) != 1 {
+		t.Fatalf("data = %#v", data)
+	}
+	labels, _ := data[0].(map[string]any)
+	if labels["service_name"] != "checkout" {
+		t.Fatalf("labels = %#v", labels)
 	}
 }
 

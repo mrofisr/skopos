@@ -21,6 +21,7 @@
       "**/testdata/**"
     ],
     "integration": [
+      "internal/prom/**",
       "test/integration/**",
       "test/scale/**",
       "scripts/integration/**",
