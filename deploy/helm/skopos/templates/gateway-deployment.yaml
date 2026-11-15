@@ -126,6 +126,8 @@ spec:
               value: {{ .Values.gateway.config.metadataTTL | quote }}
             - name: SKOPOS_PROFILE
               value: {{ .Values.gateway.config.profile | quote }}
+            - name: SKOPOS_PROFILE_ALLOW_UNAUTH
+              value: {{ .Values.gateway.config.profileAllowUnauth | quote }}
             {{- if $goMemLimit }}
             - name: GOMEMLIMIT
               value: {{ $goMemLimit | quote }}

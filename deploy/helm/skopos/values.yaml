@@ -472,6 +472,9 @@ gateway:
     metadataTTL: 30s
     # Expose the auth-protected /debug/pprof routes. Off by default.
     profile: false
+    # Required to expose pprof when gateway auth is disabled. Prefer enabling
+    # auth; this is only for local and benchmark stacks.
+    profileAllowUnauth: false
     logLevel: info
   # Optional Go memory limit. When empty, the chart uses 90% of
   # resources.limits.memory. A Kubernetes quantity such as 200Mi or 1Gi.

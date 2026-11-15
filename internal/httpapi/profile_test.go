@@ -17,8 +17,17 @@ func TestProfileDisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestProfileWithoutAuthRequiresOptIn(t *testing.T) {
+	if _, err := New(Config{Pinger: fakePinger{}, Profile: true}); err == nil {
+		t.Fatal("New exposed pprof with neither auth nor an explicit opt-in")
+	}
+}
+
 func TestProfileEnabled(t *testing.T) {
-	s := newTestServer(t, fakePinger{}, func(cfg *Config) { cfg.Profile = true })
+	s := newTestServer(t, fakePinger{}, func(cfg *Config) {
+		cfg.Profile = true
+		cfg.ProfileAllowUnauth = true
+	})
 	rec := doRequest(t, s.Handler(), http.MethodGet, "/debug/pprof/")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)

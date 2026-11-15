@@ -51,6 +51,9 @@ type Config struct {
 	Metrics http.Handler
 	// Profile enables the auth-protected /debug/pprof routes.
 	Profile bool
+	// ProfileAllowUnauth permits Profile without Auth. Prefer auth; this is
+	// for local and benchmark stacks.
+	ProfileAllowUnauth bool
 }
 
 // Server owns the gateway handlers.
@@ -84,6 +87,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.MaxRequestBytes < 0 {
 		return nil, errors.New("httpapi: max request bytes must not be negative")
+	}
+	if cfg.Profile && cfg.Auth == nil && !cfg.ProfileAllowUnauth {
+		return nil, errors.New("httpapi: profile requires auth or an explicit ProfileAllowUnauth opt-in")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
