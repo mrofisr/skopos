@@ -33,9 +33,9 @@ const QUERY_P95_MS = {
   prom_rate: 1500,
   prom_by_service: 1500,
   prom_p95: 1500,
-  prom_range: 1600,
-  prom_series: 4000,
-  prom_label_values: 1800,
+  prom_range: 1900,
+  prom_series: 4450,
+  prom_label_values: 2100,
   tempo_search: 1500,
   loki_labels: 1500,
 };

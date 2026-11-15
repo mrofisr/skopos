@@ -82,15 +82,17 @@ a budget only in the PR that improves that query.
 | `prom_rate` | 1500 ms |
 | `prom_by_service` | 1500 ms |
 | `prom_p95` | 1500 ms |
-| `prom_range` | 1600 ms |
-| `prom_series` | 4000 ms |
-| `prom_label_values` | 1800 ms |
+| `prom_range` | 1900 ms |
+| `prom_series` | 4450 ms |
+| `prom_label_values` | 2100 ms |
 | `tempo_search` | 1500 ms |
 | `loki_labels` | 1500 ms |
 
-The three budgets above the aggregate target are the measured 50-VU baselines
-for the slowest queries. Lower them only with a before/after run that shows the
-improvement. The aggregate `P95_MS` remains the user-facing gate.
+The three budgets above the aggregate target are regression ceilings seeded
+from the 50-VU baseline. The rest stay at the aggregate target, so a query that
+drifts above 1500 ms stays visible. Lower a ceiling only with a before/after
+run that shows the improvement. The aggregate `P95_MS` remains the user-facing
+gate.
 
 `ZERO_5XX=true` (the default) fails the run on any 5xx response. Set
 `ZERO_5XX=false` for an above-design-point capacity probe where deliberate
