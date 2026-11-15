@@ -7,7 +7,8 @@
 // See README.md for smoke and stress examples.
 
 import http from 'k6/http';
-import { Counter, check, sleep } from 'k6';
+import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
 const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
