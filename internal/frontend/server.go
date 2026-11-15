@@ -22,16 +22,26 @@ import (
 	"github.com/mrofisr/skopos/internal/auth"
 )
 
+const (
+	defaultProxyTimeout = 30 * time.Second
+	// proxyTimeoutSlack leaves the worker time to send its own 503 timeout
+	// response before the proxy gives up.
+	proxyTimeoutSlack = 2 * time.Second
+)
+
 // Config configures the frontend proxy.
 type Config struct {
 	Logger           *slog.Logger
 	Backends         []string
 	Version          string
 	ReadinessTimeout time.Duration
-	ProxyTimeout     time.Duration
-	MaxRequestBytes  int64
-	Auth             *auth.Basic
-	Transport        http.RoundTripper
+	// QueryTimeout is the worker's query budget. ProxyTimeout must exceed it
+	// so the worker's own timeout response reaches the client.
+	QueryTimeout    time.Duration
+	ProxyTimeout    time.Duration
+	MaxRequestBytes int64
+	Auth            *auth.Basic
+	Transport       http.RoundTripper
 	// Metrics serves the local Prometheus registry. It is never proxied.
 	Metrics http.Handler
 }
@@ -63,8 +73,16 @@ func New(cfg Config) (*Server, error) {
 	if cfg.ReadinessTimeout < 0 {
 		return nil, errors.New("frontend: readiness timeout must not be negative")
 	}
+	if cfg.QueryTimeout < 0 {
+		return nil, errors.New("frontend: query timeout must not be negative")
+	}
 	if cfg.ProxyTimeout < 0 {
 		return nil, errors.New("frontend: proxy timeout must not be negative")
+	}
+	if cfg.QueryTimeout > 0 && cfg.ProxyTimeout > 0 && cfg.ProxyTimeout <= cfg.QueryTimeout {
+		return nil, fmt.Errorf(
+			"frontend: proxy timeout %s must exceed query timeout %s",
+			cfg.ProxyTimeout, cfg.QueryTimeout)
 	}
 	if cfg.MaxRequestBytes < 0 {
 		return nil, errors.New("frontend: max request bytes must not be negative")
@@ -79,7 +97,11 @@ func New(cfg Config) (*Server, error) {
 		cfg.ReadinessTimeout = 2 * time.Second
 	}
 	if cfg.ProxyTimeout == 0 {
-		cfg.ProxyTimeout = 30 * time.Second
+		if cfg.QueryTimeout > 0 {
+			cfg.ProxyTimeout = cfg.QueryTimeout + proxyTimeoutSlack
+		} else {
+			cfg.ProxyTimeout = defaultProxyTimeout
+		}
 	}
 	if cfg.MaxRequestBytes == 0 {
 		cfg.MaxRequestBytes = 1 << 20
@@ -254,31 +276,26 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target := *b.baseURL
-	target.Path = joinPath(b.baseURL.Path, r.URL.Path)
-	if r.URL.RawPath != "" || b.baseURL.RawPath != "" {
-		target.RawPath = joinPath(b.baseURL.EscapedPath(), r.URL.EscapedPath())
-	}
-	target.RawQuery = joinQuery(b.baseURL.RawQuery, r.URL.RawQuery)
-	target.Fragment = ""
-
 	ctx, cancel := context.WithTimeout(r.Context(), s.proxyTimeout)
 	defer cancel()
-	out, err := http.NewRequestWithContext(ctx, r.Method, target.String(), r.Body)
-	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "cannot build query backend request"})
-		return
-	}
-	out.ContentLength = r.ContentLength
-	out.Host = r.Host
-	out.Header = cloneHeader(r.Header)
-	addForwardedHeaders(out.Header, r)
 
-	resp, err := s.client.Do(out)
-	if err != nil {
-		if r.Context().Err() == nil {
-			b.ready.Store(false)
+	resp, bodyErr, err := s.forward(ctx, r, b)
+	if err != nil && backendFailure(r, err, bodyErr) {
+		b.ready.Store(false)
+		// A GET has no side effects, so one retry on another ready backend
+		// turns a lost connection into a successful response. Do not replay
+		// a request with a body.
+		if canRetry(r) {
+			if next := s.pickExcept(b); next != nil {
+				b = next
+				resp, bodyErr, err = s.forward(ctx, r, b)
+				if err != nil && backendFailure(r, err, bodyErr) {
+					b.ready.Store(false)
+				}
+			}
 		}
+	}
+	if err != nil {
 		s.logger.Warn("query backend request failed", "backend", b.baseURL.Redacted(), "error", err)
 		msg := "query backend request failed"
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -300,14 +317,104 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// forward builds and sends one backend request. bodyErr reports a failure
+// while reading the client's request body, which says nothing about backend
+// health.
+func (s *Server) forward(ctx context.Context, r *http.Request, b *backend) (*http.Response, error, error) {
+	target := *b.baseURL
+	target.Path = joinPath(b.baseURL.Path, r.URL.Path)
+	if r.URL.RawPath != "" || b.baseURL.RawPath != "" {
+		target.RawPath = joinPath(b.baseURL.EscapedPath(), r.URL.EscapedPath())
+	}
+	target.RawQuery = joinQuery(b.baseURL.RawQuery, r.URL.RawQuery)
+	target.Fragment = ""
+
+	var body io.ReadCloser
+	var tracked *trackedBody
+	if r.Body != nil && r.Body != http.NoBody {
+		tracked = &trackedBody{ReadCloser: r.Body}
+		body = tracked
+	}
+	out, err := http.NewRequestWithContext(ctx, r.Method, target.String(), body)
+	if err != nil {
+		return nil, nil, err
+	}
+	out.ContentLength = r.ContentLength
+	out.Host = r.Host
+	out.Header = cloneHeader(r.Header)
+	addForwardedHeaders(out.Header, r)
+
+	resp, err := s.client.Do(out)
+	if tracked != nil {
+		return resp, tracked.readErr(), err
+	}
+	return resp, nil, err
+}
+
+// trackedBody records a client-side read error so it can be told apart from a
+// backend transport failure.
+type trackedBody struct {
+	io.ReadCloser
+	mu  sync.Mutex
+	err error
+}
+
+func (b *trackedBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		b.mu.Lock()
+		if b.err == nil {
+			b.err = err
+		}
+		b.mu.Unlock()
+	}
+	return n, err
+}
+
+func (b *trackedBody) readErr() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.err
+}
+
+// backendFailure reports whether err indicates the backend itself failed.
+// Timeouts and client body errors say nothing about backend health.
+func backendFailure(r *http.Request, err, bodyErr error) bool {
+	if err == nil || bodyErr != nil {
+		return false
+	}
+	if r.Context().Err() != nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return false
+	}
+	return true
+}
+
+func canRetry(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	return r.ContentLength <= 0
+}
+
 // pick returns the next ready backend in round-robin order, or nil when none
 // are ready.
 func (s *Server) pick() *backend {
+	return s.pickExcept(nil)
+}
+
+func (s *Server) pickExcept(exclude *backend) *backend {
 	n := len(s.backends)
 	start := int((s.next.Add(1) - 1) % uint64(n))
 	for i := 0; i < n; i++ {
 		b := s.backends[(start+i)%n]
-		if b.ready.Load() {
+		if b != exclude && b.ready.Load() {
 			return b
 		}
 	}
@@ -316,7 +423,7 @@ func (s *Server) pick() *backend {
 
 func (s *Server) limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Body != nil {
+		if r.Body != nil && r.Body != http.NoBody {
 			r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBytes)
 		}
 		next.ServeHTTP(w, r)
