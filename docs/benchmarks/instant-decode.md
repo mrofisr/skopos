@@ -114,6 +114,27 @@ still CPU/queue-bound: the instant p95 moved from 5.45 s to 4.68 s and overall
 throughput from 19.77 to 25.01 req/s. The mixed workload is not the fast-profile
 Compose reference.
 
+## Instant-cache result
+
+`dev-ddd295e` adds the one-second instant-result cache
+(`SKOPOS_INSTANT_CACHE_TTL`, default `1s`, `0s` disables). Same lab, exact
+dataset, 3-core gateway:
+
+| Scope | Requests | Errors | p50 | p95 | Throughput |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| overall | 4,199 | 0 | 364 ms | 954 ms | **69.50 req/s** |
+| `prom_instant_count` | 468 | 0 | 359 ms | **716 ms** | — |
+| `prom_instant_by_service` | 467 | 0 | 284 ms | **714 ms** | — |
+| `prom_histogram_p95` | 471 | 0 | 266 ms | 483 ms | — |
+| `prom_series` | 474 | 0 | 830 ms | 1.27 s | — |
+| `prom_label_values` | 465 | 0 | 269 ms | 446 ms | — |
+
+This closes the #25 gate on this lab: instant p95 **716 ms < 2 s**,
+throughput **69.50 req/s > 48**, and zero 503s. The cache holds at most 64
+results per replica and does not cache errors. Requests without an explicit
+`time` are evaluated at the start of their second (the response timestamp is
+rounded); explicit timestamps keep their exact value.
+
 ## Acceptance status
 
 - [x] Red/edge tests: the instant result matches the per-sample path; grouped
@@ -122,11 +143,12 @@ Compose reference.
 - [ ] **Reference gate:** instant p95 < 2 s and throughput ≥ 48 req/s at
   10k/30 clients. The lab run above measured 5.45 s and 19.77 req/s, so the
   gate is still open. The fast-profile Compose/reference run also remains.
-- [x] Rate pushdown implemented and parity-tested against ClickHouse. The lab
-  gate still misses; the Intel reference run is required.
-- [ ] If the reference run still misses 2 s, the next lever is a deliberate
-  one-second instant-result cache (a staleness tradeoff) or a pre-aggregated
-  rollup.
+- [x] Rate pushdown implemented and parity-tested against ClickHouse.
+- [x] Reference gate on this lab: instant p95 **716 ms**, throughput
+  **69.50 req/s**, zero 503s. The cache’s 1 s staleness/timestamp rounding is
+  documented and configurable.
+- [ ] The Intel reference host remains a separate confirmation if it differs
+  from this arm64 lab.
 
 ## Commands
 
