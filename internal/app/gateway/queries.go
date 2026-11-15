@@ -79,15 +79,16 @@ func runQueries(ctx context.Context, cfg config.Config, logger *slog.Logger, bas
 	}
 
 	api, err := httpapi.New(httpapi.Config{
-		Logger:           logger,
-		Pinger:           client,
-		Version:          buildVersion,
-		ReadinessTimeout: cfg.ReadinessTimeout,
-		MaxRequestBytes:  cfg.MaxRequestBytes,
-		Auth:             basicAuth,
-		Register:         register,
-		Metrics:          registry.Handler(),
-		Profile:          cfg.Profile,
+		Logger:             logger,
+		Pinger:             client,
+		Version:            buildVersion,
+		ReadinessTimeout:   cfg.ReadinessTimeout,
+		MaxRequestBytes:    cfg.MaxRequestBytes,
+		Auth:               basicAuth,
+		Register:           register,
+		Metrics:            registry.Handler(),
+		Profile:            cfg.Profile,
+		ProfileAllowUnauth: cfg.ProfileAllowUnauth,
 	})
 	if err != nil {
 		return fmt.Errorf("http api: %w", err)

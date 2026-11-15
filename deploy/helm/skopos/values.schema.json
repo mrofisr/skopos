@@ -1581,6 +1581,9 @@
             "profile": {
               "type": "boolean"
             },
+            "profileAllowUnauth": {
+              "type": "boolean"
+            },
             "logLevel": {
               "type": "string",
               "enum": [

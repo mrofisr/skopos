@@ -26,7 +26,7 @@ query's p50 goes from **545 ms** alone to **6.35 s**. Every query degrades about
 make profile-range
 ```
 
-The target starts the bench stack with `SKOPOS_PROFILE=1`, runs the sequential
+The target starts the bench stack with `SKOPOS_BENCH_PROFILE=1`, runs the sequential
 harness, then drives eight concurrent 6 h range queries for 90 s while it
 captures a 30 s CPU profile, a heap profile, and `/metrics`. Artifacts land in
 the ignored `test/bench/out/` directory:
@@ -247,8 +247,9 @@ next planning pass decides which ones serve an exit criterion.
 
 ## What this ticket merged
 
-- `SKOPOS_PROFILE` (default off) exposes the auth-protected `/debug/pprof/*`
-  routes; with the flag off the routes are absent.
-- Helm passes the flag to the gateway, frontend, and query deployments.
+- `SKOPOS_PROFILE` (default off) exposes the `/debug/pprof/*` routes. They are
+  auth-protected when gateway auth is enabled; exposing them without auth
+  requires the explicit `SKOPOS_PROFILE_ALLOW_UNAUTH` opt-in.
+- Helm passes the flags to the gateway and query deployments.
 - `test/bench/docker-compose.yml` forwards `SKOPOS_BENCH_PROFILE` to the
   gateway, and `make profile-range` captures the profiles and metrics above.

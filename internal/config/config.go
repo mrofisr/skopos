@@ -68,6 +68,7 @@ type Config struct {
 	ContextFile        string
 	ContextObserved    bool
 	Profile            bool
+	ProfileAllowUnauth bool
 	LogLevel           slog.Level
 }
 
@@ -209,6 +210,9 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.Profile, err = boolEnv(lookup, "SKOPOS_PROFILE", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.ProfileAllowUnauth, err = boolEnv(lookup, "SKOPOS_PROFILE_ALLOW_UNAUTH", false); err != nil {
 		return Config{}, err
 	}
 	if cfg.Mode == ModeFrontend {

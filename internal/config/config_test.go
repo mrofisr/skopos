@@ -398,12 +398,21 @@ func TestProfileFlag(t *testing.T) {
 	if cfg.Profile {
 		t.Fatal("Profile defaulted to true")
 	}
-	cfg, err = FromLookup(lookupFrom(map[string]string{"SKOPOS_PROFILE": "true"}))
+	if cfg.ProfileAllowUnauth {
+		t.Fatal("ProfileAllowUnauth defaulted to true")
+	}
+	cfg, err = FromLookup(lookupFrom(map[string]string{
+		"SKOPOS_PROFILE":              "true",
+		"SKOPOS_PROFILE_ALLOW_UNAUTH": "true",
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.Profile {
 		t.Fatal("Profile did not read SKOPOS_PROFILE")
+	}
+	if !cfg.ProfileAllowUnauth {
+		t.Fatal("ProfileAllowUnauth did not read SKOPOS_PROFILE_ALLOW_UNAUTH")
 	}
 }
 
@@ -411,16 +420,23 @@ func TestProfileFlagRejectsInvalidValue(t *testing.T) {
 	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_PROFILE": "yes"})); err == nil {
 		t.Fatal("SKOPOS_PROFILE=yes was accepted")
 	}
+	if _, err := FromLookup(lookupFrom(map[string]string{"SKOPOS_PROFILE_ALLOW_UNAUTH": "yes"})); err == nil {
+		t.Fatal("SKOPOS_PROFILE_ALLOW_UNAUTH=yes was accepted")
+	}
 }
 
 func TestFromEnvReadsProfile(t *testing.T) {
 	t.Setenv("SKOPOS_PROFILE", "true")
+	t.Setenv("SKOPOS_PROFILE_ALLOW_UNAUTH", "true")
 	cfg, err := FromEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.Profile {
 		t.Fatal("FromEnv did not read SKOPOS_PROFILE")
+	}
+	if !cfg.ProfileAllowUnauth {
+		t.Fatal("FromEnv did not read SKOPOS_PROFILE_ALLOW_UNAUTH")
 	}
 }
 
