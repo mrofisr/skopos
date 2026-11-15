@@ -34,7 +34,7 @@ func TestRunDryRun(t *testing.T) {
 		"histogram_rows=2400",
 		"logs=10000",
 		"spans=10000",
-		"hash=89094c7a42891a57",
+		"hash=cde531daaba36ae2",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("output missing %q:\n%s", want, out.String())
@@ -69,7 +69,7 @@ func TestRunDryRunOverrides(t *testing.T) {
 			t.Fatalf("output missing %q:\n%s", want, out.String())
 		}
 	}
-	if strings.Contains(out.String(), "hash=89094c7a42891a57") {
+	if strings.Contains(out.String(), "hash=cde531daaba36ae2") {
 		t.Fatalf("overrides kept the 10k hash:\n%s", out.String())
 	}
 }

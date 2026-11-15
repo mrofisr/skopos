@@ -4,6 +4,8 @@ These numbers come from real runs on the reference host, not from estimates.
 The harness is in [`test/bench`](../test/bench) and can be reproduced with one
 command.
 
+Current profile report: [B-02: 10k-series profile](benchmarks/b02-10k.md).
+
 Run date: 2026-11-14 for the compression figures (ZSTD(3) schema); latency
 and concurrency figures are from the 2026-11-07 run on the same host. The
 sequential tables include the replay-dedup `ReplacingMergeTree` schema and

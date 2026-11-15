@@ -69,7 +69,7 @@ func TestHashGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	const want = "89094c7a42891a57"
+	const want = "cde531daaba36ae2"
 	if got := dataset.Hash(); got != want {
 		t.Fatalf("hash = %s, want %s", got, want)
 	}

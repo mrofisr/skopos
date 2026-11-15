@@ -72,7 +72,7 @@ type concurrentReport struct {
 
 // runSequential warms and times each query in order and writes the Markdown
 // table plus the optional JSON report.
-func runSequential(ctx context.Context, cfg config, client *apiClient, traceID string, now int64, stdout io.Writer) error {
+func runSequential(ctx context.Context, cfg config, client *apiClient, traceID string, now int64, stdout io.Writer, queries []query) error {
 	results := make([]sequentialResult, 0, len(queries))
 	for _, q := range queries {
 		path, params := buildRequest(q, traceID, now)
@@ -134,7 +134,7 @@ type concurrentSpec struct {
 
 // runConcurrent runs a mixed workload across clients for a duration or a
 // fixed number of passes per client.
-func runConcurrent(ctx context.Context, cfg config, client *apiClient, traceID string, now int64, stdout, stderr io.Writer) error {
+func runConcurrent(ctx context.Context, cfg config, client *apiClient, traceID string, now int64, stdout, stderr io.Writer, queries []query) error {
 	specs := make([]concurrentSpec, 0, len(queries))
 	names := make([]string, 0, len(queries))
 	for _, q := range queries {

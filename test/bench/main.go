@@ -30,6 +30,7 @@ type config struct {
 	dockerContainers []string
 	statsInterval    float64
 	jsonOut          string
+	skip             string
 	gate             bool
 	memoryLimitBytes int64
 	oomKilled        bool
@@ -64,10 +65,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	selected := selectedQueries(cfg.skip)
+	if len(selected) == 0 {
+		fmt.Fprintln(stderr, "bench: no queries selected")
+		return 2
+	}
 	if cfg.concurrency == 1 && cfg.duration <= 0 {
-		err = runSequential(ctx, cfg, client, traceID, now, stdout)
+		err = runSequential(ctx, cfg, client, traceID, now, stdout, selected)
 	} else {
-		err = runConcurrent(ctx, cfg, client, traceID, now, stdout, stderr)
+		err = runConcurrent(ctx, cfg, client, traceID, now, stdout, stderr, selected)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "bench:", err)
@@ -96,6 +102,7 @@ func parseFlags(args []string, stderr io.Writer) (config, error) {
 	fs.Var((*stringList)(&cfg.dockerContainers), "docker-containers", "container IDs or names to sample with --docker-stats")
 	fs.Float64Var(&cfg.statsInterval, "stats-interval", 1, "seconds between docker stats samples")
 	fs.StringVar(&cfg.jsonOut, "json-out", "", "write the JSON report to this file")
+	fs.StringVar(&cfg.skip, "skip", "", "comma-separated query names to omit")
 	fs.BoolVar(&cfg.gate, "gate", false, "fail when the concurrent run has transport errors, unexpected statuses, or missing Retry-After")
 	fs.Int64Var(&cfg.memoryLimitBytes, "memory-limit-bytes", 0, "fail when a sampled container peak exceeds this limit")
 	fs.BoolVar(&cfg.oomKilled, "oom-killed", false, "fail the gate when a container was OOM-killed")
