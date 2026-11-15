@@ -7,7 +7,7 @@
 // See README.md for smoke and stress examples.
 
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { Counter, check, sleep } from 'k6';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
 const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
@@ -21,12 +21,40 @@ function envInt(name, fallback) {
 const VUS = envInt('VUS', 5);
 const SLEEP_SECONDS = Number(__ENV.SLEEP || 0.5);
 const P95_MS = envInt('P95_MS', 1500);
+const ZERO_5XX = (__ENV.ZERO_5XX || 'true').toLowerCase() !== 'false';
+
+// Per-query p95 budgets in milliseconds. This is a ratchet: a PR that improves
+// a query lowers its budget, and the measured 50-VU baseline is the ceiling.
+// prom_series, prom_label_values, and prom_range start above the aggregate
+// target because they are the measured outliers; see README.md.
+const QUERY_P95_MS = {
+  prom_vector: 1500,
+  prom_rate: 1500,
+  prom_by_service: 1500,
+  prom_p95: 1500,
+  prom_range: 1600,
+  prom_series: 4000,
+  prom_label_values: 1800,
+  tempo_search: 1500,
+  loki_labels: 1500,
+};
 
 const thresholds = {
   checks: ['rate>0.99'],
   http_req_failed: ['rate<0.01'],
   http_req_duration: [`p(95)<${P95_MS}`],
 };
+
+if (!SMOKE) {
+  for (const name of Object.keys(QUERY_P95_MS)) {
+    thresholds[`http_req_duration{name:${name}}`] = [`p(95)<${QUERY_P95_MS[name]}`];
+  }
+}
+if (ZERO_5XX) {
+  thresholds.skopos_5xx = ['count==0'];
+}
+
+const fiveXX = new Counter('skopos_5xx');
 
 export const options = SMOKE
   ? {
@@ -157,6 +185,11 @@ function isSuccess(response, kind) {
 }
 
 export function setup() {
+  for (const query of QUERIES) {
+    if (!(query.name in QUERY_P95_MS)) {
+      throw new Error(`missing per-query p95 budget for ${query.name}`);
+    }
+  }
   const response = http.get(`${BASE_URL}/readyz`, {
     tags: { name: 'readyz' },
   });
@@ -176,6 +209,10 @@ export default function () {
     headers,
     tags: { name: query.name, kind: query.kind },
   });
+
+  if (response.status >= 500) {
+    fiveXX.add(1, { status: String(response.status) });
+  }
 
   check(response, {
     'status is 200': (res) => res.status === 200,
