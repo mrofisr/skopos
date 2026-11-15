@@ -63,6 +63,43 @@ VUS for HOLD
 VUS -> 0 over RAMP_DOWN
 ```
 
+## Design point
+
+The performance design point is 50 VUs with `SLEEP=0.5`, a 30s ramp, and a 3m
+hold. The 25-VU run is the no-regression guard: every per-query threshold must
+pass there before a change lands. 100 VUs is a capacity probe, not the design
+point.
+
+## Per-query thresholds
+
+The script gates every query separately instead of relying on one aggregate
+p95. The budgets are a ratchet: start at the measured 50-VU baseline and lower
+a budget only in the PR that improves that query.
+
+| Query | p95 budget |
+| --- | ---: |
+| `prom_vector` | 1500 ms |
+| `prom_rate` | 1500 ms |
+| `prom_by_service` | 1500 ms |
+| `prom_p95` | 1500 ms |
+| `prom_range` | 1900 ms |
+| `prom_series` | 4450 ms |
+| `prom_label_values` | 2100 ms |
+| `tempo_search` | 1500 ms |
+| `loki_labels` | 1500 ms |
+
+The three budgets above the aggregate target are regression ceilings seeded
+from the 50-VU baseline. The rest stay at the aggregate target, so a query that
+drifts above 1500 ms stays visible. Lower a ceiling only with a before/after
+run that shows the improvement. The aggregate `P95_MS` remains the user-facing
+gate.
+
+`ZERO_5XX=true` (the default) fails the run on any 5xx response. Set
+`ZERO_5XX=false` for an above-design-point capacity probe where deliberate
+503/504 shedding is part of the result being measured. The smoke profile keeps
+only the aggregate gates, so a cold first request cannot fail a readiness
+check; the per-query budgets apply to stress runs.
+
 ## Environment variables
 
 | Variable | Default | Meaning |
@@ -77,6 +114,7 @@ VUS -> 0 over RAMP_DOWN
 | `RAMP_DOWN` | `15s` | Ramp-down duration |
 | `SLEEP` | `0.5` | Seconds between iterations |
 | `P95_MS` | `1500` | p95 latency threshold in milliseconds |
+| `ZERO_5XX` | `true` | Fail the run on any 5xx response |
 
 ## Query mix
 
@@ -100,6 +138,7 @@ The metric names omit the `_seconds` suffix; the gateway exposes
 ## What to watch
 
 - `http_req_duration{name:...}` in the k6 summary: per-query latency.
+- `skopos_5xx`: 5xx responses by status. Must be zero at the 50-VU design point.
 - `http_req_failed`: transport errors and non-2xx responses.
 - `checks`: HTTP 200 and valid gateway response shape.
 - The **Skopos Overview** dashboard: `skopos_http_requests_total`,
