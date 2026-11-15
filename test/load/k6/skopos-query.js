@@ -24,20 +24,20 @@ const SLEEP_SECONDS = Number(__ENV.SLEEP || 0.5);
 const P95_MS = envInt('P95_MS', 1500);
 const ZERO_5XX = (__ENV.ZERO_5XX || 'true').toLowerCase() !== 'false';
 
-// Per-query p95 budgets in milliseconds. This is a ratchet: a PR that improves
-// a query lowers its budget, and the measured 50-VU baseline is the ceiling.
-// prom_series, prom_label_values, and prom_range start above the aggregate
-// target because they are the measured outliers; see README.md.
+// Per-query p95 budgets in milliseconds, seeded from the post-fix 50-VU
+// baseline (15 Nov 2026) with headroom for run variance. Every budget is below
+// the aggregate 1500 ms target so a per-query regression fails before the
+// aggregate does. Lower a budget only with a before/after run; see README.md.
 const QUERY_P95_MS = {
-  prom_vector: 1500,
-  prom_rate: 1500,
-  prom_by_service: 1500,
-  prom_p95: 1500,
-  prom_range: 1900,
-  prom_series: 4450,
-  prom_label_values: 2100,
-  tempo_search: 1500,
-  loki_labels: 1500,
+  prom_vector: 400,
+  prom_rate: 900,
+  prom_by_service: 900,
+  prom_p95: 900,
+  prom_range: 1000,
+  prom_series: 1000,
+  prom_label_values: 1100,
+  tempo_search: 1200,
+  loki_labels: 600,
 };
 
 const thresholds = {
