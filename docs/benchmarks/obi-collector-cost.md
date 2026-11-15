@@ -37,6 +37,16 @@ The nginx RED metrics did not appear as `http*` metric families; the trace
 stream is the usable signal from this workload. The Collector was cheap
 relative to OBI.
 
+## Chart validation
+
+After the chart values were applied (no manual DaemonSet patch), the same
+nginx target and 60 s load produced **135,730 nginx traces** (up from 94,980)
+and **12,150 Istio traces** (up from 4,956). OBI logged no netns errors. Under
+that load OBI measured **52m CPU / 663–706 MiB**, the Collector **19m /
+129 MiB**, and ClickHouse **89–173m**. The 640Mi request used for this run was
+already below the observed peak, which is why the recommendation above is
+768Mi.
+
 ## Cost per trace
 
 For ~95k nginx traces in 60 s:
@@ -76,10 +86,13 @@ request/limit (100m/256Mi, 1/1Gi) covers its 25m/128MiB.
 1. Decide the security posture: grant `SYS_ADMIN` by default (as tested) or run
    OBI privileged (the upstream Helm chart default), and update the
    `contextPropagation` comment, which currently implies `SYS_ADMIN` is only
-   for context propagation. This is a security-sensitive chart change.
-2. Raise `obi.resources.requests.memory` from **256Mi to 512Mi**; keep the
-   1Gi limit. The measured peak was 535 MiB. No CPU request change is needed
-   from this run.
+   for context propagation. This is a security-sensitive chart change. Keep
+   OBI on for the Skopos OBI profile; deployments that do not need it should
+   set `obi.enabled=false` and avoid the agent cost and privilege entirely.
+2. Raise `obi.resources.requests.memory` from **256Mi to 768Mi**; keep the
+   1Gi limit. The manual run peaked at 535 MiB and the chart-deployed nginx +
+   Istio run peaked at **706 MiB**; 768Mi keeps the request above the loaded
+   footprint. No CPU request change is needed from this run.
 3. Add an exclusion for `istio-system` (or document an `extraRules` example)
    unless mesh instrumentation is explicitly wanted.
 4. Consider `OTEL_EBPF_ENFORCE_SYS_CAPS=1` so a missing capability fails fast

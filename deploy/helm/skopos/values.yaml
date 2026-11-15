@@ -370,6 +370,9 @@ checkpoint:
   extraEnv: []
 
 obi:
+  # OBI is the Skopos auto-instrumentation agent. Set false on deployments
+  # that do not need it; disabling removes the node-level agent and its
+  # ~400MiB / 16m idle cost.
   enabled: true
   image:
     repository: otel/ebpf-instrument
@@ -393,7 +396,9 @@ obi:
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      # Measured peak under a chart-deployed 20-request/s nginx + Istio load
+      # was ~706Mi; 768Mi keeps the request above the loaded footprint.
+      memory: 768Mi
     limits:
       cpu: "1"
       memory: 1Gi
@@ -412,10 +417,16 @@ obi:
         - NET_RAW
         - PERFMON
         - SYS_PTRACE
+        # Required to join target process netns on containerd/k0s. Upstream
+        # notes that unprivileged setups are runtime-dependent. This is a
+        # security tradeoff; remove it only if your runtime can instrument
+        # targets without it.
+        - SYS_ADMIN
         # Required on kernels older than 5.11 to raise locked memory limits.
         - SYS_RESOURCE
-  # Enabling trace-context propagation adds NET_ADMIN and SYS_ADMIN. See
-  # OBI's security documentation before enabling it.
+  # Enabling trace-context propagation adds NET_ADMIN. SYS_ADMIN is already
+  # granted above for the target-netns join. See OBI's security documentation
+  # before enabling it.
   contextPropagation: false
   clusterName: ""
   logLevel: info
@@ -428,6 +439,10 @@ obi:
     #     match:
     #       kubernetes:
     #         namespace_glob: ["shop"]
+    #   - action: exclude
+    #     match:
+    #       kubernetes:
+    #         namespace_glob: ["istio-system"]
     extraRules: []
   env: []
   mountTracefs: true
