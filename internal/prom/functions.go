@@ -97,6 +97,7 @@ var parserDisabledFunctions = map[string]struct{}{
 	"end":                          {},
 	"histogram_quantiles":          {},
 	"info":                         {},
+	"integral":                     {},
 	"mad_over_time":                {},
 	"max_of":                       {},
 	"min_of":                       {},

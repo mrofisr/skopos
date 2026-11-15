@@ -129,6 +129,7 @@ Every row is backed by an executable inventory test.
 | idelta | explicit error | TestExplicitErrorFunctionsReturnPrometheusError |
 | increase | supported | TestSupportedFunctionsEvaluate |
 | info | parser-disabled | TestParserDisabledFunctionsReturnPrometheusError |
+| integral | parser-disabled | TestParserDisabledFunctionsReturnPrometheusError |
 | irate | supported | TestSupportedFunctionsEvaluate |
 | label_join | supported | TestSupportedFunctionsEvaluate |
 | label_replace | supported | TestSupportedFunctionsEvaluate |
