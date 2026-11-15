@@ -27,6 +27,11 @@ provenance guarantees below.
 
 ## Security model for v0.1
 
+The runtime trust boundaries, threat table, and residual risks are in
+[docs/security/runtime-threat-model.md](docs/security/runtime-threat-model.md).
+The supply-chain model is in
+[docs/security/threat-model.md](docs/security/threat-model.md).
+
 - **Optional Basic authentication.** `auth.enabled=true` protects the query and
   version routes with one operator-managed username/password; `/healthz` and
   `/readyz` stay open for Kubernetes probes. There is no per-user

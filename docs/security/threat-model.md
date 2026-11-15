@@ -3,7 +3,8 @@
 This threat model covers the source repository, CI/CD, dependencies, release
 artifacts, and the identities that can change them. It does not cover runtime
 security of the gateway, ClickHouse, OBI, or the Kubernetes cluster; those are
-covered in `SECURITY.md` and the deployment documentation.
+covered in [runtime-threat-model.md](runtime-threat-model.md), `SECURITY.md`,
+and the deployment documentation.
 
 ## Assets
 

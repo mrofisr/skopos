@@ -6,9 +6,10 @@ consolidation, the Python removal, and the centralized script layout.
 ## 1. Purpose and status
 
 These instructions keep the repository readable and stop tooling sprawl while
-the alpha-exit tickets land. Sections 3 and 4 are normative. The layout and
-language policy is recorded as [ADR 0004](docs/adr/0004-repository-layout-and-language-policy.md);
-the directory map is [docs/structure.md](docs/structure.md).
+the alpha-exit tickets land. Sections 3 and 4 are normative; section 9 is the
+working checklist. The layout and language policy is recorded as
+[ADR 0004](docs/adr/0004-repository-layout-and-language-policy.md); the directory
+map is [docs/structure.md](docs/structure.md).
 
 Current shape:
 
@@ -202,10 +203,99 @@ exit criteria. The layout work that remains:
 
 Use `backlog:post-alpha` for work that serves no exit criterion.
 
-## Agent skills
+## 9. Working in this repository
 
-This repo uses the [mattpocock/skills](https://github.com/mattpocock/skills)
-conventions for agent-facing documentation:
+### Commands
+
+The `Makefile` is the source of truth. Use these targets; do not invent a
+parallel command in a document or a skill.
+
+| Task | Command |
+| --- | --- |
+| Build the binary | `make build` |
+| Unit tests | `make test` |
+| Unit tests with the race detector | `make test-race` |
+| Integration tests | `CLICKHOUSE_URL=http://127.0.0.1:8123 make test-integration` |
+| SQL emitter fuzz | `make fuzz` |
+| Vet and vulnerability scan | `make vet`, `make vuln` |
+| Helm lint and render | `make helm-lint`, `make helm-template` |
+| Fast local gate | `make check` |
+| Compatibility corpora | `make compat-all` |
+| Metrics contract | `make metrics-contract` |
+| Quality evidence | `make quality-report` |
+| Release preflight | `make release-check` |
+| Verify a published release | `make release-verify TAG=vX.Y.Z` |
+| Repository checks | `go run ./tools/repoctl <command>` |
+
+`make check` is the fast gate (vet, unit tests, fuzz, Helm lint, ruleset check).
+It does not replace `make test-integration`, `make compat-all`, or
+`make helm-template` when the change touches those paths.
+
+### Change workflow
+
+1. Read the issue, proposal, or ADR that motivates the change. If there is no
+   issue and the change is not `docs`, `fix`, `deps`, `security`, or `ci`, open
+   one first; the PR guard requires an open `phase:alpha-exit` or
+   `backlog:post-alpha` issue.
+2. Write the failing test at the agreed seam before the implementation. The
+   first commit on a `type:micro` pull request is tests-only.
+3. Keep one concern per pull request. A dependency, image, or tool bump is a
+   separate, human-reviewed pull request.
+4. Update the proof and the claim together: the corpus case, the unit or
+   integration test, the support matrix, and the language support page.
+5. Run the focused test, then the relevant gate, then `make check`.
+6. Do not skip a test, add an allow-list entry, or loosen a limit to get a green
+   run. `CONTRIBUTING.md` requires a documented reason and human approval.
+7. Do not hand-edit a generated file. Check the generator first:
+   `docs/workflows.md`, `docs/alpha-exit-report.md`, and any file with a
+   generator in its header.
+
+### Writing and docs
+
+- Follow [docs/style-guide.md](docs/style-guide.md) for documentation and
+  [docs/coding-guidelines.md](docs/coding-guidelines.md) for Go.
+- Comments explain why the code is shaped this way, what constraint forced it,
+  and what breaks if you change it. The code shows what it does.
+- Use active voice and the present tense. Define a term before you use it.
+- Use a proposal for a change that does not exist yet, an ADR for a decision
+  that has been made, and the support matrix for what is actually tested.
+- AI-drafted prose gets the same review as hand-written prose. Remove hedging,
+  passive constructions with no actor, and claims without a source.
+
+### Things to avoid
+
+- No Python. No new `cmd/` binary, no second repository-tool tree, and no
+  `util`, `common`, `helpers`, `misc`, or `types` package.
+- No credentials, tokens, customer data, or machine-specific paths in docs,
+  tests, fixtures, or skills.
+- No unpinned image, action, or Go module. No floating chart image tag in a
+  release.
+- No support claim without a test that fails when the claim regresses.
+- No resource recommendation without a before/after measurement. See
+  [docs/resource-review.md](docs/resource-review.md).
+- No network request or cluster mutation in a default repository check.
+
+## 10. Agent skills and agent-facing docs
+
+Shared skills live in [`.agents/skills/`](.agents/skills/). They are on-demand
+runbooks: `AGENTS.md` and `CONTRIBUTING.md` are the rules, and a skill names the
+files, commands, verification, and guardrails for one repeatable task.
+
+| Skill | Use when |
+| --- | --- |
+| [corpus-case](.agents/skills/corpus-case/SKILL.md) | Adding compatibility coverage or fixing a PromQL, LogQL, or TraceQL divergence |
+| [support-matrix](.agents/skills/support-matrix/SKILL.md) | A query feature, endpoint, deployment mode, or MCP capability changes |
+| [release-verify](.agents/skills/release-verify/SKILL.md) | Preparing or verifying a release, or changing release and signing docs |
+| [security-review](.agents/skills/security-review/SKILL.md) | Reviewing a security-sensitive diff |
+| [flake-triage](.agents/skills/flake-triage/SKILL.md) | A test fails intermittently, CI flakes, or a quarantine is proposed |
+
+Read [`.agents/skills/README.md`](.agents/skills/README.md) before using or
+adding a skill. Skills are agent-agnostic; `.claude/`, `.codex/`, and
+`.github/skills/` are local configuration and stay untracked. Authoring rules are
+in [`.agents/skills/authoring.md`](.agents/skills/authoring.md).
+
+This repo also uses the [mattpocock/skills](https://github.com/mattpocock/skills)
+conventions for agent-facing issue work:
 
 - [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md): where tickets
   live, the to-tickets body template, native blocked-by edges, and the sync and

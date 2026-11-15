@@ -44,6 +44,7 @@ budgets, and MCP tools.
 | --- | --- |
 | [Supply-chain controls](security/supply-chain.md) | What protects the pipeline, where each control lives, and the remaining gaps |
 | [Supply-chain threat model](security/threat-model.md) | Assets, actors, trust boundaries, top threats, residual risk |
+| [Runtime threat model](security/runtime-threat-model.md) | Trust boundaries, query and ingest threats, storage, MCP, and residual risk |
 | [Agent and automation access](security/agent-access.md) | Non-admin token, verification, rotation |
 | [Incident response](security/incident-response.md) | Token compromise, bad release, registry incident, recovery |
 
@@ -61,6 +62,7 @@ budgets, and MCP tools.
 | Document | Answers |
 | --- | --- |
 | [Benchmarks](benchmarks.md) | Compression, storage cost, and gateway query latency |
+| [Resource review](resource-review.md) | How to review requests, limits, replicas, PDBs, and storage; current chart defaults |
 | [Range-query findings](perf/range-query-findings.md) | Why the 6 h range query saturates the gateway, and how to reproduce the profile |
 | [Storage](storage.md) | Retention, cold tier, backup/restore, capacity behavior |
 | [Monitoring and alerts](monitoring.md) | ServiceMonitor, PrometheusRule, alert runbooks, Grafana dashboards |
@@ -77,6 +79,16 @@ budgets, and MCP tools.
 | [ADR 0004](adr/0004-repository-layout-and-language-policy.md) | One shipped binary, one `repoctl` tool, Go for logic, no Python, scripts under `scripts/` |
 | [ADR 0005](adr/0005-obi-wrapper-speed-and-durability.md) | ZSTD(3), body-index pruning, durable Collector queue, OBI batching, dedup trade-off |
 | [Dependency policy](dependencies.md) | Go modules, pinned images, reference test containers, supply chain |
+
+## Contributing
+
+| Document | Answers |
+| --- | --- |
+| [Feature proposals](proposals/README.md) | When a proposal is required, the lifecycle, and the template |
+| [Coding guidelines](coding-guidelines.md) | Go conventions, package layout, tests, chart changes, review checklist |
+| [Documentation style guide](style-guide.md) | Page types, language, formatting, terminology, generated files |
+| [Shared AI skills](../.agents/skills/README.md) | Repo-owned agent runbooks, the catalog, and authoring rules |
+| [Resource review](resource-review.md) | How to review requests, limits, replicas, and storage before changing them |
 
 ## Security and project process
 
@@ -114,9 +126,12 @@ budgets, and MCP tools.
 **Contributor or reviewer**
 
 1. [Contributing](../CONTRIBUTING.md)
-2. [Beta gate status](beta-gates.md)
-3. [Architecture ADRs](adr/)
-4. [Dependency policy](dependencies.md)
+2. [Feature proposals](proposals/README.md)
+3. [Coding guidelines](coding-guidelines.md)
+4. [Documentation style guide](style-guide.md)
+5. [Beta gate status](beta-gates.md)
+6. [Architecture ADRs](adr/)
+7. [Dependency policy](dependencies.md)
 
 ## Source layout
 
@@ -126,6 +141,7 @@ internal/app/          mode dispatch and composition roots (gateway, mcp, checkp
 internal/              query heads, SQL emitter, ClickHouse client, context, auth
 internal/checkpoint/   stdlib WAL, SigV4 S3 client, gzip uploader, replay
 tools/repoctl/         the one developer tool
+.agents/skills/        shared AI agent runbooks and authoring rules
 scripts/               thin orchestration of external tools
 deploy/helm/           Helm chart
 deploy/systemd/        systemd units and env examples

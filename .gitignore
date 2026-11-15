@@ -10,3 +10,8 @@ coverage.out
 .vscode/
 .DS_Store
 __pycache__/
+
+# Local agent configuration. Shared skills live in .agents/skills/.
+.claude/
+.codex/
+.github/skills/
