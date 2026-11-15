@@ -28,7 +28,7 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
-      terminationGracePeriodSeconds: {{ .Values.frontend.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.frontend.terminationGracePeriodSeconds | default 45 }}
       {{- with .Values.frontend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -83,7 +83,7 @@ spec:
             - name: SKOPOS_MAX_REQUEST_BYTES
               value: {{ .Values.gateway.config.maxRequestBytes | int64 | quote }}
             - name: SKOPOS_PROFILE
-              value: {{ .Values.gateway.config.profile | quote }}
+              value: {{ .Values.gateway.config.profile | default false | quote }}
             - name: SKOPOS_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}
             {{- with .Values.frontend.extraEnv }}
