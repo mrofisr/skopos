@@ -281,7 +281,7 @@ func (e *evalCtx) evalLabelFunction(name string, call *parser.Call) (Value, erro
 			labels[dst] = value
 		}
 	default:
-		return nil, fmt.Errorf("prom: unsupported label function %q", name)
+		return nil, fmt.Errorf("%w: unsupported label function %q", ErrBadQuery, name)
 	}
 
 	out := make(Vector, 0, len(vec))

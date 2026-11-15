@@ -123,7 +123,7 @@ func (e *Engine) QueryRange(ctx context.Context, expr string, start, end time.Ti
 				acc.samples = append(acc.samples, Sample{T: at.UnixMilli(), V: sample.V})
 			}
 		default:
-			return nil, fmt.Errorf("prom: unsupported range result type %T", v)
+			return nil, fmt.Errorf("%w: unsupported range result type %T", ErrBadQuery, v)
 		}
 	}
 
@@ -178,13 +178,13 @@ func (e *evalCtx) eval(expr parser.Expr) (Value, error) {
 	case *parser.MatrixSelector:
 		return e.evalMatrixSelector(ex)
 	case *parser.SubqueryExpr:
-		return nil, errors.New("prom: subqueries are not supported")
+		return nil, fmt.Errorf("%w: subqueries are not supported", ErrBadQuery)
 	case *parser.StepInvariantExpr:
 		return e.eval(ex.Expr)
 	case *parser.StringLiteral:
-		return nil, errors.New("prom: string literals are not supported")
+		return nil, fmt.Errorf("%w: string literals are not supported", ErrBadQuery)
 	default:
-		return nil, fmt.Errorf("prom: unsupported expression %T", expr)
+		return nil, fmt.Errorf("%w: unsupported expression %T", ErrBadQuery, expr)
 	}
 }
 
@@ -477,7 +477,7 @@ func (e *evalCtx) evalCallInner(call *parser.Call) (Value, error) {
 	case "label_replace", "label_join":
 		return e.evalLabelFunction(name, call)
 	default:
-		return nil, fmt.Errorf("prom: unsupported function %q", name)
+		return nil, fmt.Errorf("%w: unsupported function %q", ErrBadQuery, name)
 	}
 }
 
@@ -894,7 +894,7 @@ func (e *evalCtx) evalAggregate(agg *parser.AggregateExpr) (Value, error) {
 		return e.evalCountValues(agg)
 	case "sum", "avg", "min", "max", "count", "stddev", "stdvar", "group":
 	default:
-		return nil, fmt.Errorf("prom: unsupported aggregation %q", op)
+		return nil, fmt.Errorf("%w: unsupported aggregation %q", ErrBadQuery, op)
 	}
 	v, err := e.eval(agg.Expr)
 	if err != nil {
@@ -1018,7 +1018,7 @@ func (e *evalCtx) evalBinary(bin *parser.BinaryExpr) (Value, error) {
 			return e.vectorBinary(op, l, r, bin.VectorMatching, bin.ReturnBool)
 		}
 	}
-	return nil, fmt.Errorf("prom: unsupported binary operand types %T and %T", lhs, rhs)
+	return nil, fmt.Errorf("%w: unsupported binary operand types %T and %T", ErrBadQuery, lhs, rhs)
 }
 
 func (e *evalCtx) setBinary(op string, lhs, rhs Vector, matching *parser.VectorMatching) Vector {
@@ -1095,7 +1095,7 @@ func (e *evalCtx) vectorBinary(op string, lhs, rhs Vector, matching *parser.Vect
 		matching = &parser.VectorMatching{}
 	}
 	if matching.FillValues.LHS != nil || matching.FillValues.RHS != nil {
-		return nil, errors.New("prom: binary fill-in modifiers are not supported")
+		return nil, fmt.Errorf("%w: binary fill-in modifiers are not supported", ErrBadQuery)
 	}
 	if matching.Card == parser.CardManyToMany {
 		return nil, errors.New("prom: many-to-many matching is only valid for set operators")
@@ -1280,7 +1280,7 @@ func binaryValue(op string, a, b float64, returnBool bool) (float64, bool, error
 	case "atan2":
 		return math.Atan2(a, b), true, nil
 	default:
-		return 0, false, fmt.Errorf("prom: unsupported binary operator %q", op)
+		return 0, false, fmt.Errorf("%w: unsupported binary operator %q", ErrBadQuery, op)
 	}
 }
 
@@ -1298,7 +1298,7 @@ func (e *evalCtx) evalUnary(un *parser.UnaryExpr) (Value, error) {
 		return v, nil
 	case "-":
 	default:
-		return nil, fmt.Errorf("prom: unsupported unary operator %q", op)
+		return nil, fmt.Errorf("%w: unsupported unary operator %q", ErrBadQuery, op)
 	}
 	switch value := v.(type) {
 	case Scalar:

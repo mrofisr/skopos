@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/prometheus/promql/parser"
 
+	"github.com/mrofisr/skopos/internal/chclient"
 	"github.com/mrofisr/skopos/internal/metrics"
 )
 
@@ -553,14 +554,29 @@ func (a *API) writeEngineError(w http.ResponseWriter, r *http.Request, err error
 		writeError(w, http.StatusServiceUnavailable, "timeout", message)
 	case errors.Is(err, context.Canceled):
 		writeError(w, 499, "canceled", "query was canceled")
-	case errors.Is(err, ErrBadQuery) || strings.Contains(err.Error(), "unsupported") || strings.Contains(err.Error(), "not supported"):
+	case isExecutionTimeout(err):
+		writeError(w, http.StatusServiceUnavailable, "timeout", "query timed out")
+	case errors.Is(err, ErrBadQuery):
 		if feature := unsupportedFeature(err); feature != "" {
 			metrics.RecordUnsupported(r.Context(), feature)
 		}
 		writeError(w, http.StatusBadRequest, "bad_data", err.Error())
 	default:
-		writeError(w, http.StatusInternalServerError, "execution", err.Error())
+		writeError(w, http.StatusUnprocessableEntity, "execution", "query execution failed")
 	}
+}
+
+// isExecutionTimeout reports whether ClickHouse timed the query out. The
+// context deadline is handled separately; this catches the server-side
+// max_execution_time error.
+func isExecutionTimeout(err error) bool {
+	var clickhouseErr *chclient.Error
+	if !errors.As(err, &clickhouseErr) {
+		return false
+	}
+	return clickhouseErr.Code == "159" ||
+		strings.Contains(clickhouseErr.Message, "TIMEOUT_EXCEEDED") ||
+		strings.Contains(clickhouseErr.Message, "Timeout exceeded")
 }
 
 // unsupportedFeature is the closed set of unsupported-query labels.
