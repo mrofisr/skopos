@@ -96,6 +96,24 @@ query measured 0.6 s through the gateway versus 0.15 s direct to ClickHouse;
 gateway from 500m to 3 cores moved overall throughput from 5.9 to 19.8 req/s
 and instant p95 from 17.3 s to 5.45 s, but did not close the gate.
 
+## Rate pushdown result
+
+`dev-13d5563` adds the `sqlgen.EmitRate` + `prom.RateFetcher` fast path for
+`sum(rate(...))` and `sum by (service_name)(rate(...))`. The same lab, image,
+dataset, and 3-core gateway:
+
+| Scope | Requests | Errors | p50 | p95 | Throughput |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| overall | 1,558 | 0 | 565 ms | 4.28 s | 25.01 req/s |
+| `prom_instant_count` | 182 | 0 | 3.72 s | 4.68 s | — |
+| `prom_instant_by_service` | 178 | 0 | 3.56 s | 4.68 s | — |
+
+A **no-load single instant query is 0.135 s** (from 0.6 s), a 4.4× improvement,
+and returns one row instead of 10k series. Under 30 clients the 4-vCPU lab is
+still CPU/queue-bound: the instant p95 moved from 5.45 s to 4.68 s and overall
+throughput from 19.77 to 25.01 req/s. The mixed workload is not the fast-profile
+Compose reference.
+
 ## Acceptance status
 
 - [x] Red/edge tests: the instant result matches the per-sample path; grouped
@@ -104,9 +122,11 @@ and instant p95 from 17.3 s to 5.45 s, but did not close the gate.
 - [ ] **Reference gate:** instant p95 < 2 s and throughput ≥ 48 req/s at
   10k/30 clients. The lab run above measured 5.45 s and 19.77 req/s, so the
   gate is still open. The fast-profile Compose/reference run also remains.
-- [ ] If the reference run still misses 2 s, the next lever is SQL `rate`/`sum`
-  pushdown (needs subquery/window support in `sqlgen`) or a deliberate
-  one-second instant-result cache (a staleness tradeoff).
+- [x] Rate pushdown implemented and parity-tested against ClickHouse. The lab
+  gate still misses; the Intel reference run is required.
+- [ ] If the reference run still misses 2 s, the next lever is a deliberate
+  one-second instant-result cache (a staleness tradeoff) or a pre-aggregated
+  rollup.
 
 ## Commands
 
