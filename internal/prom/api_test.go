@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mrofisr/skopos/internal/chclient"
 )
 
 type fakeQueryEngine struct {
@@ -257,8 +259,11 @@ func TestBadRequestsAndExecutionErrors(t *testing.T) {
 
 	h = testAPI(fakeQueryEngine{err: errors.New("backend down")}, fakeSeriesFetcher{})
 	rec := do(t, h, `/api/v1/query?query=x`)
-	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "backend down") {
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), `"execution"`) {
 		t.Fatalf("execution error = %d %s", rec.Code, rec.Body)
+	}
+	if strings.Contains(rec.Body.String(), "backend down") {
+		t.Fatalf("execution error leaked the backend detail: %s", rec.Body)
 	}
 
 	h = testAPI(fakeQueryEngine{err: fmt.Errorf("%w: parse query: bad", ErrBadQuery)}, fakeSeriesFetcher{})
@@ -284,5 +289,34 @@ func TestUnsupportedFeatureClassification(t *testing.T) {
 		if got := unsupportedFeature(errors.New(test.message)); got != test.want {
 			t.Errorf("unsupportedFeature(%q) = %q, want %q", test.message, got, test.want)
 		}
+	}
+}
+
+func TestExecutionErrorIsSanitized(t *testing.T) {
+	h := testAPI(fakeQueryEngine{}, fakeSeriesFetcher{err: errors.New(
+		"clickhouse: query otel_secret_table: syntax error")})
+	rec := do(t, h, `/api/v1/series?match[]=up`)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "otel_secret_table") || strings.Contains(body, "clickhouse") {
+		t.Fatalf("body leaks the storage error: %s", body)
+	}
+	if !strings.Contains(body, `"execution"`) {
+		t.Fatalf("body = %s, want errorType execution", body)
+	}
+}
+
+func TestClickHouseTimeoutIsServiceUnavailable(t *testing.T) {
+	h := testAPI(fakeQueryEngine{}, fakeSeriesFetcher{err: &chclient.Error{
+		StatusCode: 500, Code: "159", Message: "Timeout exceeded",
+	}})
+	rec := do(t, h, `/api/v1/series?match[]=up`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"timeout"`) {
+		t.Fatalf("body = %s, want errorType timeout", rec.Body.String())
 	}
 }
