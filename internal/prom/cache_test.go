@@ -3,6 +3,8 @@ package prom
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -167,5 +169,108 @@ func TestMetadataCached(t *testing.T) {
 	})
 	if metadataQueries != 4 {
 		t.Fatalf("metadata queries = %d, want one per table (4)", metadataQueries)
+	}
+}
+
+type countingEngine struct {
+	mu    sync.Mutex
+	calls int
+	at    []time.Time
+	value Value
+	err   error
+}
+
+func (e *countingEngine) Query(_ context.Context, _ string, at time.Time) (Value, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.calls++
+	e.at = append(e.at, at)
+	return e.value, e.err
+}
+
+func (e *countingEngine) QueryRange(context.Context, string, time.Time, time.Time, time.Duration) (Matrix, error) {
+	return nil, nil
+}
+
+func (e *countingEngine) count() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
+func cacheAPI(t *testing.T, engine QueryEngine, now func() time.Time, ttl time.Duration) http.Handler {
+	t.Helper()
+	api := NewAPI(engine, fakeSeriesFetcher{}, "test-version")
+	api.Now = now
+	api.Timeout = time.Second
+	api.InstantCacheTTL = ttl
+	mux := http.NewServeMux()
+	api.Register(mux)
+	return mux
+}
+
+func TestInstantCacheExplicitTime(t *testing.T) {
+	engine := &countingEngine{value: Scalar(1)}
+	h := cacheAPI(t, engine, time.Now, time.Second)
+	path := "/api/v1/query?query=up&time=2026-11-15T12:00:00Z"
+	do(t, h, path)
+	do(t, h, path)
+	if got := engine.count(); got != 1 {
+		t.Fatalf("engine calls = %d, want 1 for the same explicit time", got)
+	}
+	do(t, h, "/api/v1/query?query=up&time=2026-11-15T12:00:01Z")
+	if got := engine.count(); got != 2 {
+		t.Fatalf("engine calls = %d, want 2 for a new time", got)
+	}
+}
+
+func TestInstantCacheRoundsNoTime(t *testing.T) {
+	clock := &cacheClock{now: time.Date(2026, 11, 15, 12, 0, 0, 100_000_000, time.UTC)}
+	engine := &countingEngine{value: Scalar(1)}
+	h := cacheAPI(t, engine, clock.Now, time.Second)
+	path := "/api/v1/query?query=up"
+	do(t, h, path)
+	do(t, h, path)
+	if got := engine.count(); got != 1 {
+		t.Fatalf("engine calls = %d, want 1 inside the second", got)
+	}
+	if got := engine.at[0]; !got.Equal(time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("evaluation time = %s, want the start of the second", got)
+	}
+
+	clock.Advance(1100 * time.Millisecond)
+	do(t, h, path)
+	if got := engine.count(); got != 2 {
+		t.Fatalf("engine calls = %d, want 2 after the TTL", got)
+	}
+}
+
+func TestInstantCacheDisabledByDefault(t *testing.T) {
+	engine := &countingEngine{value: Scalar(1)}
+	h := cacheAPI(t, engine, time.Now, 0)
+	do(t, h, "/api/v1/query?query=up")
+	do(t, h, "/api/v1/query?query=up")
+	if got := engine.count(); got != 2 {
+		t.Fatalf("engine calls = %d, want 2 with the cache disabled", got)
+	}
+}
+
+func TestInstantCacheDoesNotCacheErrors(t *testing.T) {
+	engine := &countingEngine{err: errors.New("boom")}
+	h := cacheAPI(t, engine, time.Now, time.Second)
+	do(t, h, "/api/v1/query?query=up")
+	do(t, h, "/api/v1/query?query=up")
+	if got := engine.count(); got != 2 {
+		t.Fatalf("engine calls = %d, want 2 for an error", got)
+	}
+}
+
+func TestInstantCacheKeysByQuery(t *testing.T) {
+	engine := &countingEngine{value: Scalar(1)}
+	h := cacheAPI(t, engine, time.Now, time.Second)
+	do(t, h, "/api/v1/query?query=up")
+	do(t, h, "/api/v1/query?query=other")
+	if got := engine.count(); got != 2 {
+		t.Fatalf("engine calls = %d, want 2 for two queries", got)
 	}
 }
