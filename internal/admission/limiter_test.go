@@ -23,8 +23,8 @@ func TestWeightedLimiterRejectsOverCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := limiter.AcquireWeight(context.Background(), 5); !errors.Is(err, ErrRejected) {
-		t.Fatalf("AcquireWeight(5) = %v, want ErrRejected", err)
+	if _, err := limiter.AcquireWeight(context.Background(), 5); !errors.Is(err, ErrTooHeavy) {
+		t.Fatalf("AcquireWeight(5) = %v, want ErrTooHeavy", err)
 	}
 }
 

@@ -63,17 +63,18 @@ func TestAdmissionRejectsRangeOverBudgetButAllowsInstant(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	// 6h at 60s is 361 points; at 10 points per slot it needs 37 slots, more
-	// than the total budget, so it is rejected without queueing.
+	// than the total budget. Waiting cannot help, so it is a bad-data error,
+	// not a retryable 503.
 	response, err := server.Client().Get(server.URL + "/api/v1/query_range?" + rangeValues("0", "21600", "60s").Encode())
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = response.Body.Close()
-	if response.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("range status = %d, want 503", response.StatusCode)
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("range status = %d, want 400", response.StatusCode)
 	}
-	if got := response.Header.Get("Retry-After"); got != admissionRetryAfterSeconds {
-		t.Fatalf("Retry-After = %q, want %q", got, admissionRetryAfterSeconds)
+	if got := response.Header.Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After = %q, want empty for an over-capacity query", got)
 	}
 
 	response, err = server.Client().Get(server.URL + "/api/v1/query")

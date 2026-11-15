@@ -245,3 +245,42 @@ func TestNewRejectsInvalidConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestHandlerWithWrapsUnderAuth(t *testing.T) {
+	guard, err := auth.New("user", "pass")
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	s := newTestServer(t, fakePinger{}, func(c *Config) {
+		c.Auth = guard
+		c.Register = func(mux *http.ServeMux) {
+			mux.HandleFunc("GET /wrapped", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		}
+	})
+	h := s.HandlerWith(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			next.ServeHTTP(w, r)
+		})
+	})
+	rec := doRequest(t, h, http.MethodGet, "/wrapped")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated status = %d, want 401", rec.Code)
+	}
+	if called {
+		t.Fatal("wrap ran before auth")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/wrapped", nil)
+	req.SetBasicAuth("user", "pass")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authenticated status = %d, want 200", rec.Code)
+	}
+	if !called {
+		t.Fatal("wrap did not run for an authenticated request")
+	}
+}
