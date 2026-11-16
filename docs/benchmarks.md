@@ -4,7 +4,8 @@ These numbers come from real runs on the reference host, not from estimates.
 The harness is in [`test/bench`](../test/bench) and can be reproduced with one
 command.
 
-Current profile report: [B-02: 10k-series profile](benchmarks/b02-10k.md).
+Current profile reports: [B-02: 10k-series profile](benchmarks/b02-10k.md)
+and [B-03: 100k-series profile](benchmarks/b03-100k.md).
 
 Instant decode and grouping evidence: [instant-decode](benchmarks/instant-decode.md).
 
@@ -16,6 +17,17 @@ sequential tables include the replay-dedup `ReplacingMergeTree` schema and
 `FINAL` reads. They come from the cleaner of two 30-iteration runs; the earlier
 run had larger tail spikes. The 30-client concurrency baseline comes from a
 separate run on the same day and host.
+
+## Scale profile summary
+
+Both rows use the same eight-query `test/bench` mix, 30 clients for 60 s, and
+the k0s lab; the 6 h range is skipped. The 10k row is the post-fix gate, not
+the original B-02 profile.
+
+| Profile | Series | Throughput | Overall p95 | Instant p95 | Source |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 10k gate | 10,000 | 69.50 req/s | 954 ms | 716 ms | [instant-decode](benchmarks/instant-decode.md) |
+| 100k | 100,000 | 12.57 req/s | 9.44 s | 10.61 s | [B-03](benchmarks/b03-100k.md) |
 
 ## Summary
 
