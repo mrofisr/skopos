@@ -16,6 +16,7 @@ import (
 // samples. The /series handler only needs labels; selecting every sample was
 // the dominant cost in the 10k-profile run.
 func (f *ClickHouseFetcher) ListSeries(ctx context.Context, sel Selector, start, end time.Time) ([]map[string]string, error) {
+	ctx = chclient.WithMetadataRead(ctx)
 	gaugeFilter, sumFilter, histFilter, summaryFilter := nameFilters(sel)
 	service := serviceFilter(sel)
 	tables, err := f.candidateTables(ctx, sel)
