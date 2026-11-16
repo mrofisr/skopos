@@ -2,6 +2,7 @@
 
 - Status: Accepted for the beta planning line
 - Date: 2026-11-15
+- Updated: 2026-11-16 (B-03 scale evidence recorded)
 - Related: [alpha-exit-plan.md](../alpha-exit-plan.md),
   [benchmarks.md](../benchmarks.md),
   [ADR 0005](0005-obi-wrapper-speed-and-durability.md),
@@ -54,20 +55,22 @@ envelope, known failure behavior, and a known cost, not about perfection.
 
 | Gate | Evidence | Current state |
 | --- | --- | --- |
-| Scale | B-01, B-02, B-03 | about 560 series only |
-| Latency budgets | B-04 and a nightly relative gate | 50-VU k6 ratchet only |
+| Scale | B-01, B-02, B-03 | **B-02 10k and B-03 100k measured**; see [benchmarks](../benchmarks.md) |
+| Latency budgets | B-04 and a nightly relative gate | B-03 baseline recorded; p50/p95 budgets and nightly gate open |
 | HA | two or more gateway replicas, node-failure drill, ClickHouse restore drill | single node and single replica |
 | Auth and tenancy | auth enabled, isolation tests, tenant model | `SKOPOS_AUTH_ENABLED=false` |
 | Pilot | real cardinality, error budget | not started |
 | OBI | non-empty series per dashboard panel | whoami series stops at 00:36 UTC |
-| Cost | CPU and memory per 1k series and per 100 req/s | not measured at scale |
+| Cost | CPU and memory per 1k series and per 100 req/s | resource peaks recorded at 10k and 100k; normalized envelope open |
 
 ## Consequences
 
 - The next release is an alpha release with the metadata pushdown and the
   dependency bumps; the beta label waits for the gate.
-- B-01 and B-02 become the critical path. The merged query-performance work is
-  the first entry in that record, not the end of it.
+- B-01 to B-03 are measured. B-04 becomes the critical path; the 100k profile
+  puts the instant rate path, the metadata refresh, and the sample row budget
+  on the B-04 agenda. The merged query-performance work is the first entry in
+  that record, not the end of it.
 - The "perfect configuration" question becomes an adaptive-control question
   with measured bounds.
 - A failing gate is useful: it names the missing evidence instead of hiding it
