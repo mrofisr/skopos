@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/mrofisr/skopos/tools/repoctl/internal/benchgate"
 	"github.com/mrofisr/skopos/tools/repoctl/internal/changes"
 	"github.com/mrofisr/skopos/tools/repoctl/internal/cigate"
 	"github.com/mrofisr/skopos/tools/repoctl/internal/codescanning"
@@ -25,6 +26,7 @@ import (
 // package under tools/repoctl/internal and adds one line here.
 func newRegistry() (*command.Registry, error) {
 	return command.NewRegistry(
+		benchgate.Command{},
 		changes.Command{},
 		cigate.Command{},
 		codescanning.Command{},
