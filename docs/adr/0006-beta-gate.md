@@ -2,7 +2,7 @@
 
 - Status: Accepted for the beta planning line
 - Date: 2026-11-15
-- Updated: 2026-11-16 (B-03 scale evidence recorded)
+- Updated: 2026-11-16 (B-03 scale evidence and B-04 budgets recorded)
 - Related: [alpha-exit-plan.md](../alpha-exit-plan.md),
   [benchmarks.md](../benchmarks.md),
   [ADR 0005](0005-obi-wrapper-speed-and-durability.md),
@@ -56,7 +56,7 @@ envelope, known failure behavior, and a known cost, not about perfection.
 | Gate | Evidence | Current state |
 | --- | --- | --- |
 | Scale | B-01, B-02, B-03 | **B-02 10k and B-03 100k measured**; see [benchmarks](../benchmarks.md) |
-| Latency budgets | B-04 and a nightly relative gate | B-03 baseline recorded; p50/p95 budgets and nightly gate open |
+| Latency budgets | B-04 and a nightly relative gate | 10k budgets met; 100k open; the relative gate waits for the lab runner ([ADR 0009](0009-latency-budgets-and-bench-gate.md)) |
 | HA | two or more gateway replicas, node-failure drill, ClickHouse restore drill | single node and single replica |
 | Auth and tenancy | auth enabled, isolation tests, tenant model | `SKOPOS_AUTH_ENABLED=false` |
 | Pilot | real cardinality, error budget | not started |
