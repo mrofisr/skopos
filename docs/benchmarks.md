@@ -9,7 +9,7 @@ and [B-03: 100k-series profile](benchmarks/b03-100k.md).
 
 Instant decode and grouping evidence: [instant-decode](benchmarks/instant-decode.md).
 
-Projection prototype: [metric projections at 100k](benchmarks/b04-projection-prototype.md).
+B-04 prototypes: [metric projections and a time-bucketed table at 100k](benchmarks/b04-projection-prototype.md).
 
 OBI and Collector cost: [obi-collector-cost](benchmarks/obi-collector-cost.md).
 
