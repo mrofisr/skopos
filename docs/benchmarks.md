@@ -9,6 +9,8 @@ and [B-03: 100k-series profile](benchmarks/b03-100k.md).
 
 Instant decode and grouping evidence: [instant-decode](benchmarks/instant-decode.md).
 
+Projection prototype: [metric projections at 100k](benchmarks/b04-projection-prototype.md).
+
 OBI and Collector cost: [obi-collector-cost](benchmarks/obi-collector-cost.md).
 
 Run date: 2026-11-14 for the compression figures (ZSTD(3) schema); latency
