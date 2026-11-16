@@ -29,6 +29,7 @@ type fakeClickHouse struct {
 	labelNames    map[string][]string
 	seen          []string
 	bodies        []string
+	requests      []fakeRequest
 	valueBodies   []string
 	rateRows      []map[string]any
 	failDiscovery bool
@@ -39,9 +40,17 @@ type fakeClickHouse struct {
 	nameCalls     int
 }
 
+type fakeRequest struct {
+	body   string
+	budget string
+}
+
 func (f *fakeClickHouse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := io.ReadAll(r.Body)
 	query := string(data)
+	f.mu.Lock()
+	f.requests = append(f.requests, fakeRequest{body: query, budget: r.URL.Query().Get("max_rows_to_read")})
+	f.mu.Unlock()
 	if strings.Contains(query, "lagInFrame") {
 		f.mu.Lock()
 		rows := f.rateRows

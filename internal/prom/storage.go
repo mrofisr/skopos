@@ -161,6 +161,7 @@ func hasNegativeMetricMatcher(sel Selector) bool {
 // The queries select only MetricName and LIMIT 1, so they are metadata probes,
 // not data scans. AX-32 caches this.
 func (f *ClickHouseFetcher) probeTables(ctx context.Context, name string) ([]tableKind, error) {
+	ctx = chclient.WithMetadataRead(ctx)
 	tables := []struct {
 		kind tableKind
 		name string
@@ -804,6 +805,7 @@ func (f *ClickHouseFetcher) Metadata(ctx context.Context, metric string) (map[st
 }
 
 func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (map[string]Metadata, error) {
+	ctx = chclient.WithMetadataRead(ctx)
 	out := make(map[string]Metadata)
 	tables := []struct {
 		name     string
@@ -890,6 +892,7 @@ func (f *ClickHouseFetcher) LabelValues(ctx context.Context, name string, sel Se
 // loadLabelValues computes the distinct values. Callers reach it through the
 // cache.
 func (f *ClickHouseFetcher) loadLabelValues(ctx context.Context, name string, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	ctx = chclient.WithMetadataRead(ctx)
 	tables, err := f.candidateTables(ctx, sel)
 	if err != nil {
 		return nil, err
@@ -1024,6 +1027,7 @@ func (f *ClickHouseFetcher) LabelNames(ctx context.Context, sel Selector, start,
 }
 
 func (f *ClickHouseFetcher) loadLabelNames(ctx context.Context, sel Selector, start, end time.Time, limit int) ([]string, error) {
+	ctx = chclient.WithMetadataRead(ctx)
 	tables, err := f.candidateTables(ctx, sel)
 	if err != nil {
 		return nil, err

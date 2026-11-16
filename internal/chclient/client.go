@@ -85,6 +85,28 @@ func WithHead(ctx context.Context, head string) context.Context {
 	return context.WithValue(ctx, headContextKey{}, head)
 }
 
+// MetadataMaxRowsToRead is the row ceiling for metadata probes. They scan a
+// narrow column (for example MetricName) to answer existence and inventory
+// questions, so the sample budget rejects them on a table larger than that
+// budget before LIMIT or GROUP BY applies. The ceiling stays finite:
+// max_execution_time and max_memory_usage still bound the query, and the
+// metadata caches bound how often it runs.
+const MetadataMaxRowsToRead uint64 = 1_000_000_000
+
+// WithMetadataRead marks ctx as a metadata read. The client sends
+// MetadataMaxRowsToRead instead of the sample budget, because a metadata probe
+// must scan a column that the table's sort key does not prefix.
+func WithMetadataRead(ctx context.Context) context.Context {
+	return context.WithValue(ctx, metadataReadContextKey{}, true)
+}
+
+type metadataReadContextKey struct{}
+
+func isMetadataRead(ctx context.Context) bool {
+	ok, _ := ctx.Value(metadataReadContextKey{}).(bool)
+	return ok
+}
+
 func headFromContext(ctx context.Context) string {
 	head, _ := ctx.Value(headContextKey{}).(string)
 	if head == "" {
@@ -399,8 +421,12 @@ func (c *Client) queryOnce(ctx context.Context, sql string, params []plan.Param,
 	if c.maxMemoryUsage > 0 {
 		q.Set("max_memory_usage", strconv.FormatUint(c.maxMemoryUsage, 10))
 	}
-	if c.maxRowsToRead > 0 {
-		q.Set("max_rows_to_read", strconv.FormatUint(c.maxRowsToRead, 10))
+	maxRowsToRead := c.maxRowsToRead
+	if isMetadataRead(ctx) && maxRowsToRead < MetadataMaxRowsToRead {
+		maxRowsToRead = MetadataMaxRowsToRead
+	}
+	if maxRowsToRead > 0 {
+		q.Set("max_rows_to_read", strconv.FormatUint(maxRowsToRead, 10))
 	}
 	if c.maxResultRows > 0 {
 		q.Set("max_result_rows", strconv.FormatUint(c.maxResultRows, 10))

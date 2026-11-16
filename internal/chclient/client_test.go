@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -583,5 +584,30 @@ func TestQueryCompactError(t *testing.T) {
 	var che *Error
 	if !errors.As(err, &che) || che.Code != "60" {
 		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestMetadataReadRaisesTheRowBudget(t *testing.T) {
+	var budgets []string
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		budgets = append(budgets, r.URL.Query().Get("max_rows_to_read"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"meta":[],"data":[],"rows":0}`)
+	}), nil)
+
+	if _, err := c.Query(context.Background(), "SELECT 1", nil); err != nil {
+		t.Fatalf("sample Query: %v", err)
+	}
+	if _, err := c.Query(WithMetadataRead(context.Background()), "SELECT 1", nil); err != nil {
+		t.Fatalf("metadata Query: %v", err)
+	}
+	if len(budgets) != 2 {
+		t.Fatalf("requests = %d, want 2", len(budgets))
+	}
+	if budgets[0] != "1000000" {
+		t.Fatalf("sample budget = %q, want 1000000", budgets[0])
+	}
+	if want := strconv.FormatUint(MetadataMaxRowsToRead, 10); budgets[1] != want {
+		t.Fatalf("metadata budget = %q, want %s", budgets[1], want)
 	}
 }

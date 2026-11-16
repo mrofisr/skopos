@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	promlabels "github.com/prometheus/prometheus/model/labels"
 
+	"github.com/mrofisr/skopos/internal/chclient"
 	"github.com/mrofisr/skopos/internal/plan"
 )
 
@@ -272,5 +274,64 @@ func TestInstantCacheKeysByQuery(t *testing.T) {
 	do(t, h, "/api/v1/query?query=other")
 	if got := engine.count(); got != 2 {
 		t.Fatalf("engine calls = %d, want 2 for two queries", got)
+	}
+}
+
+func TestMetadataReadsUseTheMetadataBudget(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{
+		names.MetricsSum: {gaugeRow("up")},
+	})
+	at := time.Date(2026, 11, 1, 0, 10, 0, 0, time.UTC)
+	sel := Selector{Matchers: []*promlabels.Matcher{
+		promlabels.MustNewMatcher(promlabels.MatchEqual, promlabels.MetricName, "up"),
+	}}
+	if _, err := fetcher.Metadata(context.Background(), "up"); err != nil {
+		t.Fatalf("Metadata: %v", err)
+	}
+	if _, err := fetcher.LabelValues(context.Background(), "service_name", sel, at.Add(-time.Hour), at, 10); err != nil {
+		t.Fatalf("LabelValues: %v", err)
+	}
+	if _, err := fetcher.LabelNames(context.Background(), sel, at.Add(-time.Hour), at, 10); err != nil {
+		t.Fatalf("LabelNames: %v", err)
+	}
+	if _, err := fetcher.ListSeries(context.Background(), sel, at.Add(-time.Hour), at); err != nil {
+		t.Fatalf("ListSeries: %v", err)
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.requests) == 0 {
+		t.Fatal("no ClickHouse requests")
+	}
+	want := strconv.FormatUint(chclient.MetadataMaxRowsToRead, 10)
+	for i, req := range fake.requests {
+		if req.budget != want {
+			t.Errorf("request %d budget = %q, want %s (body %q)", i, req.budget, want, req.body)
+		}
+	}
+}
+
+func TestSampleReadsKeepTheSampleBudget(t *testing.T) {
+	names := plan.DefaultTableNames()
+	fetcher, fake := newFakeFetcher(t, map[string][]map[string]any{
+		names.MetricsSum: {gaugeRow("up")},
+	})
+	fetchUp(t, fetcher)
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	want := "10000000"
+	found := false
+	for _, req := range fake.requests {
+		if strings.Contains(req.body, "Value") && !strings.Contains(req.body, "MetricDescription") {
+			found = true
+			if req.budget != want {
+				t.Errorf("sample budget = %q, want %s (body %q)", req.budget, want, req.body)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no sample query recorded")
 	}
 }
