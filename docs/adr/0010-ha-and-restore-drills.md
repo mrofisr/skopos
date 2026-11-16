@@ -1,6 +1,6 @@
 # ADR 0010: HA and restore-based disaster recovery
 
-- Status: Accepted for the beta planning line; the drills are pending
+- Status: Accepted for the beta planning line; drill A passed, drills B and C pending
 - Date: 2026-11-16
 - Related: [ADR 0006](0006-beta-gate.md),
   [ADR 0007](0007-frozen-surfaces-maintenance.md),
@@ -138,6 +138,15 @@ maintenance-window drill; every result goes into
    the PDB prevents a voluntary eviction from taking the last replica.
 
 This proves pod-failure HA on one node. It does not prove node-failure HA.
+
+**Result (2026-11-16):** two gateway replicas on `dev-1a60b00`. Deleting one
+pod left the other endpoint serving; `2/2` replicas were Ready again in
+**8 s**; the Service endpoints moved from one to two; the PDB reported
+`currentHealthy: 2`, `desiredHealthy: 1`, `disruptionsAllowed: 1`. A 75 s
+query loop through the Service returned **327/327 HTTP 200**, maximum 69 ms,
+with no connection resets. The loop evaluated an empty window because the
+B-03 dataset ended before the drill, so the latency is not a load-under-failure
+measurement; the HA-profile 30-client baseline is still required.
 
 #### B. Fresh-instance restore (the missing restore evidence)
 
