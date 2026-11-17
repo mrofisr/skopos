@@ -342,6 +342,24 @@ jobs:
             --set clickhouse.database=otel_test \
             --set clickhouse.persistence.storageClass=standard \
             --set gateway.replicaCount=2 > /tmp/skopos-overrides.yaml
+      - name: Render beta HA profile
+        run: |
+          helm template skopos deploy/helm/skopos --namespace observability \
+            -f deploy/helm/skopos/values.beta.yaml \
+            --set gateway.enabled=true > /tmp/skopos-beta.yaml
+          helm template skopos deploy/helm/skopos --namespace observability \
+            -f deploy/helm/skopos/values.beta.yaml \
+            --set gateway.enabled=true --show-only templates/gateway-deployment.yaml \
+            | grep -q 'replicas: 2'
+          helm template skopos deploy/helm/skopos --namespace observability \
+            -f deploy/helm/skopos/values.beta.yaml \
+            --set gateway.enabled=true --show-only templates/collector-statefulset.yaml \
+            | grep -q 'replicas: 2'
+          grep -q 'maxUnavailable: 1' /tmp/skopos-beta.yaml
+          if grep -q 'skopos-backup\|skopos-restore-drill' /tmp/skopos-beta.yaml; then
+            echo "backup automation must stay opt-in" >&2
+            exit 1
+          fi
       - name: Render admission limits
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \

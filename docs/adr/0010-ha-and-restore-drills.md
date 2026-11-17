@@ -77,6 +77,11 @@ clickhouse:
       enabled: true
 ```
 
+The repository carries these replica and PDB overrides in
+[`deploy/helm/skopos/values.beta.yaml`](../../deploy/helm/skopos/values.beta.yaml).
+The S3 backup block stays an operator overlay because it needs a destination
+and credentials; the file documents the target schedule.
+
 The topology-spread helper already adds a `kubernetes.io/hostname` spread
 with `whenUnsatisfiable: ScheduleAnyway` when the replica count is above one.
 On the single-node lab both replicas share the node; on a multi-node cluster

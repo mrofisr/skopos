@@ -1,0 +1,40 @@
+# Beta HA profile overlay. Apply it after the release values so the pinned
+# gateway image and digest come from the release:
+#
+#   helm upgrade skopos deploy/helm/skopos -n observability \
+#     -f values.release.yaml -f values.beta.yaml
+#
+# The default install stays single-replica. The chart adds a hostname
+# topology spread automatically when the replica count is above one.
+#
+# The S3 backup/restore path is an operator overlay because it needs a
+# destination and credentials. The beta target from ADR 0010 is:
+#
+# clickhouse:
+#   backup:
+#     enabled: true
+#     schedule: "0 * * * *"
+#     lifecycle:
+#       enabled: true
+#       retentionDays: 7
+#     restoreDrill:
+#       enabled: true
+
+gateway:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+collector:
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
