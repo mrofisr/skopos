@@ -17,8 +17,8 @@ The `100k` baselines are the B-03 run from
 [b03-100k.md](../../../docs/benchmarks/b03-100k.md). The `10k` concurrent
 baseline is the post-fix gate run (`dev-ddd295e`, 69.50 req/s, 954 ms overall
 p95) from [instant-decode](../../../docs/benchmarks/instant-decode.md). The
-`10k` sequential baseline waits for a 10k dataset run; the B-02 sequential
-report predates the #25 instant cache and is not comparable.
+`10k` sequential baseline is the 2026-11-17 run on `dev-1a60b00` with the
+same dataset hash. Both modes now have a baseline for each profile.
 
 Run the gate with three current reports (the median per-query p95 is used):
 
