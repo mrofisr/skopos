@@ -14,9 +14,11 @@ pinned source archive. The script verifies the archive checksum before use.
 | Suite path | `promql/promqltest/testdata/*.test` |
 | License | Apache-2.0 |
 
-The Go module `github.com/prometheus/prometheus` is pinned to `v0.315.1` in
-`test/compat/prometheus/go.mod`; that module version corresponds to release
-3.15.1, so the harness and the test scripts come from the same tag.
+The Go module `github.com/prometheus/prometheus` is pinned to `v0.316.0` in
+`test/compat/prometheus/go.mod`; the upstream test scripts are pinned by commit
+and archive checksum below. The module supplies the `promqltest` runner; the
+suite commit supplies the test data, so the harness is not tied to a module
+release tag.
 
 The fixed variables are defined at the top of
 `scripts/compat/prometheus-compliance.sh`. Update all of them together when

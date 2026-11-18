@@ -4,6 +4,8 @@ SELECT
     `Attributes`
 FROM `otel`.`otel_metrics_gauge`
 WHERE (`TimeUnix` >= {__start:DateTime64(9)} AND `TimeUnix` <= {__end:DateTime64(9)})
+    AND toStartOfFiveMinutes(`TimeUnix`) >= {__bucket_start:DateTime64(9)}
+    AND toStartOfFiveMinutes(`TimeUnix`) <= {__bucket_end:DateTime64(9)}
     AND (replaceRegexpAll(`MetricName`, {norm_pattern:String}, {norm_replacement:String}) = {metric_filter:String})
 GROUP BY `MetricName`, `ServiceName`, `Attributes`
 LIMIT {__limit:UInt64}

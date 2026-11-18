@@ -485,8 +485,13 @@ gateway:
     queueDepth: 32
     queueWaitSeconds: 2
     # Range requests consume ceil(points / pointsPerSlot) units; instant
-    # requests consume one. Set 0 to disable cost weighting.
+    # requests consume ceil(estimated rows / rowsPerSlot). Set pointsPerSlot or
+    # rowsPerSlot to 0 to disable that path's weighting, or workWeighting to
+    # false to make admission count-based for every request.
     pointsPerSlot: 100
+    rowsPerSlot: 200000
+    instantFallbackWeight: 8
+    workWeighting: true
     # Cache metric discovery, table emptiness, and metadata.
     metadataTTL: 30s
     # Expose the auth-protected /debug/pprof routes. Off by default.

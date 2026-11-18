@@ -35,6 +35,42 @@ SETTINGS index_granularity=8192{{- if .Values.clickhouse.storage.enabled }}, sto
 	}
 }
 
+func TestChartSchemaUsesFiveMinuteMetricsBucketKey(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", "deploy", "helm", "skopos", "files", "schema.sql")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	got := renderChart(string(raw), "otel", true)
+	if n := strings.Count(got, "ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName"); n != 5 {
+		t.Fatalf("metrics tables with the five-minute bucket key = %d, want 5", n)
+	}
+	if strings.Contains(got, "toStartOfHour(TimeUnix)") {
+		t.Fatal("reliable schema still uses the hour metric key")
+	}
+	if n := strings.Count(got, "TimeUnix, _skopos_row_hash)"); n != 5 {
+		t.Fatalf("metrics keys with the replay row hash = %d, want 5", n)
+	}
+}
+
+func TestChartSchemaFastProfileUsesBucketKeyWithoutRowHash(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", "deploy", "helm", "skopos", "files", "schema.sql")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	got := renderChart(string(raw), "otel", false)
+	if n := strings.Count(got, "ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName"); n != 5 {
+		t.Fatalf("metrics tables with the five-minute bucket key = %d, want 5", n)
+	}
+	if strings.Contains(got, "`_skopos_row_hash`") || strings.Contains(got, ", _skopos_row_hash)") {
+		t.Fatal("fast profile schema still contains the replay row hash")
+	}
+	if n := strings.Count(got, ") ENGINE = MergeTree()"); n != 6 {
+		t.Fatalf("fast profile MergeTree tables = %d, want 6 (logs and five metrics)", n)
+	}
+}
+
 func TestChartSchemaRendersWithLocalDefaults(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "..", "deploy", "helm", "skopos", "files", "schema.sql")
 	raw, err := os.ReadFile(path)

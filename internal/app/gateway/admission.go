@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,20 +16,29 @@ const admissionRetryAfterSeconds = "1"
 type admissionMiddleware struct {
 	limiters        map[string]*admission.Limiter
 	metrics         *metrics.HTTP
-	pointsPerSlot   int
+	cost            CostModel
 	maxRequestBytes int64
 }
 
 // newAdmissionMiddleware builds one limiter per query head. A zero in-flight
 // cap disables admission entirely.
-func newAdmissionMiddleware(cfg config.Config, httpMetrics *metrics.HTTP) (*admissionMiddleware, error) {
+func newAdmissionMiddleware(cfg config.Config, httpMetrics *metrics.HTTP, cardinality ...func(context.Context, string) int) (*admissionMiddleware, error) {
 	if cfg.MaxInflight == 0 {
 		return nil, nil
+	}
+	model := CostModel{
+		Enabled:        !cfg.DisableWorkWeighting,
+		PointsPerSlot:  cfg.PointsPerSlot,
+		RowsPerSlot:    cfg.RowsPerSlot,
+		FallbackWeight: cfg.InstantFallbackWeight,
+	}
+	if len(cardinality) > 0 {
+		model.Cardinality = cardinality[0]
 	}
 	middleware := &admissionMiddleware{
 		limiters:        make(map[string]*admission.Limiter, 3),
 		metrics:         httpMetrics,
-		pointsPerSlot:   cfg.PointsPerSlot,
+		cost:            model,
 		maxRequestBytes: cfg.MaxRequestBytes,
 	}
 	for _, head := range []string{"prom", "loki", "tempo"} {
@@ -62,7 +72,7 @@ func (a *admissionMiddleware) Wrap(next http.Handler) http.Handler {
 		if err := r.ParseForm(); err == nil {
 			values = r.Form
 		}
-		release, err := limiter.AcquireWeight(r.Context(), requestCost(r.URL.Path, values, a.pointsPerSlot))
+		release, err := limiter.AcquireWeight(r.Context(), a.cost.requestCost(r.Context(), r.URL.Path, values))
 		if err != nil {
 			switch {
 			case errors.Is(err, admission.ErrTooHeavy):

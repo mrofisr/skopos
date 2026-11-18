@@ -228,8 +228,8 @@ statements. See [install.md](install.md#admission-limits).
   scripts/compat/prometheus-compliance.sh
   ```
 
-  The last full run (2026-11-07) executed 2,243 eval cases: **687 passed**,
-  **1,556 failed with an explicit documented unsupported feature**, 0
+  The last full run (2026-11-18) executed 2,243 eval cases: **710 passed**,
+  **1,533 failed with an explicit documented unsupported feature**, 0
   unexpected failures, 0 skipped. This is **not** a full compliance pass.
   Results by file:
 
@@ -238,8 +238,8 @@ statements. See [install.md](install.md#admission-limits).
   | `aggregators.test` | 110 | 50 |
   | `at_modifier.test` | 41 | 37 |
   | `collision.test` | 2 | 0 |
-  | `duration_expression.test` | 6 | 53 |
-  | `extended_vectors.test` | 22 | 152 |
+  | `duration_expression.test` | 14 | 45 |
+  | `extended_vectors.test` | 37 | 137 |
   | `fill-modifier.test` | 1 | 45 |
   | `functions.test` | 193 | 245 |
   | `histograms.test` | 50 | 135 |
@@ -264,11 +264,11 @@ statements. See [install.md](install.md#admission-limits).
   | `native-histograms-file` | 522 | native histogram fixture file |
   | `native-histograms-data` | 219 | native histogram samples return an explicit error |
   | `unsupported-function` | 156 | function outside the published list |
-  | `extended-range-selectors` | 152 | experimental anchored/smoothed selectors |
+  | `extended-range-selectors` | 137 | experimental anchored/smoothed selectors |
   | `experimental-feature` | 99 | experimental function/syntax gate |
   | `subqueries` | 72 | subqueries are not supported |
   | `info-function` | 69 | experimental `info()` |
-  | `duration-expressions` | 53 | experimental duration expressions |
+  | `duration-expressions` | 45 | experimental duration expressions |
   | `fill-modifiers` | 45 | experimental binary fill modifiers |
   | `limitk-limit-ratio` | 37 | experimental `limitk`/`limit_ratio` |
   | `start-timestamps` | 26 | `@st` and `start_timestamp()` |

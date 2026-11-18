@@ -289,6 +289,10 @@ Every row is backed by an executable inventory test.
 | Maximum execution time | 30s | `internal/config` |
 | Maximum memory usage | 1073741824 (1 GiB) | `internal/config` |
 | In-flight cap | unset | admission limiter; wired by AX-23 |
+| Range points per slot | 100 | `internal/config` |
+| Instant rows per slot | 200000 | `internal/config` |
+| Instant fallback weight | 8 | `internal/config` |
+| Work weighting enabled | true | `internal/config` |
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## Known limitations

@@ -487,6 +487,41 @@ func TestPointsPerSlot(t *testing.T) {
 	}
 }
 
+func TestInstantCostConfig(t *testing.T) {
+	cfg, err := FromLookup(lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RowsPerSlot != 200_000 || cfg.InstantFallbackWeight != 8 || cfg.DisableWorkWeighting {
+		t.Fatalf("instant cost defaults = (%d, %d, %t), want (200000, 8, false)",
+			cfg.RowsPerSlot, cfg.InstantFallbackWeight, cfg.DisableWorkWeighting)
+	}
+
+	cfg, err = FromLookup(lookupFrom(map[string]string{
+		"SKOPOS_ROWS_PER_SLOT":           "2000",
+		"SKOPOS_INSTANT_FALLBACK_WEIGHT": "7",
+		"SKOPOS_WORK_WEIGHTING":          "false",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RowsPerSlot != 2000 || cfg.InstantFallbackWeight != 7 || !cfg.DisableWorkWeighting {
+		t.Fatalf("instant cost override = (%d, %d, %t), want (2000, 7, true)",
+			cfg.RowsPerSlot, cfg.InstantFallbackWeight, cfg.DisableWorkWeighting)
+	}
+
+	for _, env := range []map[string]string{
+		{"SKOPOS_ROWS_PER_SLOT": "-1"},
+		{"SKOPOS_INSTANT_FALLBACK_WEIGHT": "0"},
+		{"SKOPOS_INSTANT_FALLBACK_WEIGHT": "-1"},
+		{"SKOPOS_WORK_WEIGHTING": "maybe"},
+	} {
+		if _, err := FromLookup(lookupFrom(env)); err == nil {
+			t.Fatalf("invalid instant cost config %v was accepted", env)
+		}
+	}
+}
+
 func TestScanRowsMustNotExceedResultRows(t *testing.T) {
 	_, err := FromLookup(lookupFrom(map[string]string{
 		"SKOPOS_MAX_SCAN_ROWS":              "300000",

@@ -33,6 +33,10 @@ func postAlphaIssue(number int) Issue {
 	return Issue{Number: number, State: "open", Labels: []string{"backlog:post-alpha"}}
 }
 
+func betaIssue(number int) Issue {
+	return Issue{Number: number, State: "open", Labels: []string{"phase:beta"}}
+}
+
 func joined(errs []error) string {
 	parts := make([]string, 0, len(errs))
 	for _, err := range errs {
@@ -69,6 +73,11 @@ func TestEvaluateFixtures(t *testing.T) {
 			issues: map[int]Issue{58: postAlphaIssue(58)},
 		},
 		{
+			name:   "valid reference to an open beta issue",
+			input:  Input{Title: "bench: bound the instant path", Body: "Closes #61"},
+			issues: map[int]Issue{61: betaIssue(61)},
+		},
+		{
 			name:    "missing reference",
 			input:   Input{Title: "quality: add a guard", Body: "No issue link here"},
 			wantErr: "no Closes #N or Refs #N reference",
@@ -90,12 +99,20 @@ func TestEvaluateFixtures(t *testing.T) {
 			wantErr: "is closed",
 		},
 		{
-			name:  "non-alpha issue",
+			name:  "closed beta issue",
+			input: Input{Title: "bench: bound the instant path", Body: "Closes #61"},
+			issues: map[int]Issue{61: {
+				Number: 61, State: "closed", Labels: []string{"phase:beta"},
+			}},
+			wantErr: "is closed",
+		},
+		{
+			name:  "unlabelled issue",
 			input: Input{Title: "quality: add a guard", Body: "Refs #24"},
 			issues: map[int]Issue{24: {
-				Number: 24, State: "open", Labels: []string{"phase:beta"},
+				Number: 24, State: "open", Labels: nil,
 			}},
-			wantErr: "not labelled phase:alpha-exit or backlog:post-alpha",
+			wantErr: "not labelled phase:alpha-exit, phase:beta or backlog:post-alpha",
 		},
 		{
 			name:  "exempt commit type",

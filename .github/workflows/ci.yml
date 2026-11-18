@@ -370,6 +370,9 @@ jobs:
           grep -q 'SKOPOS_MAX_INFLIGHT' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_DEPTH' /tmp/skopos-admission.yaml
           grep -q 'SKOPOS_QUEUE_WAIT' /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_ROWS_PER_SLOT' /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_INSTANT_FALLBACK_WEIGHT' /tmp/skopos-admission.yaml
+          grep -q 'SKOPOS_WORK_WEIGHTING' /tmp/skopos-admission.yaml
       - name: Render OTLP auth
         run: |
           helm template skopos deploy/helm/skopos --namespace observability \

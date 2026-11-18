@@ -265,10 +265,17 @@ the cap, or to `0` to disable admission. `gateway.config.queueDepth` and
 together. The chart rejects a queue without an in-flight cap.
 
 Range requests consume budget in proportion to their evaluated points:
-`ceil(points / gateway.config.pointsPerSlot)` units, with a minimum of one.
-Instant queries cost one unit. The default `pointsPerSlot: 100` means a 6-hour
-range at a 60-second step costs four units, so a few ranges cannot starve
-instant queries. Set `pointsPerSlot: 0` to disable cost weighting.
+`ceil(points / gateway.config.pointsPerSlot)` units, with a minimum of one. The
+default `pointsPerSlot: 100` means a 6-hour range at a 60-second step costs four
+units. Instant requests consume `ceil(estimated rows / rowsPerSlot)`, where the
+estimate is the cached distinct-series count times the samples in the largest
+range selector (assuming a 15-second scrape interval). The default
+`rowsPerSlot: 200000` makes a 100k-series `rate(...[5m])` cost 10 units while a
+10-series instant costs one. When no estimate is cached the query costs
+`instantFallbackWeight` (default `8`), never zero. Both defaults fit the
+chart's 16-slot admission budget. Set `SKOPOS_WORK_WEIGHTING=false`
+(`gateway.config.workWeighting: false`) to make every request cost one slot;
+set `pointsPerSlot: 0` or `rowsPerSlot: 0` to disable just that path.
 
 ```sh
 helm upgrade --install skopos ./deploy/helm/skopos \
@@ -277,11 +284,17 @@ helm upgrade --install skopos ./deploy/helm/skopos \
   --set gateway.config.maxInflight=16 \
   --set gateway.config.queueDepth=32 \
   --set gateway.config.queueWaitSeconds=2 \
-  --set gateway.config.pointsPerSlot=100
+  --set gateway.config.pointsPerSlot=100 \
+  --set gateway.config.rowsPerSlot=200000 \
+  --set gateway.config.instantFallbackWeight=8 \
+  --set gateway.config.workWeighting=true
 ```
 
-The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`, and
-`SKOPOS_QUEUE_WAIT` environment variables for a binary install. The chart also
+The same settings are the `SKOPOS_MAX_INFLIGHT`, `SKOPOS_QUEUE_DEPTH`,
+`SKOPOS_QUEUE_WAIT`, `SKOPOS_POINTS_PER_SLOT`, `SKOPOS_ROWS_PER_SLOT`,
+`SKOPOS_INSTANT_FALLBACK_WEIGHT`, and `SKOPOS_WORK_WEIGHTING` environment
+variables for a binary install. Negative slot/weight values and a non-positive
+fallback weight are rejected at startup. The chart also
 sets `GOMEMLIMIT` to 90% of `gateway.resources.limits.memory`, or to
 `gateway.goMemLimit` when set; omit both to leave `GOMEMLIMIT` unset. At
 startup the gateway warns when `maxInflight x maxResponseBytes` exceeds the
@@ -290,7 +303,9 @@ Go memory limit. The gateway and query workers default to **128Mi request /
 
 `gateway.config.metadataTTL` (default `30s`, environment
 `SKOPOS_METADATA_TTL`) caches metric-to-table discovery, per-table emptiness,
-and metric metadata. A table that gains data is picked up after the TTL. A rejected
+metric metadata, and the distinct-series estimate used by instant admission.
+The estimate rides on the same grouped refresh, so admission adds no query per
+request. A table that gains data is picked up after the TTL. A rejected
 request gets the head's error shape, `Retry-After: 1`, and increments
 `skopos_admission_rejected_total{head}`. `/healthz`, `/readyz`, and `/metrics`
 are exempt, so probes and scrapes keep working under load.

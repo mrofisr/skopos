@@ -79,6 +79,18 @@ func (e *Emitter) EmitRate(q RateQuery) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// The pushdown is metrics-only and the range is end-inclusive, matching
+	// the WHERE below. Pin the buckets so the primary key can skip the rest of
+	// the hour.
+	bucketFrom, bucketTo := bucketBounds(q.Start, q.End, true)
+	bucketStart, err := r.addGenerated(plan.Time("__bucket_start", bucketFrom))
+	if err != nil {
+		return Result{}, err
+	}
+	bucketEnd, err := r.addGenerated(plan.Time("__bucket_end", bucketTo))
+	if err != nil {
+		return Result{}, err
+	}
 
 	metric := columns["MetricName"]
 	service := columns["ServiceName"]
@@ -91,8 +103,10 @@ func (e *Emitter) EmitRate(q RateQuery) (Result, error) {
     %[1]s, %[2]s, %[3]s, %[4]s, %[5]s,
     lagInFrame(%[5]s) OVER (PARTITION BY %[1]s, %[2]s, %[3]s ORDER BY %[4]s) AS prev
 FROM %[6]s.%[7]s FINAL
-WHERE %[4]s > %[8]s AND %[4]s <= %[9]s`, metric, service, attrs, timeColumn, value,
-		quoteIdent(e.schema.Database), quoteIdent(q.Table), start, end)
+WHERE %[4]s > %[8]s AND %[4]s <= %[9]s
+  AND toStartOfFiveMinutes(%[4]s) >= %[10]s
+  AND toStartOfFiveMinutes(%[4]s) <= %[11]s`, metric, service, attrs, timeColumn, value,
+		quoteIdent(e.schema.Database), quoteIdent(q.Table), start, end, bucketStart, bucketEnd)
 	if whereSQL != "" {
 		inner.WriteString("\n  AND (")
 		inner.WriteString(whereSQL)

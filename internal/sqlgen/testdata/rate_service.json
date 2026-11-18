@@ -18,5 +18,15 @@
     "name": "__range",
     "type": "Float64",
     "value": 300
+  },
+  {
+    "name": "__bucket_start",
+    "type": "DateTime64(9)",
+    "value": "2026-11-15T13:00:00Z"
+  },
+  {
+    "name": "__bucket_end",
+    "type": "DateTime64(9)",
+    "value": "2026-11-15T13:05:00Z"
   }
 ]

@@ -10,6 +10,7 @@ and [B-03: 100k-series profile](benchmarks/b03-100k.md).
 Instant decode and grouping evidence: [instant-decode](benchmarks/instant-decode.md).
 
 B-04 prototypes: [metric projections and a time-bucketed table at 100k](benchmarks/b04-projection-prototype.md).
+B-04 final: [100k instant path — bucketed key and cost-aware admission](benchmarks/b04-100k-instant.md), with the decision in [ADR 0011](adr/0011-100k-instant-path.md).
 
 OBI and Collector cost: [obi-collector-cost](benchmarks/obi-collector-cost.md).
 
@@ -30,6 +31,11 @@ the original B-02 profile.
 | --- | ---: | ---: | ---: | ---: | --- |
 | 10k gate | 10,000 | 69.50 req/s | 954 ms | 716 ms | [instant-decode](benchmarks/instant-decode.md) |
 | 100k | 100,000 | 12.57 req/s | 9.44 s | 10.61 s | [B-03](benchmarks/b03-100k.md) |
+| 100k bucket + admission | 100,000 | 18.07 req/s | 9.17 s | see [B-04](benchmarks/b04-100k-instant.md) | [B-04](benchmarks/b04-100k-instant.md) |
+
+The B-04 row is the median of three runs with deliberate typed shedding
+(~300 503s per 60 s run); rate pushdown rows read fell from 6.36M to ~934k.
+The absolute 100k latency budget remains pilot-defined (ADR 0009).
 
 ## Summary
 
@@ -165,10 +171,10 @@ run in the normal Go test job without Docker.
 <!-- BEGIN GENERATED BENCH GATE -->
 | Metric | Value |
 | --- | ---: |
-| Requests | 3016 |
-| Errors | 249 |
+| Requests | 1162 |
+| Errors | 253 |
 | Transport errors | 0 |
-| Deliberate rejections | 249 |
+| Deliberate rejections | 253 |
 | Unexpected statuses | 0 |
 | Missing Retry-After | 0 |
 | Gate | **pass** |
