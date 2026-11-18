@@ -48,9 +48,9 @@ respected, and docs land in the same PR as the behavior they describe
 
 ## 6. Evidence and gate updates (integration checks)
 
-- [ ] 6.1 Update the checked-in bench baseline from the winning candidate through a reviewed PR (human approval) and verify `go run ./tools/repoctl bench-gate --profile 100k` passes against it
-- [ ] 6.2 Update the `docs/beta-gates.md` latency row to match the recorded evidence (100k absolute budgets stay pilot-defined) and verify every claim links to its evidence artifact
-- [ ] 6.3 Full gate sweep: `make check`, `make test-race`, `make compat-all`, `make bench-gate`, coverage ratchet, and the nightly mutation report for in-scope packages; verify all green and the evidence files recorded
+- [x] 6.1 Update the checked-in bench baseline from the winning candidate through a reviewed PR (human approval) and verify `go run ./tools/repoctl bench-gate --profile 100k` passes against it — PR #65 (refs #64); gate passes against the three candidate-A runs
+- [x] 6.2 Update the `docs/beta-gates.md` latency row to match the recorded evidence (100k absolute budgets stay pilot-defined) and verify every claim links to its evidence artifact
+- [x] 6.3 Full gate sweep: `make check`, `make test-race`, `make compat-all`, `make bench-gate`, coverage ratchet, and the nightly mutation report for in-scope packages; verify all green and the evidence files recorded — mutation 94.0% (sqlgen), 94.3% (config), evidence in `test/quality/evidence/`
 
 ## Workflow follow-up
 
