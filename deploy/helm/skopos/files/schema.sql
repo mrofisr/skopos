@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS `{{ .Values.clickhouse.database }}`.`{{ .Values.click
 PARTITION BY toDate(TimeUnix)
 -- With dedup enabled, the row hash is the final key component. Attribute maps
 -- are mapSort'ed so insertion order cannot split a duplicate.
-ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
+ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName, ServiceName, cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
 {{- if .Values.clickhouse.storage.enabled }}
 TTL toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.hotDays }}) TO VOLUME '{{ .Values.clickhouse.storage.coldVolume }}',
     toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.totalDays }}) DELETE
@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS `{{ .Values.clickhouse.database }}`.`{{ .Values.click
 PARTITION BY toDate(TimeUnix)
 -- With dedup enabled, the row hash is the final key component. Attribute maps
 -- are mapSort'ed so insertion order cannot split a duplicate.
-ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
+ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName, ServiceName, cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
 {{- if .Values.clickhouse.storage.enabled }}
 TTL toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.hotDays }}) TO VOLUME '{{ .Values.clickhouse.storage.coldVolume }}',
     toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.totalDays }}) DELETE
@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS `{{ .Values.clickhouse.database }}`.`{{ .Values.click
 PARTITION BY toDate(TimeUnix)
 -- With dedup enabled, the row hash is the final key component. Attribute maps
 -- are mapSort'ed so insertion order cannot split a duplicate.
-ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
+ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName, ServiceName, cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
 {{- if .Values.clickhouse.storage.enabled }}
 TTL toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.hotDays }}) TO VOLUME '{{ .Values.clickhouse.storage.coldVolume }}',
     toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.totalDays }}) DELETE
@@ -457,7 +457,7 @@ CREATE TABLE IF NOT EXISTS `{{ .Values.clickhouse.database }}`.`{{ .Values.click
 PARTITION BY toDate(TimeUnix)
 -- With dedup enabled, the row hash is the final key component. Attribute maps
 -- are mapSort'ed so insertion order cannot split a duplicate.
-ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
+ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName, ServiceName, cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
 {{- if .Values.clickhouse.storage.enabled }}
 TTL toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.hotDays }}) TO VOLUME '{{ .Values.clickhouse.storage.coldVolume }}',
     toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.totalDays }}) DELETE
@@ -522,7 +522,7 @@ CREATE TABLE IF NOT EXISTS `{{ .Values.clickhouse.database }}`.`{{ .Values.click
 PARTITION BY toDate(TimeUnix)
 -- With dedup enabled, the row hash is the final key component. Attribute maps
 -- are mapSort'ed so insertion order cannot split a duplicate.
-ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
+ORDER BY (toStartOfFiveMinutes(TimeUnix), MetricName, ServiceName, cityHash64(mapSort(Attributes)), TimeUnix{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }})
 {{- if .Values.clickhouse.storage.enabled }}
 TTL toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.hotDays }}) TO VOLUME '{{ .Values.clickhouse.storage.coldVolume }}',
     toDateTime(TimeUnix) + toIntervalDay({{ .Values.clickhouse.storage.totalDays }}) DELETE

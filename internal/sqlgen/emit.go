@@ -261,6 +261,26 @@ func (r *renderer) where(q plan.Query) (string, error) {
 		timePredicate = column + " >= " + startPlaceholder + " AND " + column + " " + op + " " + endPlaceholder
 	}
 
+	// Metrics tables order by toStartOfFiveMinutes(TimeUnix) first. A raw
+	// TimeUnix range cannot prune at bucket granularity, so emit the bucket
+	// range explicitly. It is a superset filter: the time predicate above
+	// still decides which rows match.
+	var bucketPredicate string
+	if q.TimeRange != nil && r.table.Signal == plan.SignalMetrics && q.TimeColumn == "TimeUnix" {
+		from, to := bucketBounds(q.TimeRange.Start, q.TimeRange.End, q.TimeRange.EndInclusive)
+		fromPlaceholder, err := r.addGenerated(plan.Time("__bucket_start", from))
+		if err != nil {
+			return "", err
+		}
+		toPlaceholder, err := r.addGenerated(plan.Time("__bucket_end", to))
+		if err != nil {
+			return "", err
+		}
+		column := quoteIdent(q.TimeColumn)
+		bucketPredicate = "toStartOfFiveMinutes(" + column + ") >= " + fromPlaceholder +
+			"\n    AND toStartOfFiveMinutes(" + column + ") <= " + toPlaceholder
+	}
+
 	var filterSQL string
 	if q.Where != nil {
 		s, err := r.expr(q.Where, false)
@@ -268,6 +288,22 @@ func (r *renderer) where(q plan.Query) (string, error) {
 			return "", fmt.Errorf("sqlgen: where: %w", err)
 		}
 		filterSQL = s
+	}
+
+	if bucketPredicate != "" {
+		var b strings.Builder
+		if filterSQL != "" {
+			b.WriteString("(" + timePredicate + ")")
+		} else {
+			b.WriteString(timePredicate)
+		}
+		b.WriteString("\n    AND ")
+		b.WriteString(bucketPredicate)
+		if filterSQL != "" {
+			b.WriteString("\n    AND ")
+			b.WriteString(parenthesize(filterSQL))
+		}
+		return b.String(), nil
 	}
 
 	switch {
@@ -552,8 +588,9 @@ var scalarFunctions = map[string]struct{}{
 	"position":         {},
 	"isValidUTF8":      {},
 	"lower":            {}, "upper": {}, "match": {}, "hasToken": {}, "has": {},
-	"mapContains": {}, "mapKeys": {}, "mapValues": {}, "arrayJoin": {},
-	"arraySum": {}, "arrayCount": {}, "arrayConcat": {}, "length": {},
+	"mapContains": {}, "mapKeys": {}, "mapValues": {}, "mapSort": {}, "arrayJoin": {},
+	"cityHash64": {},
+	"arraySum":   {}, "arrayCount": {}, "arrayConcat": {}, "length": {},
 	"if": {}, "multiIf": {}, "coalesce": {}, "greatest": {}, "least": {},
 	"abs": {}, "round": {},
 	"floor": {}, "ceil": {}, "log": {}, "exp": {}, "sqrt": {}, "pow": {},

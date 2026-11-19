@@ -135,6 +135,10 @@ func Generate() ([]byte, error) {
 	builder.WriteString("| Maximum execution time | " + cfg.MaxExecutionTime.String() + " | `internal/config` |\n")
 	builder.WriteString("| Maximum memory usage | " + formatBytesUint(cfg.MaxMemoryUsage) + " | `internal/config` |\n")
 	builder.WriteString("| In-flight cap | unset | admission limiter; wired by AX-23 |\n")
+	builder.WriteString(fmt.Sprintf("| Range points per slot | %d | `internal/config` |\n", cfg.PointsPerSlot))
+	builder.WriteString(fmt.Sprintf("| Instant rows per slot | %d | `internal/config` |\n", cfg.RowsPerSlot))
+	builder.WriteString(fmt.Sprintf("| Instant fallback weight | %d | `internal/config` |\n", cfg.InstantFallbackWeight))
+	builder.WriteString(fmt.Sprintf("| Work weighting enabled | %t | `internal/config` |\n", !cfg.DisableWorkWeighting))
 	builder.WriteString("<!-- END GENERATED SUPPORT MATRIX -->\n")
 	return []byte(builder.String()), nil
 }

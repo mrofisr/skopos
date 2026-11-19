@@ -14,6 +14,14 @@ scrape to a query worker. Basic auth applies when it is enabled.
 | `skopos_admission_rejected_total` | `head` | Requests rejected by the admission limiter. |
 | `skopos_unsupported_queries_total` | `head`, `feature` | Queries rejected as unsupported. |
 
+`skopos_admission_rejected_total{head}` counts requests shed by the weighted
+admission limiter, including expensive instant queries whose work exceeds the
+remaining slots. It is incremented once per rejection with the head's typed
+error shape and `Retry-After: 1`; an over-capacity query is a `400` and is not
+counted as a capacity rejection. The cost weights come from
+`SKOPOS_POINTS_PER_SLOT` (ranges), `SKOPOS_ROWS_PER_SLOT` (instants), and
+`SKOPOS_INSTANT_FALLBACK_WEIGHT`; see [install.md](install.md#admission-limits).
+
 `head` is one of `prom`, `loki`, `tempo`, `context`, or `gateway`. The route is
 always the registered pattern, never the concrete path: `/api/v1/label/foo/values`
 is recorded as `/api/v1/label/{name}/values`, and every unrouted path is `/`.

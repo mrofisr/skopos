@@ -1,5 +1,5 @@
-// Package prcheck enforces alpha-exit/post-alpha traceability and frozen-path
-// rules on pull requests.
+// Package prcheck enforces alpha-exit/beta/post-alpha traceability and
+// frozen-path rules on pull requests.
 package prcheck
 
 import (
@@ -67,6 +67,7 @@ var FrozenPaths = []string{
 
 const (
 	alphaLabel          = "phase:alpha-exit"
+	betaLabel           = "phase:beta"
 	postAlphaLabel      = "backlog:post-alpha"
 	frozenLabel         = "frozen-exception"
 	frozenReasonKey     = "Frozen-exception:"
@@ -160,7 +161,7 @@ func checkTraceability(ctx context.Context, in Input, source Source) ([]error, [
 		if keywordRE.MatchString(in.Body) {
 			return []error{fmt.Errorf("malformed Closes/Refs reference: use Closes #N or Refs #N")}, nil
 		}
-		return []error{fmt.Errorf("body has no Closes #N or Refs #N reference to an open %s or %s issue", alphaLabel, postAlphaLabel)}, nil
+		return []error{fmt.Errorf("body has no Closes #N or Refs #N reference to an open %s, %s or %s issue", alphaLabel, betaLabel, postAlphaLabel)}, nil
 	}
 	if in.Fork {
 		return nil, []string{"fork PR: issue lookup skipped; freeze check still runs"}
@@ -177,12 +178,12 @@ func checkTraceability(ctx context.Context, in Input, source Source) ([]error, [
 			errs = append(errs, fmt.Errorf("lookup issue #%d: %w", number, err))
 			continue
 		}
-		if !hasLabel(issue.Labels, alphaLabel) && !hasLabel(issue.Labels, postAlphaLabel) {
-			errs = append(errs, fmt.Errorf("issue #%d is not labelled %s or %s", number, alphaLabel, postAlphaLabel))
+		if !hasLabel(issue.Labels, alphaLabel) && !hasLabel(issue.Labels, betaLabel) && !hasLabel(issue.Labels, postAlphaLabel) {
+			errs = append(errs, fmt.Errorf("issue #%d is not labelled %s, %s or %s", number, alphaLabel, betaLabel, postAlphaLabel))
 			continue
 		}
 		if !strings.EqualFold(issue.State, "open") {
-			errs = append(errs, fmt.Errorf("issue #%d is %s; reference an open %s or %s issue", number, strings.ToLower(issue.State), alphaLabel, postAlphaLabel))
+			errs = append(errs, fmt.Errorf("issue #%d is %s; reference an open %s, %s or %s issue", number, strings.ToLower(issue.State), alphaLabel, betaLabel, postAlphaLabel))
 			continue
 		}
 		valid = true

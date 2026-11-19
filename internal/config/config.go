@@ -39,38 +39,41 @@ func (m Mode) ServeQueries() bool {
 
 // Config is the gateway runtime configuration.
 type Config struct {
-	Mode               Mode
-	ListenAddr         string
-	ClickHouseURL      string
-	ClickHouseDatabase string
-	ClickHouseUser     string
-	ClickHousePassword string
-	Tables             plan.TableNames
-	MaxExecutionTime   time.Duration
-	MaxMemoryUsage     uint64
-	MaxRowsToRead      uint64
-	MaxResultRows      uint64
-	MaxScanRows        int
-	MaxQueryRange      time.Duration
-	MaxResponseBytes   int64
-	ReadinessTimeout   time.Duration
-	MaxRequestBytes    int64
-	MaxInflight        int
-	QueueDepth         int
-	QueueWait          time.Duration
-	PointsPerSlot      int
-	MetadataTTL        time.Duration
-	InstantCacheTTL    time.Duration
-	QueryURLs          []string
-	QueryTimeout       time.Duration
-	AuthEnabled        bool
-	AuthUsername       string
-	AuthPassword       string
-	ContextFile        string
-	ContextObserved    bool
-	Profile            bool
-	ProfileAllowUnauth bool
-	LogLevel           slog.Level
+	Mode                  Mode
+	ListenAddr            string
+	ClickHouseURL         string
+	ClickHouseDatabase    string
+	ClickHouseUser        string
+	ClickHousePassword    string
+	Tables                plan.TableNames
+	MaxExecutionTime      time.Duration
+	MaxMemoryUsage        uint64
+	MaxRowsToRead         uint64
+	MaxResultRows         uint64
+	MaxScanRows           int
+	MaxQueryRange         time.Duration
+	MaxResponseBytes      int64
+	ReadinessTimeout      time.Duration
+	MaxRequestBytes       int64
+	MaxInflight           int
+	QueueDepth            int
+	QueueWait             time.Duration
+	PointsPerSlot         int
+	RowsPerSlot           int
+	InstantFallbackWeight int
+	DisableWorkWeighting  bool
+	MetadataTTL           time.Duration
+	InstantCacheTTL       time.Duration
+	QueryURLs             []string
+	QueryTimeout          time.Duration
+	AuthEnabled           bool
+	AuthUsername          string
+	AuthPassword          string
+	ContextFile           string
+	ContextObserved       bool
+	Profile               bool
+	ProfileAllowUnauth    bool
+	LogLevel              slog.Level
 }
 
 // FromEnv loads configuration from the process environment.
@@ -82,29 +85,32 @@ func FromEnv() (Config, error) {
 // to mutate the process environment.
 func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
-		Mode:               ModeAll,
-		ListenAddr:         ":8080",
-		ClickHouseURL:      "http://127.0.0.1:8123",
-		ClickHouseDatabase: "otel",
-		ClickHouseUser:     "default",
-		Tables:             plan.DefaultTableNames(),
-		MaxExecutionTime:   30 * time.Second,
-		MaxMemoryUsage:     1 << 30,
-		MaxRowsToRead:      10_000_000,
-		MaxResultRows:      200_000,
-		MaxScanRows:        200_000,
-		MaxQueryRange:      7 * 24 * time.Hour,
-		MaxResponseBytes:   64 << 20,
-		ReadinessTimeout:   2 * time.Second,
-		MaxRequestBytes:    1 << 20,
-		MaxInflight:        0,
-		QueueDepth:         0,
-		QueueWait:          0,
-		PointsPerSlot:      100,
-		MetadataTTL:        30 * time.Second,
-		InstantCacheTTL:    time.Second,
-		QueryTimeout:       30 * time.Second,
-		LogLevel:           slog.LevelInfo,
+		Mode:                  ModeAll,
+		ListenAddr:            ":8080",
+		ClickHouseURL:         "http://127.0.0.1:8123",
+		ClickHouseDatabase:    "otel",
+		ClickHouseUser:        "default",
+		Tables:                plan.DefaultTableNames(),
+		MaxExecutionTime:      30 * time.Second,
+		MaxMemoryUsage:        1 << 30,
+		MaxRowsToRead:         10_000_000,
+		MaxResultRows:         200_000,
+		MaxScanRows:           200_000,
+		MaxQueryRange:         7 * 24 * time.Hour,
+		MaxResponseBytes:      64 << 20,
+		ReadinessTimeout:      2 * time.Second,
+		MaxRequestBytes:       1 << 20,
+		MaxInflight:           0,
+		QueueDepth:            0,
+		QueueWait:             0,
+		PointsPerSlot:         100,
+		RowsPerSlot:           200_000,
+		InstantFallbackWeight: 8,
+		DisableWorkWeighting:  false,
+		MetadataTTL:           30 * time.Second,
+		InstantCacheTTL:       time.Second,
+		QueryTimeout:          30 * time.Second,
+		LogLevel:              slog.LevelInfo,
 	}
 
 	mode, err := stringEnv(lookup, "SKOPOS_MODE", string(ModeAll))
@@ -193,6 +199,17 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.PointsPerSlot, err = intValueEnv(lookup, "SKOPOS_POINTS_PER_SLOT", cfg.PointsPerSlot); err != nil {
 		return Config{}, err
 	}
+	if cfg.RowsPerSlot, err = intValueEnv(lookup, "SKOPOS_ROWS_PER_SLOT", cfg.RowsPerSlot); err != nil {
+		return Config{}, err
+	}
+	if cfg.InstantFallbackWeight, err = intValueEnv(lookup, "SKOPOS_INSTANT_FALLBACK_WEIGHT", cfg.InstantFallbackWeight); err != nil {
+		return Config{}, err
+	}
+	var weighting bool
+	if weighting, err = boolEnv(lookup, "SKOPOS_WORK_WEIGHTING", true); err != nil {
+		return Config{}, err
+	}
+	cfg.DisableWorkWeighting = !weighting
 	if cfg.MetadataTTL, err = durationEnv(lookup, "SKOPOS_METADATA_TTL", cfg.MetadataTTL); err != nil {
 		return Config{}, err
 	}
@@ -285,8 +302,11 @@ func FromLookup(lookup func(string) (string, bool)) (Config, error) {
 	if cfg.MaxQueryRange <= 0 {
 		return Config{}, fmt.Errorf("SKOPOS_MAX_QUERY_RANGE: must be positive")
 	}
-	if cfg.MaxInflight < 0 || cfg.QueueDepth < 0 || cfg.QueueWait < 0 || cfg.PointsPerSlot < 0 {
-		return Config{}, fmt.Errorf("SKOPOS_MAX_INFLIGHT, SKOPOS_QUEUE_DEPTH, SKOPOS_QUEUE_WAIT, and SKOPOS_POINTS_PER_SLOT must not be negative")
+	if cfg.MaxInflight < 0 || cfg.QueueDepth < 0 || cfg.QueueWait < 0 || cfg.PointsPerSlot < 0 || cfg.RowsPerSlot < 0 {
+		return Config{}, fmt.Errorf("SKOPOS_MAX_INFLIGHT, SKOPOS_QUEUE_DEPTH, SKOPOS_QUEUE_WAIT, SKOPOS_POINTS_PER_SLOT, and SKOPOS_ROWS_PER_SLOT must not be negative")
+	}
+	if cfg.InstantFallbackWeight < 1 {
+		return Config{}, fmt.Errorf("SKOPOS_INSTANT_FALLBACK_WEIGHT: must be positive")
 	}
 	if cfg.MaxInflight == 0 && (cfg.QueueDepth > 0 || cfg.QueueWait > 0) {
 		return Config{}, fmt.Errorf("SKOPOS_QUEUE_DEPTH and SKOPOS_QUEUE_WAIT require SKOPOS_MAX_INFLIGHT")

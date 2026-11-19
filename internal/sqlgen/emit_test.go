@@ -89,6 +89,39 @@ func checkGolden(t *testing.T, name string, got Result) {
 	}
 }
 
+func TestEmitMetricsBucketPredicate(t *testing.T) {
+	cases := []struct {
+		name  string
+		start time.Time
+		end   time.Time
+	}{
+		{"metrics_bucket_inside", time.Date(2026, 11, 1, 13, 1, 0, 0, time.UTC), time.Date(2026, 11, 1, 13, 4, 0, 0, time.UTC)},
+		{"metrics_bucket_crossing", time.Date(2026, 11, 1, 13, 3, 0, 0, time.UTC), time.Date(2026, 11, 1, 13, 8, 0, 0, time.UTC)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := plan.Query{
+				Signal: plan.SignalMetrics,
+				Table:  "otel_metrics_gauge",
+				Select: []plan.SelectItem{
+					{Expr: plan.Col("MetricName")},
+					{Expr: plan.Col("TimeUnix")},
+					{Expr: plan.Col("Value")},
+				},
+				TimeColumn: "TimeUnix",
+				TimeRange:  &plan.TimeRange{Start: tc.start, End: tc.end},
+				OrderBy:    []plan.Order{{By: "TimeUnix"}},
+				Limit:      100,
+			}
+			got, err := testEmitter(t).Emit(q)
+			if err != nil {
+				t.Fatalf("Emit: %v", err)
+			}
+			checkGolden(t, tc.name, got)
+		})
+	}
+}
+
 func TestEmitMetricsSimple(t *testing.T) {
 	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 11, 1, 1, 0, 0, 0, time.UTC)

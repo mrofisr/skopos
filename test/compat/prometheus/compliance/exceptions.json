@@ -84,7 +84,7 @@
       "id": "unsupported-function",
       "feature": "Functions outside the published support list return an explicit unsupported-function error.",
       "docs": "docs/promql-support.md#known-limitations",
-      "error_regex": "prom: unsupported function"
+      "error_regex": "error evaluating query .*: prom: (bad query: )?unsupported function"
     },
     {
       "id": "experimental-feature",

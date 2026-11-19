@@ -47,7 +47,7 @@ func runQueries(ctx context.Context, cfg config.Config, logger *slog.Logger, bas
 		contextAPI.WithSignalObserver(newObservedSignals(client, cfg.ClickHouseDatabase, cfg.Tables, logger))
 	}
 	httpMetrics := metrics.NewHTTP(registry)
-	admission, err := newAdmissionMiddleware(cfg, httpMetrics)
+	admission, err := newAdmissionMiddleware(cfg, httpMetrics, fetcher.Cardinality)
 	if err != nil {
 		return fmt.Errorf("admission: %w", err)
 	}

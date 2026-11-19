@@ -27,6 +27,8 @@ FROM (SELECT
     lagInFrame(`Value`) OVER (PARTITION BY `MetricName`, `ServiceName`, `Attributes` ORDER BY `TimeUnix`) AS prev
 FROM `otel`.`otel_metrics_sum` FINAL
 WHERE `TimeUnix` > {__start:DateTime64(9)} AND `TimeUnix` <= {__end:DateTime64(9)}
+  AND toStartOfFiveMinutes(`TimeUnix`) >= {__bucket_start:DateTime64(9)}
+  AND toStartOfFiveMinutes(`TimeUnix`) <= {__bucket_end:DateTime64(9)}
   AND ((`MetricName` = {metric_filter:String})))
 GROUP BY `MetricName`, `ServiceName`, `Attributes`)
 WHERE N >= 2 AND FirstT < LastT))

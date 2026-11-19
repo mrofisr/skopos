@@ -784,11 +784,34 @@ func matchesAll(matchers []*promlabels.Matcher, labels map[string]string) bool {
 	return true
 }
 
-// Metadata is the Prometheus metadata record for one metric name.
+// Metadata is the Prometheus metadata record for one metric name. SeriesCount
+// is the distinct-series estimate from the same cached refresh; zero means it
+// was unavailable and the admission cost model uses its fallback weight.
 type Metadata struct {
-	Type string
-	Help string
-	Unit string
+	Type        string
+	Help        string
+	Unit        string
+	SeriesCount int
+}
+
+// Cardinality returns the cached distinct-series estimate for metric. It
+// returns 0 when no estimate exists (cold cache, new metric, or failed
+// refresh); the admission cost model then applies its conservative fallback.
+// It never issues a statement of its own: the metadata cache refresh already
+// carries the estimate.
+func (f *ClickHouseFetcher) Cardinality(ctx context.Context, metric string) int {
+	if metric == "" {
+		return 0
+	}
+	metadata, err := f.cacheFor().metadata.Get(ctx, NormalizeLabelName(metric))
+	if err != nil {
+		return 0
+	}
+	record, ok := metadata[NormalizeLabelName(metric)]
+	if !ok {
+		return 0
+	}
+	return record.SeriesCount
 }
 
 // Metadata returns metric metadata from the gauge, sum, and histogram tables.
@@ -836,6 +859,10 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 				{Expr: plan.Col("MetricName")},
 				{Expr: plan.Agg("any", plan.Col("MetricDescription")), Alias: "help"},
 				{Expr: plan.Agg("any", plan.Col("MetricUnit")), Alias: "unit"},
+				{Expr: plan.Agg("uniqExact",
+					plan.Col("ServiceName"),
+					plan.F("cityHash64", plan.F("mapSort", plan.Col("Attributes"))),
+				), Alias: "SeriesCount"},
 			},
 			Where:     filter,
 			GroupBy:   []string{"MetricName"},
@@ -857,7 +884,10 @@ func (f *ClickHouseFetcher) loadMetadata(ctx context.Context, metric string) (ma
 			name, _ := result.String(i, "MetricName")
 			help, _ := result.String(i, "help")
 			unit, _ := result.String(i, "unit")
-			out[NormalizeLabelName(name)] = Metadata{Type: table.typeName, Help: help, Unit: unit}
+			series, _ := result.Int64(i, "SeriesCount")
+			out[NormalizeLabelName(name)] = Metadata{
+				Type: table.typeName, Help: help, Unit: unit, SeriesCount: int(series),
+			}
 		}
 	}
 	return out, nil

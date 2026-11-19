@@ -216,6 +216,17 @@ Usage: include "skopos.image" (dict "image" .Values.clickhouse.image)
 {{- $max := int .Values.gateway.config.maxInflight -}}
 {{- $depth := int .Values.gateway.config.queueDepth -}}
 {{- $wait := int .Values.gateway.config.queueWaitSeconds -}}
+{{- $rows := int .Values.gateway.config.rowsPerSlot -}}
+{{- $fallback := int .Values.gateway.config.instantFallbackWeight -}}
+{{- if not (kindIs "bool" .Values.gateway.config.workWeighting) -}}
+{{- fail "gateway.config.workWeighting must be a boolean" -}}
+{{- end -}}
+{{- if lt $rows 0 -}}
+{{- fail "gateway.config.rowsPerSlot must not be negative" -}}
+{{- end -}}
+{{- if lt $fallback 1 -}}
+{{- fail "gateway.config.instantFallbackWeight must be positive" -}}
+{{- end -}}
 {{- if lt $max 0 -}}
 {{- fail "gateway.config.maxInflight must not be negative" -}}
 {{- end -}}

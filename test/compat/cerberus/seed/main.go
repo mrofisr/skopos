@@ -129,18 +129,34 @@ var dedupIfBlock = regexp.MustCompile(`(?ms)^\{\{ if \.Values\.clickhouse\.dedup
 // conditionals; if the schema grows more, replace this with Helm or a full
 // template renderer and keep the tests in sync.
 func renderChartDefaults(raw, database string) string {
+	return renderChart(raw, database, true)
+}
+
+// renderChart renders the chart schema with storage disabled. The dedup flag
+// selects the reliable (ReplacingMergeTree with the replay row hash) or the
+// fast (MergeTree) profile.
+func renderChart(raw, database string, dedup bool) string {
 	// Remove the inline storage_policy fragment before matching the block form.
 	// Otherwise an inline {{- if }} can pair with the next table's {{- else }}.
 	rendered := strings.ReplaceAll(raw,
 		"{{- if .Values.clickhouse.storage.enabled }}, storage_policy = 'tiered'{{- end }}", "")
 	rendered = storageIfBlock.ReplaceAllString(rendered, "$1")
-	rendered = dedupIfBlock.ReplaceAllString(rendered, "$1")
-	rendered = strings.ReplaceAll(rendered,
-		"{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}",
-		"ReplacingMergeTree()")
-	rendered = strings.ReplaceAll(rendered,
-		"{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}",
-		", _skopos_row_hash")
+	if dedup {
+		rendered = dedupIfBlock.ReplaceAllString(rendered, "$1")
+		rendered = strings.ReplaceAll(rendered,
+			"{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}",
+			"ReplacingMergeTree()")
+		rendered = strings.ReplaceAll(rendered,
+			"{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}",
+			", _skopos_row_hash")
+	} else {
+		rendered = dedupIfBlock.ReplaceAllString(rendered, "")
+		rendered = strings.ReplaceAll(rendered,
+			"{{ if .Values.clickhouse.dedup.enabled }}ReplacingMergeTree(){{ else }}MergeTree(){{ end }}",
+			"MergeTree()")
+		rendered = strings.ReplaceAll(rendered,
+			"{{ if .Values.clickhouse.dedup.enabled }}, _skopos_row_hash{{ end }}", "")
+	}
 	return strings.NewReplacer(
 		"{{ .Values.clickhouse.database }}", database,
 		"{{ .Values.clickhouse.tables.traces }}", "otel_traces",

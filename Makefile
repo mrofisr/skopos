@@ -83,6 +83,7 @@ test-integration:
 
 fuzz:
 	$(GO) test -run='^$$' -fuzz=FuzzEmitNoUserValueLeak -fuzztime=30s ./internal/sqlgen
+	$(GO) test -run='^$$' -fuzz=FuzzEmitRateNoUserValueLeak -fuzztime=30s ./internal/sqlgen
 
 vet:
 	$(GO) vet ./...

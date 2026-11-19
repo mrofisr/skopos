@@ -26,6 +26,28 @@ func TestEmitRateGolden(t *testing.T) {
 	checkGolden(t, "rate_service", got)
 }
 
+func TestEmitRateBucketPredicate(t *testing.T) {
+	e := testEmitter(t)
+	where := plan.Bin("=", plan.Col("MetricName"), plan.String("metric_filter", "http_requests_total"))
+	cases := []struct {
+		name  string
+		start time.Time
+		end   time.Time
+	}{
+		{"rate_bucket_inside", time.Date(2026, 11, 15, 13, 1, 0, 0, time.UTC), time.Date(2026, 11, 15, 13, 4, 0, 0, time.UTC)},
+		{"rate_bucket_crossing", time.Date(2026, 11, 15, 13, 3, 0, 0, time.UTC), time.Date(2026, 11, 15, 13, 8, 0, 0, time.UTC)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := e.EmitRate(RateQuery{Table: "otel_metrics_sum", Where: where, Start: tc.start, End: tc.end})
+			if err != nil {
+				t.Fatalf("EmitRate: %v", err)
+			}
+			checkGolden(t, tc.name, got)
+		})
+	}
+}
+
 func TestEmitRateValidation(t *testing.T) {
 	e := testEmitter(t)
 	start := time.Date(2026, 11, 15, 13, 0, 0, 0, time.UTC)

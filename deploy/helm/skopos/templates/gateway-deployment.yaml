@@ -142,6 +142,12 @@ spec:
               value: {{ printf "%ds" (int64 .Values.gateway.config.queueWaitSeconds) | quote }}
             - name: SKOPOS_POINTS_PER_SLOT
               value: {{ .Values.gateway.config.pointsPerSlot | quote }}
+            - name: SKOPOS_ROWS_PER_SLOT
+              value: {{ .Values.gateway.config.rowsPerSlot | quote }}
+            - name: SKOPOS_INSTANT_FALLBACK_WEIGHT
+              value: {{ .Values.gateway.config.instantFallbackWeight | quote }}
+            - name: SKOPOS_WORK_WEIGHTING
+              value: {{ .Values.gateway.config.workWeighting | quote }}
             {{- end }}
             - name: SKOPOS_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}
