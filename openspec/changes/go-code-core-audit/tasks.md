@@ -23,9 +23,9 @@
 
 ## 4. Verification and hand-off
 
-- [ ] 4.1 Re-run the collection commands from 1.1 and diff against the recorded totals; verify no discrepancy or explain it in the audit
-- [ ] 4.2 Run `openspec validate go-code-core-audit --strict`; verify zero errors
-- [ ] 4.3 Inspect `git diff --stat` and `git status`; verify the only new/changed tracked files are the four OpenSpec artifacts and `docs/go-code-audit.md` (no Go, Makefile, workflow, or script edits)
+- [x] 4.1 Re-run the collection commands from 1.1 and diff against the recorded totals; verify no discrepancy or explain it in the audit
+- [x] 4.2 Run `openspec validate go-code-core-audit --strict`; verify zero errors
+- [x] 4.3 Inspect `git diff --stat` and `git status`; verify the only new/changed tracked files are the four OpenSpec artifacts and `docs/go-code-audit.md` (no Go, Makefile, workflow, or script edits)
 - [ ] 4.4 Obtain maintainer review of the role assignments and unsettled cases; verify sign-off is recorded in the PR or issue before opening follow-up removal changes (human checkpoint)
 
 ## Workflow follow-up
