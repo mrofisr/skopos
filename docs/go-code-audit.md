@@ -248,5 +248,7 @@ required. Tier 3 is listed for completeness, not proposed for removal.
 5. **Unused `bench-gate`.** Confirm whether the documented `repoctl bench-gate`
    command has a human consumer before treating it as Tier 0.
 
-No item in this section is resolved by this change; that is the purpose of the
-audit.
+No item in this section was resolved by this change; that was the purpose of the
+audit. Maintainer sign-off on the inventory was recorded as "LGTM" on PR #66
+(2026-11-22). The five questions remain open for the follow-up removal changes;
+no code has been deleted under this change.

@@ -26,7 +26,7 @@
 - [x] 4.1 Re-run the collection commands from 1.1 and diff against the recorded totals; verify no discrepancy or explain it in the audit
 - [x] 4.2 Run `openspec validate go-code-core-audit --strict`; verify zero errors
 - [x] 4.3 Inspect `git diff --stat` and `git status`; verify the only new/changed tracked files are the four OpenSpec artifacts and `docs/go-code-audit.md` (no Go, Makefile, workflow, or script edits)
-- [ ] 4.4 Obtain maintainer review of the role assignments and unsettled cases; verify sign-off is recorded in the PR or issue before opening follow-up removal changes (human checkpoint)
+- [x] 4.4 Obtain maintainer review of the role assignments and unsettled cases; verify sign-off is recorded in the PR or issue before opening follow-up removal changes — LGTM recorded as a comment on PR #66 by the maintainer (2026-11-22); the five review questions stay open in the audit and no follow-up removal issues have been opened
 
 ## Workflow follow-up
 
